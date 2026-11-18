@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import pdfplumber
 
 class FileReadError(Exception):
     pass
@@ -28,8 +29,26 @@ def ler_arquivo_tabular(caminho_arquivo: str) -> pd.DataFrame:
                     break
             if df is None:
                 df = pd.read_csv(caminho_arquivo, sep=None, engine='python', dtype=str)
+        elif extensao == '.pdf':
+            linhas_extraidas = []
+            cabecalho = None
+            with pdfplumber.open(caminho_arquivo) as pdf:
+                for pagina in pdf.pages:
+                    tabelas = pagina.extract_tables()
+                    for tabela in tabelas:
+                        for linha in tabela:
+                            linha_limpa = [str(cel).replace('\n', ' ').strip() if cel is not None else '' for cel in linha]
+                            if not any(linha_limpa):
+                                continue
+                            if cabecalho is None:
+                                cabecalho = linha_limpa
+                            elif linha_limpa != cabecalho and len(linha_limpa) == len(cabecalho):
+                                linhas_extraidas.append(linha_limpa)
+            if not cabecalho or not linhas_extraidas:
+                raise FileReadError("Nenhuma tabela estruturada foi encontrada dentro do PDF.")
+            df = pd.DataFrame(linhas_extraidas, columns=cabecalho)
         else:
-            raise FileReadError(f"Formato não suportado ({extensao}). Envie .xlsx, .xls ou .csv.")
+            raise FileReadError(f"Formato não suportado ({extensao}). Envie .xlsx, .xls, .csv ou .pdf.")
 
         df.columns = [str(col).strip() for col in df.columns]
         df.dropna(how='all', inplace=True)
