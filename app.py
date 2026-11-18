@@ -12,16 +12,20 @@ def processar_arquivo(file):
     filename = file.filename.lower()
     
     try:
-        if filename.endswith('.csv'):
-            decoded_file = file.read().decode('utf-8').splitlines()
+        # Se for enviado como CSV ou texto plano
+        if filename.endswith('.csv') or filename.endswith('.txt'):
+            decoded_file = file.read().decode('utf-8', errors='ignore').splitlines()
             reader = csv.DictReader(decoded_file)
             for row in reader:
+                # Normaliza as chaves removendo espaços extras
+                row_limpa = {k.strip().lower(): v for k, v in row.items() if k}
                 dados.append({
-                    "data": row.get("data", ""),
-                    "nota": str(row.get("nota", "")).strip(),
-                    "cfop": str(row.get("cfop", "")).strip(),
-                    "valor": float(row.get("valor", 0) or 0)
+                    "data": row_limpa.get("data", ""),
+                    "nota": str(row_limpa.get("nota", "")).strip(),
+                    "cfop": str(row_limpa.get("cfop", "")).strip(),
+                    "valor": float(row_limpa.get("valor", 0) or 0)
                 })
+        # Se for enviado como Excel (.xlsx)
         elif filename.endswith('.xlsx'):
             wb = openpyxl.load_workbook(file)
             ws = wb.active
@@ -34,7 +38,7 @@ def processar_arquivo(file):
                         "valor": float(row[3] or 0) if row[3] else 0.0
                     })
     except Exception as e:
-        print(f"Erro ao processar arquivo: {e}")
+        print(f"Erro detalhado ao processar arquivo: {e}")
         
     return dados
 
@@ -47,55 +51,42 @@ def index():
         livro_file = request.files.get("livro_fiscal")
         planilha_file = request.files.get("planilha_fiscal")
         
-        data_inicio = request.form.get("data_inicio")
-        data_fim = request.form.get("data_fim")
-        nota_filtro = request.form.get("nota")
-        cfop_filtro = request.form.get("cfop")
-
         livro_dados = processar_arquivo(livro_file)
         planilha_dados = processar_arquivo(planilha_file)
 
-        livro_dict = {item["nota"]: item for item in livro_dados}
-        planilha_dict = {item["nota"]: item for item in planilha_dados}
+        # Mensagem de diagnóstico para ver se os arquivos foram lidos
+        if not livro_dados and not planilha_dados:
+            mensagem = "⚠️ Nenhum dado foi lido dos arquivos. Verifique se o formato é CSV ou XLSX e se as colunas estão corretas."
+        else:
+            livro_dict = {item["nota"]: item for item in livro_dados if item["nota"]}
+            planilha_dict = {item["nota"]: item for item in planilha_dados if item["nota"]}
 
-        todas_notas = set(livro_dict.keys()).union(set(planilha_dict.keys()))
+            todas_notas = set(livro_dict.keys()).union(set(planilha_dict.keys()))
 
-        for nota in todas_notas:
-            item_livro = livro_dict.get(nota)
-            item_planilha = planilha_dict.get(nota)
+            for nota in todas_notas:
+                item_livro = livro_dict.get(nota)
+                item_planilha = planilha_dict.get(nota)
 
-            status = "OK"
-            detalhe = "Conferido com sucesso."
+                status = "OK"
+                detalhe = "Conferido com sucesso."
 
-            if not item_livro:
-                status = "Divergente"
-                detalhe = "Presente apenas na Planilha."
-                item_ref = item_planilha
-            elif not item_planilha:
-                status = "Divergente"
-                detalhe = "Presente apenas no Livro Fiscal."
-                item_ref = item_livro
-            else:
-                item_ref = item_livro
-                if float(item_livro["valor"]) != float(item_planilha["valor"]):
+                if not item_livro:
                     status = "Divergente"
-                    detalhe = f"Divergência de Valor (Livro: {item_livro['valor']} x Planilha: {item_planilha['valor']})"
-                elif item_livro["cfop"] != item_planilha["cfop"]:
+                    detalhe = "Presente apenas na Planilha."
+                    item_ref = item_planilha
+                elif not item_planilha:
                     status = "Divergente"
-                    detalhe = f"Divergência de CFOP (Livro: {item_livro['cfop']} x Planilha: {item_planilha['cfop']})"
+                    detalhe = "Presente apenas no Livro Fiscal."
+                    item_ref = item_livro
+                else:
+                    item_ref = item_livro
+                    if float(item_livro["valor"]) != float(item_planilha["valor"]):
+                        status = "Divergente"
+                        detalhe = f"Divergência de Valor (Livro: {item_livro['valor']} x Planilha: {item_planilha['valor']})"
+                    elif item_livro["cfop"] != item_planilha["cfop"]:
+                        status = "Divergente"
+                        detalhe = f"Divergência de CFOP (Livro: {item_livro['cfop']} x Planilha: {item_planilha['cfop']})"
 
-            # Aplicação dos 4 filtros
-            incluir = True
-            if data_inicio and item_ref["data"] < data_inicio:
-                incluir = False
-            if data_fim and item_ref["data"] > data_fim:
-                incluir = False
-            if nota_filtro and nota_filtro.lower() not in nota.lower():
-                incluir = False
-            if cfop_filtro and cfop_filtro.lower() not in item_ref["cfop"].lower():
-                incluir = False
-
-            if incluir:
                 resultados.append({
                     "data": item_ref["data"],
                     "nota": nota,
@@ -104,8 +95,8 @@ def index():
                     "status": status,
                     "detalhe": detalhe
                 })
-        
-        mensagem = f"Cruzamento concluído! Total de registros analisados: {len(resultados)}"
+            
+            mensagem = f"✅ Conferência realizada! Livro: {len(livro_dados)} itens | Planilha: {len(planilha_dados)} itens."
 
     return render_template("index.html", resultados=resultados, mensagem=mensagem)
 
