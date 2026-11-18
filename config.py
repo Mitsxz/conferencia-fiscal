@@ -7,7 +7,7 @@ class Config:
     DATABASE_PATH = os.path.join(BASE_DIR, 'fiscal_audit.db')
     UPLOAD_RAW_FOLDER = os.path.join(BASE_DIR, 'uploads', 'raw')
     REPORTS_FOLDER = os.path.join(BASE_DIR, 'uploads', 'reports')
-    ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'csv'}
+    ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'csv', 'pdf'}
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # Limite de 50 MB por envio
 
     @staticmethod
