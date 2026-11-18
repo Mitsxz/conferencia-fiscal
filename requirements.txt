@@ -5,3 +5,4 @@ xlrd
 fpdf2
 Werkzeug
 gunicorn
+pdfplumber
