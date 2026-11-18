@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resultado - {{ conf.titulo }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
+    </style>
+</head>
+<body class="p-4">
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <a href="/" class="text-decoration-none small">← Voltar ao Início</a>
+            <h3 class="fw-bold mb-0">{{ conf.titulo }}</h3>
+            <span class="text-muted small">Processado em: {{ conf.criado_em }} | Tolerância: R$ {{ conf.tolerancia_valor }}</span>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/relatorio/{{ conf.id }}/excel" class="btn btn-success">Exportar Excel (.xlsx)</a>
+            <a href="/relatorio/{{ conf.id }}/pdf" class="btn btn-danger">Exportar PDF</a>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-2"><div class="card p-3"><div class="small text-muted">Analisados</div><h3 class="fw-bold mb-0">{{ conf.total_analisados }}</h3></div></div>
+        <div class="col-md-2"><div class="card p-3 border-start border-success border-4"><div class="small text-muted">Correspondências</div><h3 class="fw-bold text-success mb-0">{{ conf.total_correspondencias }} ({{ conf.percentual_correspondencia }}%)</h3></div></div>
+        <div class="col-md-2"><div class="card p-3 border-start border-danger border-4"><div class="small text-muted">Divergências</div><h3 class="fw-bold text-danger mb-0">{{ conf.total_divergencias }}</h3></div></div>
+        <div class="col-md-2"><div class="card p-3 border-start border-warning border-4"><div class="small text-muted">Ausente Planilha</div><h3 class="fw-bold text-warning mb-0">{{ conf.total_ausentes_planilha }}</h3></div></div>
+        <div class="col-md-2"><div class="card p-3 border-start border-info border-4"><div class="small text-muted">Ausente Livro</div><h3 class="fw-bold text-info mb-0">{{ conf.total_ausentes_livro }}</h3></div></div>
+        <div class="col-md-2"><div class="card p-3 border-start border-dark border-4"><div class="small text-muted">Duplicidades</div><h3 class="fw-bold text-dark mb-0">{{ conf.total_duplicidades }}</h3></div></div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="card p-3 h-100">
+                <h6 class="fw-bold mb-3">Distribuição da Conferência</h6>
+                <canvas id="graficoResumo"></canvas>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
+                    <h6 class="fw-bold mb-0">Detalhamento dos Registros</h6>
+                    <div class="d-flex gap-2">
+                        <select id="filtroCategoria" class="form-select form-select-sm">
+                            <option value="TODOS">Todos os Registros</option>
+                            <option value="DIVERGENCIA">Somente Divergências</option>
+                            <option value="AUSENTE_PLANILHA">Ausentes nas Planilhas</option>
+                            <option value="AUSENTE_LIVRO">Ausentes no Livro Fiscal</option>
+                            <option value="DUPLICIDADE">Duplicidades</option>
+                            <option value="CORRESPONDENCIA">Correspondências OK</option>
+                        </select>
+                        <input type="text" id="buscaTabela" class="form-control form-control-sm" placeholder="Pesquisar NF, CNPJ, Produto...">
+                    </div>
+                </div>
+
+                <div class="table-responsive" style="max-height: 480px;">
+                    <table class="table table-hover table-sm align-middle" id="tabelaItens">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>Chave de Identificação</th>
+                                <th>Resultado</th>
+                                <th>Diferenças Identificadas</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in itens %}
+                            <tr class="linha-item" data-categoria="{{ item.categoria_resultado }}">
+                                <td class="small fw-semibold">{{ item.chave_identificacao }}</td>
+                                <td>
+                                    {% if item.categoria_resultado == 'CORRESPONDENCIA' %}
+                                        <span class="badge bg-success">OK</span>
+                                    {% elif item.categoria_resultado == 'DIVERGENCIA' %}
+                                        <span class="badge bg-danger">DIVERGÊNCIA ({{ item.tipo_divergencia }})</span>
+                                    {% elif item.categoria_resultado == 'DUPLICIDADE' %}
+                                        <span class="badge bg-dark">DUPLICIDADE</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark">{{ item.categoria_resultado }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="small">
+                                    {% for d in item.diferencas %}
+                                        <div><strong>{{ d.campo }}:</strong> Livro = <code>{{ d.livro }}</code> | Planilha = <code>{{ d.planilha }}</code> (Dif: {{ d.diferenca }})</div>
+                                    {% else %}
+                                        <span class="text-muted">Valores e dados conferem</span>
+                                    {% endfor %}
+                                </td>
+                                <td>
+                                    <select class="form-select form-select-sm status-select" data-id="{{ item.id }}">
+                                        <option value="PENDENTE" {% if item.status_revisao == 'PENDENTE' %}selected{% endif %}>Pendente</option>
+                                        <option value="VALIDADO" {% if item.status_revisao == 'VALIDADO' %}selected{% endif %}>Validado</option>
+                                        <option value="JUSTIFICADO" {% if item.status_revisao == 'JUSTIFICADO' %}selected{% endif %}>Justificado</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+new Chart(document.getElementById('graficoResumo'), {
+    type: 'doughnut',
+    data: {
+        labels: ['Correspondências', 'Divergências', 'Ausente Planilha', 'Ausente Livro', 'Duplicidades'],
+        datasets: [{
+            data: [
+                {{ conf.total_correspondencias }},
+                {{ conf.total_divergencias }},
+                {{ conf.total_ausentes_planilha }},
+                {{ conf.total_ausentes_livro }},
+                {{ conf.total_duplicidades }}
+            ],
+            backgroundColor: ['#198754', '#dc3545', '#ffc107', '#0dcaf0', '#212529']
+        }]
+    }
+});
+
+function filtrarTabela() {
+    const cat = document.getElementById('filtroCategoria').value;
+    const termo = document.getElementById('buscaTabela').value.toLowerCase();
+    document.querySelectorAll('.linha-item').forEach(tr => {
+        const matchCat = cat === 'TODOS' || tr.dataset.categoria === cat;
+        const matchTexto = tr.textContent.toLowerCase().includes(termo);
+        tr.style.display = (matchCat && matchTexto) ? '' : 'none';
+    });
+}
+
+document.getElementById('filtroCategoria').addEventListener('change', filtrarTabela);
+document.getElementById('buscaTabela').addEventListener('input', filtrarTabela);
+
+document.querySelectorAll('.status-select').forEach(sel => {
+    sel.addEventListener('change', async (e) => {
+        await fetch(`/api/item/${e.target.dataset.id}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: e.target.value })
+        });
+    });
+});
+</script>
+</body>
+</html>
