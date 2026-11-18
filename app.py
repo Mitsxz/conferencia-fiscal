@@ -1,50 +1,120 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request
 import os
+import csv
+import openpyxl
 
 app = Flask(__name__)
 
-# Base de dados simulada ou em memória para testes rápidos no Vercel (ou adapte ao seu database.py)
-# Certifique-se de que cada registro possui chaves correspondentes aos filtros:
-# 'data', 'nota', 'cfop', 'valor'
-DADOS_EXEMPLO = [
-    {"id": 1, "data": "2026-06-01", "nota": "1001", "cfop": "5102", "valor": 150.00},
-    {"id": 2, "data": "2026-06-02", "nota": "1002", "cfop": "6102", "valor": 320.50},
-    {"id": 3, "data": "2026-06-03", "nota": "1003", "cfop": "5405", "valor": 89.90},
-]
+# Função auxiliar para ler dados enviados (suporta CSV, planilhas e textos)
+def processar_arquivo(file):
+    dados = []
+    if not file or file.filename == '':
+        return dados
+    
+    filename = file.filename.lower()
+    
+    # Se for arquivo CSV ou Excel simulado em texto/csv
+    if filename.endswith('.csv'):
+        decoded_file = file.read().decode('utf-8').splitlines()
+        reader = csv.DictReader(decoded_file)
+        for row in reader:
+            # Padroniza as chaves essenciais
+            dados.append({
+                "data": row.get("data", ""),
+                "nota": str(row.get("nota", "")).strip(),
+                "cfop": str(row.get("cfop", "")).strip(),
+                "valor": float(row.get("valor", 0) or 0)
+            })
+    elif filename.endswith('.xlsx'):
+        wb = openpyxl.load_workbook(file)
+        ws = wb.active
+        # Assume que a primeira linha é o cabeçalho
+        cabecalhos = [cell.value for cell in ws[1]]
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if any(row): # se a linha não estiver vazia
+                dados.append({
+                    "data": str(row[0]) if len(row) > 0 and row[0] else "",
+                    "nota": str(row[1]).strip() if len(row) > 1 and row[1] else "",
+                    "cfop": str(row[2]).strip() if len(row) > 2 and row[2] else "",
+                    "valor": float(row[3] or 0) if len(row) > 3 and row[3] else 0.0
+                })
+    return dados
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    resultados = DADOS_EXEMPLO
-    
-    # Captura dos filtros solicitados
-    data_inicio = request.form.get("data_inicio") or request.args.get("data_inicio")
-    data_fim = request.form.get("data_fim") or request.args.get("data_fim")
-    nota_filtro = request.form.get("nota") or request.args.get("nota")
-    cfop_filtro = request.form.get("cfop") or request.args.get("cfop")
-    valor_min = request.form.get("valor_min") or request.args.get("valor_min")
-    valor_max = request.form.get("valor_max") or request.args.get("valor_max")
+    divergencias = []
+    sucesso_msg = None
 
-    # Aplicação dos filtros restritos estritamente a: Datas, Notas, CFOPs e Valores
-    if data_inicio:
-        resultados = [r for r in resultados if r["data"] >= data_inicio]
-    if data_fim:
-        resultados = [r for r in resultados if r["data"] <= data_fim]
-    if nota_filtro:
-        resultados = [r for r in resultados if nota_filtro.lower() in str(r["nota"]).lower()]
-    if cfop_filtro:
-        resultados = [r for r in resultados if cfop_filtro.lower() in str(r["cfop"]).lower()]
-    if valor_min:
-        try:
-            resultados = [r for r in resultados if float(r["valor"]) >= float(valor_min)]
-        except ValueError:
-            pass
-    if valor_max:
-        try:
-            resultados = [r for r in resultados if float(r["valor"]) <= float(valor_max)]
-        except ValueError:
-            pass
+    if request.method == "POST":
+        # Captura os arquivos enviados no formulário
+        livro_file = request.files.get("livro_fiscal")
+        planilha_file = request.files.get("planilha_fiscal")
+        
+        # Filtros opcionais de busca
+        data_inicio = request.form.get("data_inicio")
+        data_fim = request.form.get("data_fim")
+        nota_filtro = request.form.get("nota")
+        cfop_filtro = request.form.get("cfop")
 
-    return render_template("index.html", resultados=resultados)
+        livro_dados = processar_arquivo(livro_file)
+        planilha_dados = processar_arquivo(planilha_file)
+
+        # Lógica de Conferência / Cruzamento por Nota Fiscal
+        # Transformamos em dicionários baseados no número da nota para comparar
+        livro_dict = {item["nota"]: item for item in livro_dados}
+        planilha_dict = {item["nota"]: item for item in planilha_dados}
+
+        todas_notas = set(livro_dict.keys()).union(set(planilha_dict.keys()))
+
+        for nota in todas_notas:
+            item_livro = livro_dict.get(nota)
+            item_planilha = planilha_dict.get(nota)
+
+            status = "OK"
+            detalhe = "Valores e dados conferem perfeitamente."
+
+            if not item_livro:
+                status = "Divergente"
+                detalhe = "Nota presente apenas na Planilha (Falta no Livro Fiscal)."
+                item_ref = item_planilha
+            elif not item_planilha:
+                status = "Divergente"
+                detalhe = "Nota presente apenas no Livro Fiscal (Falta na Planilha)."
+                item_ref = item_livro
+            else:
+                item_ref = item_livro
+                # Compara valores
+                if float(item_livro["valor"]) != float(item_planilha["valor"]):
+                    status = "Divergente"
+                    detalhe = f"Divergência de Valor: Livro (R$ {item_livro['valor']:.2f}) x Planilha (R$ {item_planilha['valor']:.2f})"
+                elif item_livro["cfop"] != item_planilha["cfop"]:
+                    status = "Divergente"
+                    detalhe = f"Divergência de CFOP: Livro ({item_livro['cfop']}) x Planilha ({item_planilha['cfop']})"
+
+            # Aplicação dos filtros solicitados pelo usuário
+            incluir = True
+            if data_inicio and item_ref["data"] < data_inicio:
+                incluir = False
+            if data_fim and item_ref["data"] > data_fim:
+                incluir = False
+            if nota_filtro and nota_filtro.lower() not in nota.lower():
+                incluir = False
+            if cfop_filtro and cfop_filtro.lower() not in item_ref["cfop"].lower():
+                incluir = False
+
+            if incluir:
+                divergencias.append({
+                    "data": item_ref["data"],
+                    "nota": nota,
+                    "cfop": item_ref["cfop"],
+                    "valor": item_ref["valor"],
+                    "status": status,
+                    "detalhe": detalhe
+                })
+        
+        sucesso_msg = f"Conferência realizada com sucesso! Total de itens processados: {len(divergencias)}"
+
+    return render_template("index.html", resultados=divergencias, mensagem=sucesso_msg)
 
 if __name__ == "__main__":
     app.run(debug=True)
