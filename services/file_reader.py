@@ -66,7 +66,6 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
             reader = PdfReader(caminho_arquivo)
 
             if modo_operacao == 'resumo_cfop':
-                # Modo 1: Foca nas últimas 15 páginas onde fica o Resumo por CFOP
                 paginas_alvo = reader.pages[-15:] if len(reader.pages) > 15 else reader.pages
                 texto_completo = "\n".join([p.extract_text() or '' for p in paginas_alvo])
                 linhas = texto_completo.splitlines()
@@ -97,11 +96,11 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                         }
 
                 if not cfops_encontrados:
-                    raise FileReadError("Modo Resumo selecionado, mas nenhum quadro de Resumo por CFOP foi encontrado no PDF.")
+                    amostra = " | ".join([l.strip() for l in linhas_analise if l.strip()][:12])
+                    raise FileReadError(f"Resumo não encontrado. Texto lido do fim do PDF: {amostra[:350]}")
                 registros = list(cfops_encontrados.values())
 
             else:
-                # Modo 2: Detalhado por Nota (leitura flexível para layout de Livro Fiscal)
                 texto_completo = "\n".join([p.extract_text() or '' for p in reader.pages])
                 linhas = texto_completo.splitlines()
 
@@ -150,10 +149,9 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                             "valor": valor_str
                         })
 
-                        if not registros:
-                        amostra = " | ".join([l.strip() for l in linhas if l.strip()][:12])
-                         raise FileReadError(f"Nenhuma linha encontrada. Texto lido do PDF: {amostra[:350]}")
-       
+                if not registros:
+                    amostra = " | ".join([l.strip() for l in linhas if l.strip()][:12])
+                    raise FileReadError(f"Nenhuma nota encontrada. Texto lido do PDF: {amostra[:350]}")
         else:
             raise FileReadError(f"Formato não suportado ({extensao}). Envie .xlsx, .csv ou .pdf.")
 
