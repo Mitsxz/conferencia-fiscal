@@ -131,7 +131,6 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                 paginas_alvo = reader.pages[-4:] if len(reader.pages) > 4 else reader.pages
                 texto_final = "\n".join([p.extract_text() or '' for p in paginas_alvo])
 
-                # Ancora exatamente na última ocorrência de DEMONSTRATIVO POR CFOP
                 pos_inicio = -1
                 for marcador in ['DEMONSTRATIVO POR CFOP', 'DEMONSTRATIVO', 'COMPARATIVO POR CFOP']:
                     idx_m = texto_final.upper().rfind(marcador)
@@ -145,7 +144,6 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                 trecho_quadro = texto_final[pos_inicio:]
                 linhas_quadro = trecho_quadro.splitlines()
 
-                # Layout exato do quadro: Valor Contábil ANTES do CFOP (ex: 707.880,50   1-102)
                 padrao_linha_cfop = re.compile(
                     r'(\d{1,3}(?:\.\d{3})*,\d{2})\s+([123567][\.\-]\d{3})\b'
                 )
@@ -178,16 +176,17 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                 texto_bruto = " ".join([p.extract_text() or '' for p in reader.pages])
                 texto_limpo = re.sub(r'\s+', ' ', texto_bruto)
 
+                # Permite múltiplas linhas de tributação (ex: 2 40.460,00 e 3 14.784,98) antes do número da nota
                 padrao_modelo_p1 = re.compile(
-                    r'(\d{2}/\d{2}/\d{4})\s*'
-                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,80}?'
-                    r'(\d{2}/\d{2}/\d{4})\s*'
-                    r'[A-Z]{2}\s*'
-                    r'(\d{1,3}(?:\.\d{3})*,\d{2})\s*'
-                    r'([123567][\.\-]\d{3})\s*'
-                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,60}?'
-                    r'(?:,\d{2}|\s)(\d{1,9})'
-                    r'(?=\s*\d{2}/\d{2}/\d{4}|\s*OBS|\s*TOTAL|\s*SUBTOTAL|\s*FOLHA|\s*$)'
+                    r'(\d{2}/\d{2}/\d{4})\s*'                  # 1. Data de entrada
+                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,80}?'       # Espécie / Série / Código emitente
+                    r'(\d{2}/\d{2}/\d{4})\s*'                  # 2. Data de emissão
+                    r'[A-Z]{2}\s*'                             # UF
+                    r'(\d{1,3}(?:\.\d{3})*,\d{2})\s*'          # 3. Valor Contábil total da nota
+                    r'([123567][\.\-]\d{3})\s*'                # 4. CFOP
+                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,300}?'      # Desdobramentos de tributação (1, 2, 3...)
+                    r'(?:,\d{2}|\s)(\d{1,9})'                  # 5. Número da Nota no fim do bloco
+                    r'(?=\s*\d{2}/\d{2}/\d{4}|\s*OBS|\s*TOTAL|\s*SUBTOTAL|\s*FOLHA|\s*DEMONSTRATIVO|\s*$)'
                 )
 
                 for match in padrao_modelo_p1.finditer(texto_limpo):
