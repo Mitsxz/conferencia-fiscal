@@ -102,43 +102,45 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                 registros = list(cfops_encontrados.values())
 
             else:
-                texto_completo = "\n".join([p.extract_text() or '' for p in reader.pages])
-                linhas = texto_completo.splitlines()
+                # Normaliza espaços e quebras de linha em todo o texto do PDF para não perder registros divididos em múltiplas linhas
+                texto_bruto = " ".join([p.extract_text() or '' for p in reader.pages])
+                texto_limpo = re.sub(r'\s+', ' ', texto_bruto)
 
-                # Aceita Código do Emitente opcional entre a Data de Emissão e a UF (ex: 29/10/2026 111 RJ 14.300,00 2-919)
+                # Captura cada lançamento entre a Data de Entrada e o CFOP (com hífen ou ponto)
                 padrao_modelo_p1 = re.compile(
-                    r'(\d{2}/\d{2}/\d{4})'                    # 1. Data de entrada (ex: 29/10/2026)
-                    r'.*?'                                    # Espécie / Série / valores intermediários
-                    r'(\d{1,9})\s*'                           # 2. Número da Nota (ex: 2809 ou 036)
-                    r'(\d{2}/\d{2}/\d{4})\s+'                 # 3. Data de emissão (ex: 29/10/2026)
-                    r'(?:\d+\s+)?'                            # Código do emitente opcional (ex: 111)
-                    r'[A-Z]{2}\s+'                            # UF (ex: RJ, SP, DF)
-                    r'(\d{1,3}(?:\.\d{3})*,\d{2})\s+'         # 4. Valor Contábil (ex: 14.300,00)
-                    r'([123567][\.\-]?\d{3})'                 # 5. CFOP (ex: 2-919, 2-102)
+                    r'(\d{2}/\d{2}/\d{4})\s*'                  # 1. Data de entrada (ex: 29/10/2026)
+                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,80}?'       # Espécie/Série/valores intermediários (sem cruzar outra data)
+                    r'(\d{1,9})\s*'                            # 2. Número da Nota (ex: 2809 ou 036)
+                    r'(\d{2}/\d{2}/\d{4})\s*'                  # 3. Data de emissão (ex: 29/10/2026)
+                    r'(?:\d+\s*)?'                             # Código do emitente opcional (ex: 111)
+                    r'[A-Z]{2}\s*'                             # UF (ex: RJ, SP, DF)
+                    r'(\d{1,3}(?:\.\d{3})*,\d{2})\s*'          # 4. Valor Contábil (ex: 14.300,00)
+                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,30}?'       # Eventual código contábil antes do CFOP
+                    r'([123567][\.\-]\d{3})'                   # 5. CFOP com hífen/ponto (ex: 2-919, 2-102)
                 )
 
-                for idx, linha in enumerate(linhas):
-                    bloco = linha.strip()
-                    if idx + 1 < len(linhas) and not re.match(r'^\d{2}/\d{2}/\d{4}', linhas[idx + 1].strip()):
-                        bloco += " " + linhas[idx + 1].strip()
+                for match in padrao_modelo_p1.finditer(texto_limpo):
+                    data_ent, nota_raw, data_emi, valor_str, cfop_raw = match.groups()
+                    nota_limpa = nota_raw.lstrip('0') or '0'
+                    cfop_limpo = re.sub(r'\D', '', cfop_raw)
 
-                    match = padrao_modelo_p1.search(bloco)
-                    if match:
-                        data_ent, nota_raw, data_emi, valor_str, cfop_raw = match.groups()
-                        nota_limpa = nota_raw.lstrip('0') or '0'
-                        cfop_limpo = re.sub(r'\D', '', cfop_raw)
+                    registros.append({
+                        "data": data_ent,
+                        "nota": nota_limpa,
+                        "cfop": cfop_limpo,
+                        "valor": valor_str
+                    })
 
-                        registros.append({
-                            "data": data_ent,
-                            "nota": nota_limpa,
-                            "cfop": cfop_limpo,
-                            "valor": valor_str
-                        })
+                # Diagnóstico: se capturou notas, mas a 2809 ficou de fora, exibe o trecho exato onde 2809 está no texto
+                notas_capturadas = {r['nota'] for r in registros}
+                if '2809' in texto_limpo and '2809' not in notas_capturadas:
+                    pos = texto_limpo.find('2809')
+                    trecho = texto_limpo[max(0, pos - 60):min(len(texto_limpo), pos + 140)]
+                    raise FileReadError(f"Diagnóstico Nota 2809 no texto do PDF: [{trecho}]")
 
                 if not registros:
-                    linhas_validas = [l.strip() for l in linhas if l.strip()]
-                    amostra = " | ".join(linhas_validas[25:65])
-                    raise FileReadError(f"Nenhuma nota capturada. Amostra: {amostra[:500]}")
+                    amostra = texto_limpo[:500]
+                    raise FileReadError(f"Nenhuma nota capturada. Amostra: {amostra}")
         else:
             raise FileReadError(f"Formato não suportado ({extensao}). Envie .xlsx, .csv ou .pdf.")
 
