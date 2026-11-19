@@ -1,6 +1,8 @@
 import os
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+# Na Vercel (VERCEL=1), apenas /tmp permite escrita de arquivos
+IS_VERCEL = os.environ.get('VERCEL') == '1'
+BASE_DIR = '/tmp' if IS_VERCEL else os.path.abspath(os.path.dirname(__file__))
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'chave-interna-conferencia-fiscal-2026')
