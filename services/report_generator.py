@@ -1,7 +1,11 @@
 import os
 import openpyxl
-from fpdf import FPDF
 from config import Config
+
+try:
+    from fpdf import FPDF
+except ImportError:
+    FPDF = None
 
 def gerar_relatorio_excel(conferencia_id: int, titulo: str, resumo: dict, itens: list) -> str:
     nome_arquivo = f"Relatorio_Conferencia_{conferencia_id}.xlsx"
