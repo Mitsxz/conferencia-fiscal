@@ -145,21 +145,21 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                 trecho_quadro = texto_final[pos_inicio:]
                 linhas_quadro = trecho_quadro.splitlines()
 
-                # Captura CFOP (ex: 1-102, 2.102 ou 2102) e o primeiro valor monetário da linha (Valor Contábil)
+                # Layout exato do quadro: Valor Contábil ANTES do CFOP (ex: 707.880,50   1-102)
                 padrao_linha_cfop = re.compile(
-                    r'(?:^|\s)([123567][\.\-]?\d{3})\b\s+.*?(\d{1,3}(?:\.\d{3})*,\d{2})'
+                    r'(\d{1,3}(?:\.\d{3})*,\d{2})\s+([123567][\.\-]\d{3})\b'
                 )
 
                 cfops_encontrados = {}
                 for linha in linhas_quadro:
                     linha_limpa = linha.strip()
                     upper = linha_limpa.upper()
-                    if any(t in upper for t in ['TOTAL', 'SUBTOTAL', 'INSCRI', 'CNPJ', 'FOLHA', 'PÁGINA', 'PAGINA', 'DEMONSTRATIVO']):
+                    if any(t in upper for t in ['TOTAL', 'SUBTOTAL', 'INSCRI', 'CNPJ', 'FOLHA', 'PÁGINA', 'PAGINA']):
                         continue
 
                     m = padrao_linha_cfop.search(linha_limpa)
                     if m:
-                        cfop_raw, valor_str = m.groups()
+                        valor_str, cfop_raw = m.groups()
                         cfop_limpo = re.sub(r'\D', '', cfop_raw)
                         if cfop_limpo.startswith('202'):
                             continue
