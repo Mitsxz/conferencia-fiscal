@@ -121,7 +121,7 @@ def index():
         filtro_cfop = re.sub(r'\D', '', request.form.get('cfop', '').strip())
 
         # =====================================================================
-        # MODO 1: RESUMO CONSOLIDADO POR CFOP (SOMA LIVRO E PLANILHA SEM ALERTAS)
+        # MODO 1: RESUMO CONSOLIDADO POR CFOP
         # =====================================================================
         if modo_operacao == 'resumo_cfop':
             if 'cfop' not in map_livro or 'cfop' not in map_plan:
@@ -311,100 +311,17 @@ def index():
             if filtro_cfop and filtro_cfop != cfop_item:
                 continue
 
-            status_txt = 'OK' if item['categoria_resultado'] == 'CORRESPONDENCIA' else item['categoria_resultado']
-            partes_detalhe = []
-            for d in item.get('diferencas', []):
-                if d['campo'] == 'valor_total':
-                    l_fmt = formatar_brl(d['livro'])
-                    p_fmt = formatar_brl(d['planilha'])
-                    dif_fmt = formatar_brl(d['diferenca'])
-                    partes_detalhe.append(f"Valor: Livro (R$ {l_fmt}) vs Planilha (R$ {p_fmt}) | Dif: R$ {dif_fmt}")
+            diffs = item.get('diferencas', [])
+            campos_divergentes = {d.get('campo') for d in diffs}
+
+            if item['categoria_resultado'] == 'CORRESPONDENCIA':
+                status_txt = 'OK'
+            elif item['categoria_resultado'] == 'DIVERGENCIA':
+                if campos_divergentes == {'data_emissao'}:
+                    status_txt = 'DIVERGENCIA_DATA'
                 else:
-                    partes_detalhe.append(f"{d['campo']}: Livro ({d['livro']}) vs Planilha ({d['planilha']}) | Dif: {d['diferenca']}")
+                    status_txt = 'DIVERGENCIA'
+            else:
+                status_txt = item['categoria_resultado']
 
-            detalhes_txt = "; ".join(partes_detalhe) or f"Total confere (R$ {valor_fmt})"
-
-            resultados_tabela.append({
-                'data': data_item or 'Período',
-                'nota': nota_item or '-',
-                'cfop': cfop_item or '-',
-                'valor': valor_fmt,
-                'status': status_txt,
-                'detalhe': detalhes_txt
-            })
-
-        msg = (
-            f"Conferência #{conferencia_id} [Detalhado por Nota] concluída! "
-            f"Analisados: {resumo['total_analisados']} | OK: {resumo['correspondencias']} | Divergências: {resumo['divergencias']}"
-        )
-        return render_template('index.html', resultados=resultados_tabela, mensagem=msg, conferencia_id=conferencia_id)
-
-    except FileReadError as e:
-        return render_template('index.html', resultados=[], mensagem=f"Erro ao ler arquivo: {str(e)}")
-    except Exception as e:
-        return render_template('index.html', resultados=[], mensagem=f"Erro inesperado: {str(e)}")
-
-
-@app.route('/resultado/<int:conferencia_id>')
-def ver_resultado(conferencia_id):
-    conn = get_db_connection()
-    conf = conn.execute('SELECT * FROM conferencias WHERE id = ?', (conferencia_id,)).fetchone()
-    if not conf:
-        conn.close()
-        return redirect(url_for('index'))
-    itens_db = conn.execute('SELECT * FROM conferencia_itens WHERE conferencia_id = ?', (conferencia_id,)).fetchall()
-    conn.close()
-    itens = []
-    for row in itens_db:
-        item = dict(row)
-        item['diferencas'] = json.loads(item['diferencas_json']) if item['diferencas_json'] else []
-        itens.append(item)
-    return render_template('resultado.html', conf=dict(conf), itens=itens)
-
-
-@app.route('/relatorio/<int:conferencia_id>/<tipo>')
-def exportar_relatorio(conferencia_id, tipo):
-    conn = get_db_connection()
-    conf = conn.execute('SELECT * FROM conferencias WHERE id = ?', (conferencia_id,)).fetchone()
-    if not conf:
-        conn.close()
-        return "Conferência não encontrada", 404
-    itens_db = conn.execute('SELECT * FROM conferencia_itens WHERE conferencia_id = ?', (conferencia_id,)).fetchall()
-    conn.close()
-    resumo = {
-        'total_analisados': conf['total_analisados'],
-        'correspondencias': conf['total_correspondencias'],
-        'divergencias': conf['total_divergencias'],
-        'ausentes_planilha': conf['total_ausentes_planilha'],
-        'ausentes_livro': conf['total_ausentes_livro'],
-        'duplicidades': conf['total_duplicidades'],
-        'percentual_correspondencia': conf['percentual_correspondencia'],
-    }
-    itens = []
-    for row in itens_db:
-        item = dict(row)
-        item['diferencas'] = json.loads(item['diferencas_json']) if item['diferencas_json'] else []
-        itens.append(item)
-    Config.init_app()
-    if tipo == 'excel':
-        caminho = gerar_relatorio_excel(conferencia_id, conf['titulo'], resumo, itens)
-    elif tipo == 'pdf':
-        caminho = gerar_relatorio_pdf(conferencia_id, conf['titulo'], resumo, itens)
-    else:
-        return "Tipo inválido", 400
-    return send_file(caminho, as_attachment=True)
-
-
-@app.route('/api/item/<int:item_id>/status', methods=['POST'])
-def atualizar_status_item(item_id):
-    dados = request.get_json(silent=True) or {}
-    novo_status = dados.get('status', 'PENDENTE')
-    conn = get_db_connection()
-    conn.execute('UPDATE conferencia_itens SET status_revisao = ? WHERE id = ?', (novo_status, item_id))
-    conn.commit()
-    conn.close()
-    return jsonify({'ok': True, 'status': novo_status})
-
-
-if __name__ == '__main__':
-    app.run(debug=True)
+            partes_detalhe = []
