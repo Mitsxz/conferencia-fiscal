@@ -66,6 +66,7 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
             reader = PdfReader(caminho_arquivo)
 
             if modo_operacao == 'resumo_cfop':
+                # Modo 1: Foca nas últimas 15 páginas onde fica o Resumo por CFOP (aceita hífen: 2-102, 1-918, 2.102, 2102)
                 paginas_alvo = reader.pages[-15:] if len(reader.pages) > 15 else reader.pages
                 texto_completo = "\n".join([p.extract_text() or '' for p in paginas_alvo])
                 linhas = texto_completo.splitlines()
@@ -77,7 +78,7 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                         indice_inicio = idx
 
                 linhas_analise = linhas[indice_inicio:] if indice_inicio > 0 else linhas
-                padrao_resumo_cfop = re.compile(r'(?:^|\s)([123567]\.?\d{3})(?:\s+|\D+?)(\d{1,3}(?:\.\d{3})*,\d{2})')
+                padrao_resumo_cfop = re.compile(r'(?:^|\s)([123567][\.\-]?\d{3})(?:\s+|\D+?)(\d{1,3}(?:\.\d{3})*,\d{2})')
 
                 cfops_encontrados = {}
                 for linha in linhas_analise:
@@ -87,7 +88,7 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                     match = padrao_resumo_cfop.search(linha_limpa)
                     if match:
                         cfop_raw, valor_str = match.groups()
-                        cfop_limpo = cfop_raw.replace('.', '')
+                        cfop_limpo = re.sub(r'\D', '', cfop_raw)
                         if cfop_limpo.startswith('202'):
                             continue
                         cfops_encontrados[cfop_limpo] = {
@@ -102,58 +103,46 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                 registros = list(cfops_encontrados.values())
 
             else:
+                # Modo 2: Detalhado por Nota (layout Modelo P1 com CFOP 2-102 e número colado na data)
                 texto_completo = "\n".join([p.extract_text() or '' for p in reader.pages])
                 linhas = texto_completo.splitlines()
 
-                padrao_data = re.compile(r'\b(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})\b')
-                padrao_cfop = re.compile(r'\b([123567]\.?\d{3})\b')
-                padrao_valor = re.compile(r'\b(\d{1,3}(?:\.\d{3})*,\d{2})\b')
+                # Padrão exato encontrado na amostra:
+                # Ex: 01/10/2026Nota 1 4,00 168,0003630/09/2026 SP 4.536,00 2-102 ...
+                padrao_modelo_p1 = re.compile(
+                    r'(\d{2}/\d{2}/\d{4})'                    # 1. Data de entrada (ex: 01/10/2026)
+                    r'.*?'                                    # Espécie / Série / valores intermediários
+                    r'(\d{1,9})'                              # 2. Número da Nota colado antes da data de emissão
+                    r'(\d{2}/\d{2}/\d{4})\s+'                 # 3. Data de emissão (ex: 30/09/2026)
+                    r'[A-Z]{2}\s+'                            # UF (ex: SP, DF)
+                    r'(\d{1,3}(?:\.\d{3})*,\d{2})\s+'         # 4. Valor Contábil (ex: 4.536,00)
+                    r'([123567][\.\-]?\d{3})'                 # 5. CFOP (ex: 2-102, 1-918)
+                )
 
                 for idx, linha in enumerate(linhas):
-                    linha_limpa = linha.strip()
-                    if any(t in linha_limpa.upper() for t in ['TOTAL', 'SUBTOTAL', 'RESUMO', 'TRANSPORTE', 'PÁGINA', 'PAGINA']):
-                        continue
+                    bloco = linha.strip()
+                    # Junta a próxima linha caso o lançamento quebre em duas linhas no PDF
+                    if idx + 1 < len(linhas) and not re.match(r'^\d{2}/\d{2}/\d{4}', linhas[idx + 1].strip()):
+                        bloco += " " + linhas[idx + 1].strip()
 
-                    m_data = padrao_data.search(linha_limpa)
-                    if not m_data:
-                        continue
-
-                    bloco_texto = linha_limpa
-                    if idx + 1 < len(linhas):
-                        prox = linhas[idx + 1].strip()
-                        if not padrao_data.search(prox):
-                            bloco_texto += " " + prox
-
-                    texto_sem_doc = re.sub(r'\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b', '', bloco_texto)
-                    texto_sem_doc = re.sub(r'\b\d{3}\.\d{3}\.\d{3}-\d{2}\b', '', texto_sem_doc)
-                    texto_sem_doc = padrao_data.sub('', texto_sem_doc)
-
-                    m_cfop = padrao_cfop.search(texto_sem_doc)
-                    valores = padrao_valor.findall(texto_sem_doc)
-
-                    texto_sem_cfop = padrao_cfop.sub('', texto_sem_doc, count=1) if m_cfop else texto_sem_doc
-                    m_nota = re.search(r'\b(\d{1,3}(?:\.\d{3}){1,2}|\d{1,9})\b', texto_sem_cfop)
-
-                    if m_nota and m_cfop and valores:
-                        data_raw = m_data.group(1)
-                        nota_val = m_nota.group(1).replace('.', '')
-                        cfop_val = m_cfop.group(1).replace('.', '')
-                        valor_str = valores[0]
-
-                        if cfop_val.startswith('202'):
-                            continue
+                    match = padrao_modelo_p1.search(bloco)
+                    if match:
+                        data_ent, nota_raw, data_emi, valor_str, cfop_raw = match.groups()
+                        # Remove zeros à esquerda da nota (ex: '036' -> '36', '013' -> '13')
+                        nota_limpa = nota_raw.lstrip('0') or '0'
+                        cfop_limpo = re.sub(r'\D', '', cfop_raw)
 
                         registros.append({
-                            "data": data_raw,
-                            "nota": nota_val,
-                            "cfop": cfop_val,
+                            "data": data_ent,
+                            "nota": nota_limpa,
+                            "cfop": cfop_limpo,
                             "valor": valor_str
                         })
 
                 if not registros:
                     linhas_validas = [l.strip() for l in linhas if l.strip()]
                     amostra = " | ".join(linhas_validas[25:65])
-                    raise FileReadError(f"Amostra dos lançamentos no PDF: {amostra[:500]}")
+                    raise FileReadError(f"Nenhuma nota capturada. Amostra: {amostra[:500]}")
         else:
             raise FileReadError(f"Formato não suportado ({extensao}). Envie .xlsx, .csv ou .pdf.")
 
