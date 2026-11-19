@@ -128,31 +128,33 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
             reader = PdfReader(caminho_arquivo)
 
             if modo_operacao == 'resumo_cfop':
-                # Lê as últimas 10 páginas e ancora exatamente na seção "COMPARATIVO POR CFOP"
-                paginas_alvo = reader.pages[-10:] if len(reader.pages) > 10 else reader.pages
+                paginas_alvo = reader.pages[-4:] if len(reader.pages) > 4 else reader.pages
                 texto_final = "\n".join([p.extract_text() or '' for p in paginas_alvo])
 
-                # Localiza a última ocorrência de "COMPARATIVO POR CFOP" ou "RESUMO POR CFOP"
+                # Ancora exatamente na última ocorrência de DEMONSTRATIVO POR CFOP
                 pos_inicio = -1
-                for marcador in ['COMPARATIVO POR CFOP', 'RESUMO POR CFOP', 'DEMONSTRATIVO POR CFOP']:
+                for marcador in ['DEMONSTRATIVO POR CFOP', 'DEMONSTRATIVO', 'COMPARATIVO POR CFOP']:
                     idx_m = texto_final.upper().rfind(marcador)
                     if idx_m > pos_inicio:
                         pos_inicio = idx_m
 
-                trecho_quadro = texto_final[pos_inicio:] if pos_inicio != -1 else texto_final
+                if pos_inicio == -1:
+                    linhas_ultimas = [l.strip() for l in texto_final.splitlines() if l.strip()]
+                    raise FileReadError(f"Quadro 'Demonstrativo por CFOP' não encontrado. Últimas linhas: {' | '.join(linhas_ultimas[-30:])}")
+
+                trecho_quadro = texto_final[pos_inicio:]
                 linhas_quadro = trecho_quadro.splitlines()
 
-                # Exige separador explícito no CFOP (ex: 2-102, 1-918, 2.919) OU início de linha com 4 dígitos + valor
-                # Isso impede capturar números soltos do cabeçalho como 3518
+                # Captura CFOP (ex: 1-102, 2.102 ou 2102) e o primeiro valor monetário da linha (Valor Contábil)
                 padrao_linha_cfop = re.compile(
-                    r'(?:^|\s)([123567][\.\-]\d{3}|^[123567]\d{3})\b.*?\b(\d{1,3}(?:\.\d{3})*,\d{2})\b'
+                    r'(?:^|\s)([123567][\.\-]?\d{3})\b\s+.*?(\d{1,3}(?:\.\d{3})*,\d{2})'
                 )
 
                 cfops_encontrados = {}
                 for linha in linhas_quadro:
                     linha_limpa = linha.strip()
                     upper = linha_limpa.upper()
-                    if any(t in upper for t in ['TOTAL GERAL', 'SUBTOTAL', 'TOTAL DAS', 'TOTAL DOS', 'INSCRI', 'CNPJ', 'FOLHA', 'PÁGINA', 'PAGINA']):
+                    if any(t in upper for t in ['TOTAL', 'SUBTOTAL', 'INSCRI', 'CNPJ', 'FOLHA', 'PÁGINA', 'PAGINA', 'DEMONSTRATIVO']):
                         continue
 
                     m = padrao_linha_cfop.search(linha_limpa)
@@ -167,8 +169,8 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                         }
 
                 if not cfops_encontrados:
-                    amostra = " | ".join([l.strip() for l in linhas_quadro if l.strip()][:25])
-                    raise FileReadError(f"Quadro 'Comparativo por CFOP' não capturado. Amostra lida: {amostra[:500]}")
+                    amostra = " | ".join([l.strip() for l in linhas_quadro if l.strip()][:30])
+                    raise FileReadError(f"Diagnóstico Demonstrativo por CFOP: [{amostra[:600]}]")
 
                 registros = list(cfops_encontrados.values())
 
