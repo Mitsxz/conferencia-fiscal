@@ -7,6 +7,23 @@ try:
 except ImportError:
     FPDF = None
 
+
+def formatar_brl(valor) -> str:
+    try:
+        if isinstance(valor, str):
+            v_limpo = valor.strip().replace('R$', '').strip()
+            if ',' in v_limpo and '.' in v_limpo:
+                v_limpo = v_limpo.replace('.', '').replace(',', '.')
+            elif ',' in v_limpo:
+                v_limpo = v_limpo.replace(',', '.')
+            num = float(v_limpo)
+        else:
+            num = float(valor or 0.0)
+        return f"{num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except (ValueError, TypeError):
+        return str(valor)
+
+
 def gerar_relatorio_excel(conferencia_id: int, titulo: str, resumo: dict, itens: list) -> str:
     nome_arquivo = f"Relatorio_Conferencia_{conferencia_id}.xlsx"
     caminho_saida = os.path.join(Config.REPORTS_FOLDER, nome_arquivo)
@@ -22,7 +39,7 @@ def gerar_relatorio_excel(conferencia_id: int, titulo: str, resumo: dict, itens:
     ws_resumo.append(["Ausentes nas Planilhas", resumo['ausentes_planilha']])
     ws_resumo.append(["Ausentes no Livro", resumo['ausentes_livro']])
     ws_resumo.append(["Possíveis Duplicidades", resumo['duplicidades']])
-    ws_resumo.append(["Percentual de Correspondência (%)", f"{resumo['percentual_correspondencia']}%"])
+    ws_resumo.append(["Percentual de Correspondência (%)", f"{formatar_brl(resumo['percentual_correspondencia'])}%"])
 
     ws_div = wb.create_sheet("Divergencias_e_Duplicidades")
     ws_aus = wb.create_sheet("Registros_Ausentes")
@@ -35,7 +52,14 @@ def gerar_relatorio_excel(conferencia_id: int, titulo: str, resumo: dict, itens:
     for item in itens:
         cat = item['categoria_resultado']
         diffs = item.get('diferencas') or []
-        detalhe_diff = "; ".join([f"{d['campo']}: Livro({d['livro']}) vs Planilha({d['planilha']}) -> {d['diferenca']}" for d in diffs])
+        partes = []
+        for d in diffs:
+            if d['campo'] == 'valor_total':
+                partes.append(f"Valor: Livro (R$ {formatar_brl(d['livro'])}) vs Planilha (R$ {formatar_brl(d['planilha'])}) -> Dif: R$ {formatar_brl(d['diferenca'])}")
+            else:
+                partes.append(f"{d['campo']}: Livro ({d['livro']}) vs Planilha ({d['planilha']}) -> {d['diferenca']}")
+        detalhe_diff = "; ".join(partes)
+
         linha = [
             item['chave_identificacao'],
             cat,
@@ -52,6 +76,7 @@ def gerar_relatorio_excel(conferencia_id: int, titulo: str, resumo: dict, itens:
 
     wb.save(caminho_saida)
     return caminho_saida
+
 
 def gerar_relatorio_pdf(conferencia_id: int, titulo: str, resumo: dict, itens: list) -> str:
     if FPDF is None:
@@ -73,7 +98,7 @@ def gerar_relatorio_pdf(conferencia_id: int, titulo: str, resumo: dict, itens: l
     pdf.set_font("Helvetica", "", 10)
     for m in [
         f"Total Analisados: {resumo['total_analisados']}",
-        f"Correspondencias: {resumo['correspondencias']} ({resumo['percentual_correspondencia']}%)",
+        f"Correspondencias: {resumo['correspondencias']} ({formatar_brl(resumo['percentual_correspondencia'])}%)",
         f"Divergencias: {resumo['divergencias']}",
         f"Ausentes nas Planilhas: {resumo['ausentes_planilha']} | Ausentes no Livro: {resumo['ausentes_livro']}",
         f"Duplicidades: {resumo['duplicidades']}"
