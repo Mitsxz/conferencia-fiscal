@@ -47,25 +47,67 @@ def ler_arquivo_tabular(caminho_arquivo: str) -> list[dict]:
 
         elif extensao == '.pdf':
             reader = PdfReader(caminho_arquivo)
-            texto_completo = ""
-            for pagina in reader.pages:
-                texto_ext = pagina.extract_text()
-                if texto_ext:
-                    texto_completo += texto_ext + "\n"
+            # Lê de trás para frente ou as últimas 15 páginas (onde fica o Resumo de Entradas/Saídas)
+            paginas_alvo = reader.pages[-15:] if len(reader.pages) > 15 else reader.pages
+            texto_paginas = []
+            for pagina in paginas_alvo:
+                txt = pagina.extract_text()
+                if txt:
+                    texto_paginas.append(txt)
 
-            for linha in texto_completo.splitlines():
+            texto_completo = "\n".join(texto_paginas)
+            linhas = texto_completo.splitlines()
+
+            # Tenta localizar o início do quadro de Resumo
+            indice_inicio = 0
+            palavras_resumo = ['RESUMO', 'DEMONSTRATIVO', 'TOTALIZACAO', 'TOTALIZAÇÃO', 'POR CFOP', 'CODIGO FISCAL', 'CÓDIGO FISCAL']
+            for idx, l in enumerate(linhas):
+                l_up = l.upper()
+                if any(p in l_up for p in palavras_resumo):
+                    indice_inicio = idx  # Pega a última ocorrência (geralmente no fim do livro)
+
+            linhas_analise = linhas[indice_inicio:] if indice_inicio > 0 else linhas
+
+            # 1ª Tentativa: Extrair linhas de Resumo por CFOP (Ex: "1.102 ... 15.420,50" ou "5102 ... 15.420,50")
+            # Captura CFOP iniciando em 1, 2, 3, 5, 6 ou 7 (com ou sem ponto: 1102 ou 1.102) seguido de valor monetário
+            padrao_resumo_cfop = re.compile(r'(?:^|\s)([123567]\.?\d{3})(?:\s+|\D+?)(\d{1,3}(?:\.\d{3})*,\d{2})')
+
+            cfops_encontrados = {}
+            for linha in linhas_analise:
                 linha_limpa = linha.strip()
-                match = re.search(r'(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})\D+(\d{1,8})\D+(\d{4})\D+([\d\.,]+)', linha_limpa)
+                # Ignora linhas de totais gerais para não duplicar
+                if any(t in linha_limpa.upper() for t in ['TOTAL GERAL', 'SUBTOTAL', 'TOTAL DAS', 'TOTAL DOS']):
+                    continue
+
+                match = padrao_resumo_cfop.search(linha_limpa)
                 if match:
-                    data_raw, nota_val, cfop_val, valor_str = match.groups()
-                    registros.append({
-                        "data": data_raw,
-                        "nota": nota_val,
-                        "cfop": cfop_val,
+                    cfop_raw, valor_str = match.groups()
+                    cfop_limpo = cfop_raw.replace('.', '')
+                    # Ignora anos (ex: 2024, 2025, 2026) caso apareçam no cabeçalho
+                    if cfop_limpo.startswith('202'):
+                        continue
+                    cfops_encontrados[cfop_limpo] = {
+                        "cfop": cfop_limpo,
                         "valor": valor_str
-                    })
+                    }
+
+            if cfops_encontrados:
+                registros = list(cfops_encontrados.values())
+            else:
+                # 2ª Tentativa (fallback): Caso seja um PDF simples nota a nota
+                for linha in linhas:
+                    match_nota = re.search(r'(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})\D+(\d{1,8})\D+(\d{4})\D+([\d\.,]+)', linha.strip())
+                    if match_nota:
+                        data_raw, nota_val, cfop_val, valor_str = match_nota.groups()
+                        registros.append({
+                            "data": data_raw,
+                            "nota": nota_val,
+                            "cfop": cfop_val,
+                            "valor": valor_str
+                        })
+
             if not registros:
-                raise FileReadError("Nenhum lançamento fiscal (Data, Nota, CFOP, Valor) foi encontrado no PDF.")
+                raise FileReadError("Não foi possível localizar o quadro de Resumo por CFOP no final do PDF.")
         else:
             raise FileReadError(f"Formato não suportado ({extensao}). Envie .xlsx, .csv ou .pdf.")
 
