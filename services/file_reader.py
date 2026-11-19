@@ -24,7 +24,7 @@ def ler_arquivo_tabular(caminho_arquivo: str) -> list[dict]:
 
             # Procura automaticamente em qual linha está o cabeçalho real (até a linha 15)
             idx_cabecalho = 0
-            palavras_chave_cab = ['cfop', 'nota', 'nf', 'valor', 'total', 'contabil', 'contábil', 'data', 'emissao', 'emissão', 'documento']
+            palavras_chave_cab = ['cfop', 'código', 'codigo', 'nota', 'nf', 'valor', 'total', 'contabil', 'contábil', 'data', 'emissao', 'emissão']
             for idx, row in enumerate(linhas[:15]):
                 texto_linha = " ".join([str(c).lower() for c in row if c is not None])
                 if any(p in texto_linha for p in palavras_chave_cab):
