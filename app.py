@@ -52,13 +52,13 @@ def detectar_mapeamento_colunas(colunas: list) -> dict:
     return mapeamento
 
 
-def agrupar_por_cfop(registros: list[dict]) -> list[dict]:
+def agrupar_por_cfop(registros: list[dict]) -> dict[str, float]:
     somas = defaultdict(float)
     for r in registros:
         cfop = re.sub(r'\D', '', str(r.get('cfop', '')).strip())
         if cfop:
-            somas[cfop] += float(r.get('valor_total', 0.0) or 0.0)
-    return [{'cfop': k, 'valor_total': round(v, 2)} for k, v in somas.items()]
+            somas[cfop] = round(somas[cfop] + float(r.get('valor_total', 0.0) or 0.0), 2)
+    return dict(somas)
 
 
 def agrupar_por_nota_cfop(registros: list[dict]) -> list[dict]:
@@ -120,25 +120,123 @@ def index():
         filtro_nota = request.form.get('nota', '').strip().lstrip('0')
         filtro_cfop = re.sub(r'\D', '', request.form.get('cfop', '').strip())
 
+        # =====================================================================
+        # MODO 1: RESUMO CONSOLIDADO POR CFOP (SOMA LIVRO E PLANILHA SEM ALERTAS)
+        # =====================================================================
         if modo_operacao == 'resumo_cfop':
             if 'cfop' not in map_livro or 'cfop' not in map_plan:
                 raise FileReadError("Coluna de CFOP não encontrada em um dos arquivos.")
-            regs_livro_final = agrupar_por_cfop(regs_livro_norm)
-            regs_plan_final = agrupar_por_cfop(regs_plan_norm)
-            campos_chave = ['cfop']
-            campos_comparacao = ['valor_total']
-        else:
-            if 'numero_nf' not in map_livro or 'numero_nf' not in map_plan:
-                raise FileReadError("Coluna de Nota não encontrada em um dos arquivos.")
-            regs_livro_final = agrupar_por_nota_cfop(regs_livro_norm)
-            regs_plan_final = agrupar_por_nota_cfop(regs_plan_norm)
-            campos_chave = ['numero_nf']
-            if 'cfop' in map_livro and 'cfop' in map_plan:
-                campos_chave.append('cfop')
-            campos_comparacao = [
-                c for c in ['valor_total', 'data_emissao', 'cfop']
-                if c in map_livro and c in map_plan and c not in campos_chave
-            ]
+
+            somas_livro = agrupar_por_cfop(regs_livro_norm)
+            somas_plan = agrupar_por_cfop(regs_plan_norm)
+            todos_cfops = sorted(set(somas_livro.keys()) | set(somas_plan.keys()))
+
+            resultados_tabela = []
+            itens_db_para_salvar = []
+            total_geral_livro = 0.0
+            total_geral_plan = 0.0
+
+            for cfop in todos_cfops:
+                if filtro_cfop and filtro_cfop != cfop:
+                    continue
+
+                v_livro = somas_livro.get(cfop, 0.0)
+                v_plan = somas_plan.get(cfop, 0.0)
+                dif = round(v_livro - v_plan, 2)
+
+                total_geral_livro = round(total_geral_livro + v_livro, 2)
+                total_geral_plan = round(total_geral_plan + v_plan, 2)
+
+                if abs(dif) <= 0.05:
+                    detalhe_str = f"Livro: R$ {formatar_brl(v_livro)} | Planilha: R$ {formatar_brl(v_plan)} (Bateu 100%)"
+                else:
+                    detalhe_str = f"Livro: R$ {formatar_brl(v_livro)} | Planilha: R$ {formatar_brl(v_plan)} | Dif: R$ {formatar_brl(dif)}"
+
+                resultados_tabela.append({
+                    'data': 'Período',
+                    'nota': 'Resumo CFOP',
+                    'cfop': cfop,
+                    'valor': formatar_brl(v_livro),
+                    'status': 'OK',
+                    'detalhe': detalhe_str
+                })
+
+                itens_db_para_salvar.append({
+                    'chave_identificacao': f"cfop={cfop}",
+                    'categoria_resultado': 'CORRESPONDENCIA',
+                    'tipo_divergencia': None,
+                    'dados_livro': {'cfop': cfop, 'valor_total': v_livro},
+                    'dados_planilha': {'cfop': cfop, 'valor_total': v_plan},
+                    'diferencas': [] if abs(dif) <= 0.05 else [{'campo': 'valor_total', 'livro': v_livro, 'planilha': v_plan, 'diferenca': dif}]
+                })
+
+            dif_geral = round(total_geral_livro - total_geral_plan, 2)
+            resultados_tabela.append({
+                'data': 'TOTAL GERAL',
+                'nota': 'Soma Todos CFOPs',
+                'cfop': 'TOTAL',
+                'valor': formatar_brl(total_geral_livro),
+                'status': 'OK',
+                'detalhe': f"Total Livro: R$ {formatar_brl(total_geral_livro)} | Total Planilha: R$ {formatar_brl(total_geral_plan)} | Dif: R$ {formatar_brl(dif_geral)}"
+            })
+
+            titulo = f"Resumo CFOP - {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            qtd_cfops = len(itens_db_para_salvar)
+
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO conferencias (
+                    titulo, arquivo_livro_original, arquivo_livro_salvo,
+                    arquivos_planilhas_json, config_cruzamento_json, tolerancia_valor,
+                    total_analisados, total_correspondencias, total_divergencias,
+                    total_ausentes_planilha, total_ausentes_livro, total_duplicidades,
+                    percentual_correspondencia
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                titulo, nome_livro_orig, caminho_livro, json.dumps([nome_plan_orig]),
+                json.dumps({'modo': 'resumo_cfop'}), 0.05,
+                qtd_cfops, qtd_cfops, 0, 0, 0, 0, 100.0
+            ))
+            conferencia_id = cursor.lastrowid
+
+            for item in itens_db_para_salvar:
+                cursor.execute('''
+                    INSERT INTO conferencia_itens (
+                        conferencia_id, chave_identificacao, categoria_resultado,
+                        tipo_divergencia, dados_livro_json, dados_planilha_json, diferencas_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    conferencia_id, item['chave_identificacao'], item['categoria_resultado'],
+                    item['tipo_divergencia'], json.dumps(item['dados_livro']),
+                    json.dumps(item['dados_planilha']), json.dumps(item['diferencas'])
+                ))
+            conn.commit()
+            conn.close()
+
+            msg = (
+                f"Resumo #{conferencia_id} gerado com sucesso! "
+                f"CFOPs consolidados: {qtd_cfops} | "
+                f"Total Livro: R$ {formatar_brl(total_geral_livro)} | "
+                f"Total Planilha: R$ {formatar_brl(total_geral_plan)}"
+            )
+            return render_template('index.html', resultados=resultados_tabela, mensagem=msg, conferencia_id=conferencia_id)
+
+        # =====================================================================
+        # MODO 2: DETALHADO POR NOTA FISCAL (CRUZAMENTO ITEM A ITEM)
+        # =====================================================================
+        if 'numero_nf' not in map_livro or 'numero_nf' not in map_plan:
+            raise FileReadError("Coluna de Nota não encontrada em um dos arquivos.")
+
+        regs_livro_final = agrupar_por_nota_cfop(regs_livro_norm)
+        regs_plan_final = agrupar_por_nota_cfop(regs_plan_norm)
+        campos_chave = ['numero_nf']
+        if 'cfop' in map_livro and 'cfop' in map_plan:
+            campos_chave.append('cfop')
+        campos_comparacao = [
+            c for c in ['valor_total', 'data_emissao', 'cfop']
+            if c in map_livro and c in map_plan and c not in campos_chave
+        ]
 
         resultado_cruzamento = executar_cruzamento(
             registros_livro=regs_livro_final,
@@ -150,9 +248,7 @@ def index():
 
         resumo = resultado_cruzamento['resumo']
         itens = resultado_cruzamento['itens']
-
-        label_modo = "Resumo CFOP" if modo_operacao == 'resumo_cfop' else "Detalhado por Nota"
-        titulo = f"Conferência ({label_modo}) - {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        titulo = f"Conferência (Detalhado por Nota) - {datetime.now().strftime('%d/%m/%Y %H:%M')}"
 
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -201,7 +297,7 @@ def index():
                 base = item['dados_planilha'][0]
 
             data_item = str(base.get('data_emissao', ''))
-            nota_item = str(base.get('numero_nf', 'Consolidado' if modo_operacao == 'resumo_cfop' else ''))
+            nota_item = str(base.get('numero_nf', ''))
             cfop_item = re.sub(r'\D', '', str(base.get('cfop', '')))
             valor_item = float(base.get('valor_total', 0.0) or 0.0)
             valor_fmt = formatar_brl(valor_item)
@@ -238,7 +334,7 @@ def index():
             })
 
         msg = (
-            f"Conferência #{conferencia_id} [{label_modo}] concluída! "
+            f"Conferência #{conferencia_id} [Detalhado por Nota] concluída! "
             f"Analisados: {resumo['total_analisados']} | OK: {resumo['correspondencias']} | Divergências: {resumo['divergencias']}"
         )
         return render_template('index.html', resultados=resultados_tabela, mensagem=msg, conferencia_id=conferencia_id)
