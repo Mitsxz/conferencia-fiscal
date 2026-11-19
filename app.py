@@ -6,6 +6,21 @@ import re
 
 app = Flask(__name__)
 
+def limpar_nota(val):
+    if not val:
+        return ""
+    # Converte para string, remove '.0' se vier do Excel e remove espaços/zeros à esquerda
+    s = str(val).strip()
+    if s.endswith('.0'):
+        s = s[:-2]
+    return s.lstrip('0')
+
+def limpar_data(val):
+    if not val:
+        return ""
+    # Remove a parte da hora caso venha como '2026-06-01 00:00:00'
+    return str(val).split()[0].strip()
+
 def processar_arquivo(file):
     dados = []
     if not file or file.filename == '':
@@ -19,12 +34,12 @@ def processar_arquivo(file):
             reader = csv.DictReader(decoded_file)
             for row in reader:
                 row_limpa = {k.strip().lower(): v for k, v in row.items() if k}
-                nota_str = str(row_limpa.get("nota", "")).strip().lstrip('0') # Remove zeros à esquerda para alinhar
-                if nota_str:
+                nota = limpar_nota(row_limpa.get("nota", ""))
+                if nota:
                     dados.append({
-                        "data": str(row_limpa.get("data", "")).strip(),
-                        "nota": nota_str,
-                        "cfop": str(row_limpa.get("cfop", "")).strip(),
+                        "data": limpar_data(row_limpa.get("data", "")),
+                        "nota": nota,
+                        "cfop": str(row_limpa.get("cfop", "")).replace('.0', '').strip(),
                         "valor": float(str(row_limpa.get("valor", 0)).replace("R$", "").replace(".", "").replace(",", ".").strip() or 0)
                     })
                 
@@ -33,13 +48,13 @@ def processar_arquivo(file):
             ws = wb.active
             for row in ws.iter_rows(min_row=2, values_only=True):
                 if any(row) and len(row) >= 4:
-                    nota_str = str(row[1]).strip().lstrip('0') if row[1] else ""
-                    if nota_str:
+                    nota = limpar_nota(row[1])
+                    if nota:
                         val_raw = str(row[3]).replace("R$", "").replace(".", "").replace(",", ".").strip() if row[3] else "0"
                         dados.append({
-                            "data": str(row[0]).strip() if row[0] else "",
-                            "nota": nota_str,
-                            "cfop": str(row[2]).strip() if row[2] else "",
+                            "data": limpar_data(row[0]),
+                            "nota": nota,
+                            "cfop": str(row[2]).replace('.0', '').strip() if row[2] else "",
                             "valor": float(val_raw or 0)
                         })
                     
@@ -51,19 +66,16 @@ def processar_arquivo(file):
                 if texto_ext:
                     texto_completo += texto_ext + "\n"
             
-            # Extração genérica inteligente de linhas do PDF
             linhas = texto_completo.splitlines()
             for linha in linhas:
                 match = re.search(r'(\d{4}-\d{2}-\d{2})\s+(\d+)\s+(\d{4})\s+([\d\.,]+)', linha)
                 if match:
                     data_val, nota_val, cfop_val, valor_str = match.groups()
-                    nota_limpa = nota_val.strip().lstrip('0')
-                    valor_val = float(valor_str.replace('.', '').replace(',', '.'))
                     dados.append({
-                        "data": data_val,
-                        "nota": nota_limpa,
+                        "data": limpar_data(data_val),
+                        "nota": limpar_nota(nota_val),
                         "cfop": cfop_val.strip(),
-                        "valor": valor_val
+                        "valor": float(valor_str.replace('.', '').replace(',', '.'))
                     })
 
     except Exception as e:
@@ -98,7 +110,7 @@ def index():
             item_planilha = planilha_dict.get(nota)
 
             status = "OK"
-            detalhe = "Conferido com sucesso. Dados idênticos."
+            detalhe = "Conferido com sucesso. Valores e dados idênticos."
 
             if not item_livro:
                 status = "Divergente"
@@ -110,14 +122,13 @@ def index():
                 item_ref = item_livro
             else:
                 item_ref = item_livro
-                # Comparação tolerante de valores (arredondando para 2 casas decimais)
-                val_livro = round(float(item_livro["valor"]), 2)
+                val_livro = round(float(item_livro["valorn"]), 2) if "valorn" in item_livro else round(float(item_livro["valor"]), 2)
                 val_planilha = round(float(item_planilha["valor"]), 2)
 
                 if val_livro != val_planilha:
                     status = "Divergente"
                     detalhe = f"Divergência de Valor: Livro (R$ {val_livro}) x Planilha (R$ {val_planilha})"
-                elif item_livro["cfop"].strip() != item_planilha["cfop"].strip():
+                elif item_livro["cfop"] != item_planilha["cfop"]:
                     status = "Divergente"
                     detalhe = f"Divergência de CFOP: Livro ({item_livro['cfop']}) x Planilha ({item_planilha['cfop']})"
 
@@ -142,7 +153,7 @@ def index():
                     "detalhe": detalhe
                 })
         
-        mensagem = f"Análise finalizada! Livro Lido: {len(livro_dados)} itens | Planilha Lida: {len(planilha_dados)} itens."
+        mensagem = f"Conferência realizada com sucesso! Total de notas analisadas: {len(resultados)}"
 
     return render_template("index.html", resultados=resultados, mensagem=mensagem)
 
