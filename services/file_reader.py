@@ -100,24 +100,63 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                     raise FileReadError("Modo Resumo selecionado, mas nenhum quadro de Resumo por CFOP foi encontrado no PDF.")
                 registros = list(cfops_encontrados.values())
 
-            else:
-                # Modo Detalhado por Nota: lê todas as páginas buscando Data, Nota, CFOP e Valor
+                else:
+                # Modo Detalhado por Nota: leitura flexível para layout de Livro Fiscal
                 texto_completo = "\n".join([p.extract_text() or '' for p in reader.pages])
-                padrao_nota = re.compile(r'(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})\D+(\d{1,9})\D+([123567]\.?\d{3})\D+(\d{1,3}(?:\.\d{3})*,\d{2})')
+                linhas = texto_completo.splitlines()
 
-                for linha in texto_completo.splitlines():
-                    match = padrao_nota.search(linha.strip())
-                    if match:
-                        data_raw, nota_val, cfop_val, valor_str = match.groups()
+                padrao_data = re.compile(r'\b(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})\b')
+                padrao_cfop = re.compile(r'\b([123567]\.?\d{3})\b')
+                padrao_valor = re.compile(r'\b(\d{1,3}(?:\.\d{3})*,\d{2})\b')
+
+                for idx, linha in enumerate(linhas):
+                    linha_limpa = linha.strip()
+                    # Ignora cabeçalhos, totais e linhas de resumo
+                    if any(t in linha_limpa.upper() for t in ['TOTAL', 'SUBTOTAL', 'RESUMO', 'TRANSPORTE', 'PÁGINA', 'PAGINA']):
+                        continue
+
+                    m_data = padrao_data.search(linha_limpa)
+                    if not m_data:
+                        continue
+
+                    # Junta a linha atual com a próxima (caso o CFOP/Valor quebrem de linha no PDF)
+                    bloco_texto = linha_limpa
+                    if idx + 1 < len(linhas):
+                        prox = linhas[idx + 1].strip()
+                        if not padrao_data.search(prox):
+                            bloco_texto += " " + prox
+
+                    # Remove datas e CNPJs/CPFs do bloco para não confundir com o Número da Nota
+                    texto_sem_doc = re.sub(r'\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b', '', bloco_texto)
+                    texto_sem_doc = re.sub(r'\b\d{3}\.\d{3}\.\d{3}-\d{2}\b', '', texto_sem_doc)
+                    texto_sem_doc = padrao_data.sub('', texto_sem_doc)
+
+                    m_cfop = padrao_cfop.search(texto_sem_doc)
+                    valores = padrao_valor.findall(texto_sem_doc)
+
+                    # Procura o Número da Nota (sequência de 1 a 9 dígitos, aceitando ponto de milhar como 001.234)
+                    texto_sem_cfop = padrao_cfop.sub('', texto_sem_doc, count=1) if m_cfop else texto_sem_doc
+                    m_nota = re.search(r'\b(\d{1,3}(?:\.\d{3}){1,2}|\d{1,9})\b', texto_sem_cfop)
+
+                    if m_nota and m_cfop and valores:
+                        data_raw = m_data.group(1)
+                        nota_val = m_nota.group(1).replace('.', '')
+                        cfop_val = m_cfop.group(1).replace('.', '')
+                        # O primeiro valor monetário da linha no Livro Fiscal geralmente é o Valor Contábil
+                        valor_str = valores[0]
+
+                        if cfop_val.startswith('202'):
+                            continue
+
                         registros.append({
                             "data": data_raw,
                             "nota": nota_val,
-                            "cfop": cfop_val.replace('.', ''),
+                            "cfop": cfop_val,
                             "valor": valor_str
                         })
 
                 if not registros:
-                    raise FileReadError("Modo Detalhado selecionado, mas nenhuma linha com (Data, Nota, CFOP, Valor) foi encontrada no PDF.")
+                    raise FileReadError("Modo Detalhado selecionado, mas nenhuma linha com (Data, Número, CFOP, Valor) foi encontrada no PDF.")
         else:
             raise FileReadError(f"Formato não suportado ({extensao}). Envie .xlsx, .csv ou .pdf.")
 
