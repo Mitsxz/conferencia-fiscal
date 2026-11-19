@@ -105,4 +105,6 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                 texto_completo = "\n".join([p.extract_text() or '' for p in reader.pages])
                 linhas = texto_completo.splitlines()
 
-                padrao_data = re.
+                padrao_data = re.compile(r'\b(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})\b')
+                padrao_cfop = re.compile(r'\b([123567]\.?\d{3})\b')
+                padrao_valor = re.compile(r'\b(\d{1,3}(?:\.\d{3})*,\d{2})\b')
