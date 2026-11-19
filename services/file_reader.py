@@ -200,6 +200,10 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                         "cfop": cfop_limpo,
                         "valor": valor_str
                     })
+                    # Diagnóstico temporário para ver como a nota 34408 aparece no texto do PDF
+             pos_teste = texto_limpo.find('34408')
+             if pos_teste != -1:
+                 raise FileReadError(f"Trecho da nota 34408 no PDF: [{texto_limpo[max(0, pos_teste-120):pos_teste+200]}]")
 
                 if not registros:
                     amostra = texto_limpo[:500]
