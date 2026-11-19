@@ -108,3 +108,61 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                 padrao_data = re.compile(r'\b(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})\b')
                 padrao_cfop = re.compile(r'\b([123567]\.?\d{3})\b')
                 padrao_valor = re.compile(r'\b(\d{1,3}(?:\.\d{3})*,\d{2})\b')
+
+                for idx, linha in enumerate(linhas):
+                    linha_limpa = linha.strip()
+                    if any(t in linha_limpa.upper() for t in ['TOTAL', 'SUBTOTAL', 'RESUMO', 'TRANSPORTE', 'PÁGINA', 'PAGINA']):
+                        continue
+
+                    m_data = padrao_data.search(linha_limpa)
+                    if not m_data:
+                        continue
+
+                    bloco_texto = linha_limpa
+                    if idx + 1 < len(linhas):
+                        prox = linhas[idx + 1].strip()
+                        if not padrao_data.search(prox):
+                            bloco_texto += " " + prox
+
+                    texto_sem_doc = re.sub(r'\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b', '', bloco_texto)
+                    texto_sem_doc = re.sub(r'\b\d{3}\.\d{3}\.\d{3}-\d{2}\b', '', texto_sem_doc)
+                    texto_sem_doc = padrao_data.sub('', texto_sem_doc)
+
+                    m_cfop = padrao_cfop.search(texto_sem_doc)
+                    valores = padrao_valor.findall(texto_sem_doc)
+
+                    texto_sem_cfop = padrao_cfop.sub('', texto_sem_doc, count=1) if m_cfop else texto_sem_doc
+                    m_nota = re.search(r'\b(\d{1,3}(?:\.\d{3}){1,2}|\d{1,9})\b', texto_sem_cfop)
+
+                    if m_nota and m_cfop and valores:
+                        data_raw = m_data.group(1)
+                        nota_val = m_nota.group(1).replace('.', '')
+                        cfop_val = m_cfop.group(1).replace('.', '')
+                        valor_str = valores[0]
+
+                        if cfop_val.startswith('202'):
+                            continue
+
+                        registros.append({
+                            "data": data_raw,
+                            "nota": nota_val,
+                            "cfop": cfop_val,
+                            "valor": valor_str
+                        })
+
+                if not registros:
+                    linhas_validas = [l.strip() for l in linhas if l.strip()]
+                    amostra = " | ".join(linhas_validas[25:65])
+                    raise FileReadError(f"Amostra dos lançamentos no PDF: {amostra[:500]}")
+        else:
+            raise FileReadError(f"Formato não suportado ({extensao}). Envie .xlsx, .csv ou .pdf.")
+
+        if not registros:
+            raise FileReadError("O arquivo enviado está vazio ou não possui linhas válidas.")
+
+        return registros
+
+    except FileReadError:
+        raise
+    except Exception as e:
+        raise FileReadError(f"Falha ao ler o arquivo '{os.path.basename(caminho_arquivo)}': {str(e)}")
