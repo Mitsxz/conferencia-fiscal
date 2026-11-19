@@ -1,6 +1,5 @@
 import re
 from datetime import datetime
-import pandas as pd
 
 CAMPOS_NUMERICOS = {'quantidade', 'valor_total', 'base_calculo', 'icms', 'ipi', 'pis', 'cofins'}
 CAMPOS_DATA = {'data_emissao'}
@@ -37,8 +36,7 @@ def normalizar_valor_monetario(valor) -> float:
     if isinstance(valor, (int, float)):
         return round(float(valor), 4)
 
-    texto = str(valor).strip()
-    texto = re.sub(r'[^\d.,-]', '', texto)
+    texto = re.sub(r'[^\d.,-]', '', str(valor).strip())
     if not texto:
         return 0.0
 
@@ -60,24 +58,23 @@ def normalizar_texto(valor: str) -> str:
         return ''
     return re.sub(r'\s+', ' ', str(valor).strip()).upper()
 
-def normalizar_dataframe(df: pd.DataFrame, mapeamento_colunas: dict) -> pd.DataFrame:
-    dados_normalizados = {}
-
-    for campo_padrao, coluna_origem in mapeamento_colunas.items():
-        if not coluna_origem or coluna_origem not in df.columns:
-            continue
-
-        serie = df[coluna_origem]
-
-        if campo_padrao in CAMPOS_DOCUMENTO:
-            dados_normalizados[campo_padrao] = serie.apply(normalizar_cnpj)
-        elif campo_padrao in CAMPOS_NF:
-            dados_normalizados[campo_padrao] = serie.apply(normalizar_numero_nf)
-        elif campo_padrao in CAMPOS_DATA:
-            dados_normalizados[campo_padrao] = serie.apply(normalizar_data)
-        elif campo_padrao in CAMPOS_NUMERICOS:
-            dados_normalizados[campo_padrao] = serie.apply(normalizar_valor_monetario)
-        else:
-            dados_normalizados[campo_padrao] = serie.apply(normalizar_texto)
-
-    return pd.DataFrame(dados_normalizados)
+def normalizar_registros(registros: list[dict], mapeamento_colunas: dict) -> list[dict]:
+    resultado = []
+    for row in registros:
+        novo = {}
+        for campo_padrao, coluna_origem in mapeamento_colunas.items():
+            if not coluna_origem or coluna_origem not in row:
+                continue
+            val = row[coluna_origem]
+            if campo_padrao in CAMPOS_DOCUMENTO:
+                novo[campo_padrao] = normalizar_cnpj(val)
+            elif campo_padrao in CAMPOS_NF:
+                novo[campo_padrao] = normalizar_numero_nf(val)
+            elif campo_padrao in CAMPOS_DATA:
+                novo[campo_padrao] = normalizar_data(val)
+            elif campo_padrao in CAMPOS_NUMERICOS:
+                novo[campo_padrao] = normalizar_valor_monetario(val)
+            else:
+                novo[campo_padrao] = normalizar_texto(val)
+        resultado.append(novo)
+    return resultado
