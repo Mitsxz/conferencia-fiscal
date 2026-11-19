@@ -8,7 +8,7 @@ from werkzeug.utils import secure_filename
 from config import Config
 from database import init_db, get_db_connection
 from services.file_reader import ler_arquivo_tabular, FileReadError
-from services.normalizer import normalizar_dataframe
+from services.normalizer import normalizar_registros
 from services.comparator import executar_cruzamento
 from services.report_generator import gerar_relatorio_excel, gerar_relatorio_pdf
 
