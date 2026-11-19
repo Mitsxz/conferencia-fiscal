@@ -41,12 +41,14 @@ def detectar_mapeamento_colunas(colunas: list) -> dict:
     termos_impostos = [
         'icms', 'pis', 'cofins', 'ipi', 'iss', 'irrf', 'csll', 'inss',
         'ibs', 'cbs', 'is', 'st', 'subst', 'base', 'bc', 'aliquota', 'alíquota',
-        'difal', 'fcp', 'tributo', 'imposto', 'credito', 'crédito', 'cobr'
+        'difal', 'fcp', 'tributo', 'imposto', 'credito', 'crédito', 'cobr',
+        'frete', 'seguro', 'desconto', 'outras', 'isenta', 'tributada'
     ]
-    nomes_exatos_valor = [
-        'valor contábil', 'valor contabil', 'vlr contábil', 'vlr contabil',
-        'valor total', 'vlr total', 'total da nota', 'valor da nota',
-        'valor líquido', 'valor liquido', 'valor mercadoria', 'valor dos produtos', 'valor'
+    nomes_prioritarios_valor = [
+        'valor contábil', 'valor contabil', 'vlr. contábil', 'vlr contábil', 'vlr contabil',
+        'valor total', 'vlr. total', 'vlr total', 'total da nota', 'total nota',
+        'valor da nota', 'valor nota', 'valor líquido', 'valor liquido',
+        'valor dos produtos', 'valor produtos', 'valor mercadoria', 'valor merc.', 'valor'
     ]
 
     for col in colunas:
@@ -58,21 +60,22 @@ def detectar_mapeamento_colunas(colunas: list) -> dict:
         elif (c in ['cfop', 'código', 'codigo', 'cod', 'cód', 'cod. fiscal', 'cód. fiscal'] or 'cfop' in c) and 'cfop' not in mapeamento:
             mapeamento['cfop'] = col
 
-    # 1ª tentativa: busca o nome exato da coluna principal de valor
-    for alvo in nomes_exatos_valor:
+    # 1ª tentativa: busca por nomes prioritários do valor da nota
+    for alvo in nomes_prioritarios_valor:
         for col in colunas:
-            if col.lower().strip() == alvo:
+            c = col.lower().strip()
+            if c == alvo or (alvo in c and not any(imp in c for imp in termos_impostos)):
                 mapeamento['valor_total'] = col
                 break
         if 'valor_total' in mapeamento:
             break
 
-    # 2ª tentativa: busca genérica ignorando completamente qualquer imposto (incluindo IBS/CBS)
+    # 2ª tentativa: busca genérica ignorando impostos e colunas auxiliares
     if 'valor_total' not in mapeamento:
         for col in colunas:
             c = col.lower().strip()
             if (
-                any(k in c for k in ['valor', 'total', 'vlr', 'liquido', 'líquido', 'contabil', 'contábil', 'mercadoria'])
+                any(k in c for k in ['valor', 'total', 'vlr', 'liquido', 'líquido', 'contabil', 'contábil', 'merc'])
                 and not any(imp in c for imp in termos_impostos)
             ):
                 mapeamento['valor_total'] = col
