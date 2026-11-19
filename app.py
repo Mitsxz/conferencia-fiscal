@@ -15,7 +15,6 @@ from services.report_generator import gerar_relatorio_excel, gerar_relatorio_pdf
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Inicializa pastas e banco de dados na inicialização
 Config.init_app()
 init_db()
 
@@ -51,7 +50,6 @@ def index():
         Config.init_app()
         init_db()
 
-        # Salva arquivos temporariamente
         nome_livro_orig = secure_filename(arquivo_livro.filename)
         nome_plan_orig = secure_filename(arquivo_planilha.filename)
         prefixo = uuid.uuid4().hex[:8]
@@ -62,34 +60,35 @@ def index():
         arquivo_livro.save(caminho_livro)
         arquivo_planilha.save(caminho_planilha)
 
-        # Lê os arquivos tabulares
-        df_livro_raw = ler_arquivo_tabular(caminho_livro)
-        df_plan_raw = ler_arquivo_tabular(caminho_planilha)
+        # Lê os arquivos (retorna lista de dicionários)
+        regs_livro_raw = ler_arquivo_tabular(caminho_livro)
+        regs_plan_raw = ler_arquivo_tabular(caminho_planilha)
 
         # Mapeia e normaliza os campos (Data, Nota, CFOP, Valor)
-        map_livro = detectar_mapeamento_colunas(list(df_livro_raw.columns))
-        map_plan = detectar_mapeamento_colunas(list(df_plan_raw.columns))
+        map_livro = detectar_mapeamento_colunas(list(regs_livro_raw[0].keys()))
+        map_plan = detectar_mapeamento_colunas(list(regs_plan_raw[0].keys()))
 
         if 'numero_nf' not in map_livro or 'numero_nf' not in map_plan:
             raise FileReadError("Não foi possível identificar a coluna de Número da Nota em um dos arquivos.")
 
-        df_livro_norm = normalizar_dataframe(df_livro_raw, map_livro)
-        df_plan_norm = normalizar_dataframe(df_plan_raw, map_plan)
+        regs_livro_norm = normalizar_registros(regs_livro_raw, map_livro)
+        regs_plan_norm = normalizar_registros(regs_plan_raw, map_plan)
 
-        # Define chaves e campos de comparação disponíveis em ambos
+        cols_livro = set(regs_livro_norm[0].keys())
+        cols_plan = set(regs_plan_norm[0].keys())
+
         campos_chave = ['numero_nf']
-        if 'cfop' in df_livro_norm.columns and 'cfop' in df_plan_norm.columns:
+        if 'cfop' in cols_livro and 'cfop' in cols_plan:
             campos_chave.append('cfop')
 
         campos_comparacao = [
             c for c in ['valor_total', 'data_emissao', 'cfop']
-            if c in df_livro_norm.columns and c in df_plan_norm.columns and c not in campos_chave
+            if c in cols_livro and c in cols_plan and c not in campos_chave
         ]
 
-        # Executa o cruzamento
         resultado_cruzamento = executar_cruzamento(
-            df_livro=df_livro_norm,
-            df_planilhas=df_plan_norm,
+            registros_livro=regs_livro_norm,
+            registros_planilha=regs_plan_norm,
             campos_chave=campos_chave,
             campos_comparacao=campos_comparacao,
             tolerancia=0.01
@@ -154,7 +153,6 @@ def index():
 
         resultados_tabela = []
         for item in itens:
-            # Extrai dados base do livro ou da planilha
             base = item['dados_livro'] if isinstance(item['dados_livro'], dict) else (
                 item['dados_planilha'] if isinstance(item['dados_planilha'], dict) else {}
             )
@@ -168,7 +166,6 @@ def index():
             cfop_item = str(base.get('cfop', ''))
             valor_item = float(base.get('valor_total', 0.0) or 0.0)
 
-            # Aplica filtros se preenchidos
             if filtro_data_inicio and data_item and data_item < filtro_data_inicio:
                 continue
             if filtro_data_fim and data_item and data_item > filtro_data_fim:
@@ -199,9 +196,6 @@ def index():
             f"OK: {resumo['correspondencias']} | "
             f"Divergências: {resumo['divergencias']}"
         )
-
-        # Se quiser redirecionar direto para o dashboard completo (resultado.html), descomente a linha abaixo:
-        # return redirect(url_for('ver_resultado', conferencia_id=conferencia_id))
 
         return render_template('index.html', resultados=resultados_tabela, mensagem=msg, conferencia_id=conferencia_id)
 
