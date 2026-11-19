@@ -66,7 +66,7 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
             reader = PdfReader(caminho_arquivo)
 
             if modo_operacao == 'resumo_cfop':
-                # Foca nas últimas 15 páginas onde fica o Resumo por CFOP
+                # Modo 1: Foca nas últimas 15 páginas onde fica o Resumo por CFOP
                 paginas_alvo = reader.pages[-15:] if len(reader.pages) > 15 else reader.pages
                 texto_completo = "\n".join([p.extract_text() or '' for p in paginas_alvo])
                 linhas = texto_completo.splitlines()
@@ -100,8 +100,8 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                     raise FileReadError("Modo Resumo selecionado, mas nenhum quadro de Resumo por CFOP foi encontrado no PDF.")
                 registros = list(cfops_encontrados.values())
 
-                else:
-                # Modo Detalhado por Nota: leitura flexível para layout de Livro Fiscal
+            else:
+                # Modo 2: Detalhado por Nota (leitura flexível para layout de Livro Fiscal)
                 texto_completo = "\n".join([p.extract_text() or '' for p in reader.pages])
                 linhas = texto_completo.splitlines()
 
@@ -111,7 +111,6 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
 
                 for idx, linha in enumerate(linhas):
                     linha_limpa = linha.strip()
-                    # Ignora cabeçalhos, totais e linhas de resumo
                     if any(t in linha_limpa.upper() for t in ['TOTAL', 'SUBTOTAL', 'RESUMO', 'TRANSPORTE', 'PÁGINA', 'PAGINA']):
                         continue
 
@@ -119,14 +118,12 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                     if not m_data:
                         continue
 
-                    # Junta a linha atual com a próxima (caso o CFOP/Valor quebrem de linha no PDF)
                     bloco_texto = linha_limpa
                     if idx + 1 < len(linhas):
                         prox = linhas[idx + 1].strip()
                         if not padrao_data.search(prox):
                             bloco_texto += " " + prox
 
-                    # Remove datas e CNPJs/CPFs do bloco para não confundir com o Número da Nota
                     texto_sem_doc = re.sub(r'\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b', '', bloco_texto)
                     texto_sem_doc = re.sub(r'\b\d{3}\.\d{3}\.\d{3}-\d{2}\b', '', texto_sem_doc)
                     texto_sem_doc = padrao_data.sub('', texto_sem_doc)
@@ -134,7 +131,6 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                     m_cfop = padrao_cfop.search(texto_sem_doc)
                     valores = padrao_valor.findall(texto_sem_doc)
 
-                    # Procura o Número da Nota (sequência de 1 a 9 dígitos, aceitando ponto de milhar como 001.234)
                     texto_sem_cfop = padrao_cfop.sub('', texto_sem_doc, count=1) if m_cfop else texto_sem_doc
                     m_nota = re.search(r'\b(\d{1,3}(?:\.\d{3}){1,2}|\d{1,9})\b', texto_sem_cfop)
 
@@ -142,7 +138,6 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                         data_raw = m_data.group(1)
                         nota_val = m_nota.group(1).replace('.', '')
                         cfop_val = m_cfop.group(1).replace('.', '')
-                        # O primeiro valor monetário da linha no Livro Fiscal geralmente é o Valor Contábil
                         valor_str = valores[0]
 
                         if cfop_val.startswith('202'):
