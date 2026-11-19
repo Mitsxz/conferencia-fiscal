@@ -22,15 +22,14 @@ init_db()
 
 
 def formatar_brl(valor) -> str:
-    """Converte número ou string numérica para o padrão brasileiro (ex: 4500.0 -> '4.500,00')."""
     try:
         if isinstance(valor, str):
-            v_limpo = valor.strip().replace('R$', '').strip()
-            if ',' in v_limpo and '.' in v_limpo:
-                v_limpo = v_limpo.replace('.', '').replace(',', '.')
-            elif ',' in v_limpo:
-                v_limpo = v_limpo.replace(',', '.')
-            num = float(v_limpo)
+            v = valor.strip().replace('R$', '').strip()
+            if ',' in v and '.' in v:
+                v = v.replace('.', '').replace(',', '.')
+            elif ',' in v:
+                v = v.replace(',', '.')
+            num = float(v)
         else:
             num = float(valor or 0.0)
         return f"{num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -39,7 +38,6 @@ def formatar_brl(valor) -> str:
 
 
 def detectar_mapeamento_colunas(colunas: list) -> dict:
-    """Identifica automaticamente as colunas de Data, Nota, CFOP (incluindo 'Código') e Valor."""
     mapeamento = {}
     for col in colunas:
         c = col.lower().strip()
@@ -55,7 +53,6 @@ def detectar_mapeamento_colunas(colunas: list) -> dict:
 
 
 def agrupar_por_cfop(registros: list[dict]) -> list[dict]:
-    """Consolida e soma os valores por CFOP (Modo 1: Resumo por CFOP)."""
     somas = defaultdict(float)
     for r in registros:
         cfop = re.sub(r'\D', '', str(r.get('cfop', '')).strip())
@@ -65,7 +62,6 @@ def agrupar_por_cfop(registros: list[dict]) -> list[dict]:
 
 
 def agrupar_por_nota_cfop(registros: list[dict]) -> list[dict]:
-    """Soma lançamentos repetidos da mesma Nota Fiscal + CFOP para evitar falsos alertas de duplicidade (Modo 2)."""
     agrupados = {}
     for r in registros:
         nota = str(r.get('numero_nf', '')).strip().lstrip('0') or '0'
@@ -94,7 +90,7 @@ def index():
     arquivo_planilha = request.files.get('planilha_fiscal')
 
     if not arquivo_livro or not arquivo_planilha or not arquivo_livro.filename or not arquivo_planilha.filename:
-        return render_template('index.html', resultados=[], mensagem="Envie ambos os arquivos (Livro Fiscal e Planilha Fiscal).")
+        return render_template('index.html', resultados=[], mensagem="Envie ambos os arquivos.")
 
     try:
         Config.init_app()
@@ -125,21 +121,15 @@ def index():
         filtro_cfop = re.sub(r'\D', '', request.form.get('cfop', '').strip())
 
         if modo_operacao == 'resumo_cfop':
-            if 'cfop' not in map_livro:
-                raise FileReadError(f"Coluna de CFOP não encontrada no Livro. Colunas lidas: {list(regs_livro_raw[0].keys())}")
-            if 'cfop' not in map_plan:
-                raise FileReadError(f"Coluna de CFOP ('Código') não encontrada na Planilha. Colunas lidas: {list(regs_plan_raw[0].keys())}")
-
+            if 'cfop' not in map_livro or 'cfop' not in map_plan:
+                raise FileReadError("Coluna de CFOP não encontrada em um dos arquivos.")
             regs_livro_final = agrupar_por_cfop(regs_livro_norm)
             regs_plan_final = agrupar_por_cfop(regs_plan_norm)
             campos_chave = ['cfop']
             campos_comparacao = ['valor_total']
         else:
-            if 'numero_nf' not in map_livro:
-                raise FileReadError(f"Coluna de Nota não encontrada no Livro. Colunas lidas: {list(regs_livro_raw[0].keys())}")
-            if 'numero_nf' not in map_plan:
-                raise FileReadError(f"Coluna de Nota não encontrada na Planilha. Colunas lidas: {list(regs_plan_raw[0].keys())}")
-
+            if 'numero_nf' not in map_livro or 'numero_nf' not in map_plan:
+                raise FileReadError("Coluna de Nota não encontrada em um dos arquivos.")
             regs_livro_final = agrupar_por_nota_cfop(regs_livro_norm)
             regs_plan_final = agrupar_por_nota_cfop(regs_plan_norm)
             campos_chave = ['numero_nf']
@@ -175,18 +165,10 @@ def index():
                 percentual_correspondencia
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            titulo,
-            nome_livro_orig,
-            caminho_livro,
-            json.dumps([nome_plan_orig]),
+            titulo, nome_livro_orig, caminho_livro, json.dumps([nome_plan_orig]),
             json.dumps({'modo': modo_operacao, 'chaves': campos_chave, 'comparacao': campos_comparacao}),
-            0.05,
-            resumo['total_analisados'],
-            resumo['correspondencias'],
-            resumo['divergencias'],
-            resumo['ausentes_planilha'],
-            resumo['ausentes_livro'],
-            resumo['duplicidades'],
+            0.05, resumo['total_analisados'], resumo['correspondencias'], resumo['divergencias'],
+            resumo['ausentes_planilha'], resumo['ausentes_livro'], resumo['duplicidades'],
             resumo['percentual_correspondencia']
         ))
         conferencia_id = cursor.lastrowid
@@ -198,9 +180,7 @@ def index():
                     tipo_divergencia, dados_livro_json, dados_planilha_json, diferencas_json
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (
-                conferencia_id,
-                item['chave_identificacao'],
-                item['categoria_resultado'],
+                conferencia_id, item['chave_identificacao'], item['categoria_resultado'],
                 item['tipo_divergencia'],
                 json.dumps(item['dados_livro']) if item['dados_livro'] else None,
                 json.dumps(item['dados_planilha']) if item['dados_planilha'] else None,
@@ -236,9 +216,99 @@ def index():
                 continue
 
             status_txt = 'OK' if item['categoria_resultado'] == 'CORRESPONDENCIA' else item['categoria_resultado']
-
             partes_detalhe = []
             for d in item.get('diferencas', []):
                 if d['campo'] == 'valor_total':
-                    partes_detalhe.append(
-                        f"Valor: Livro (R$ {formatar_brl(d['livro'])}) vs Planilha (R$ {formatar_brl(d['planilha'])}) |
+                    l_fmt = formatar_brl(d['livro'])
+                    p_fmt = formatar_brl(d['planilha'])
+                    dif_fmt = formatar_brl(d['diferenca'])
+                    partes_detalhe.append(f"Valor: Livro (R$ {l_fmt}) vs Planilha (R$ {p_fmt}) | Dif: R$ {dif_fmt}")
+                else:
+                    partes_detalhe.append(f"{d['campo']}: Livro ({d['livro']}) vs Planilha ({d['planilha']}) | Dif: {d['diferenca']}")
+
+            detalhes_txt = "; ".join(partes_detalhe) or f"Total confere (R$ {valor_fmt})"
+
+            resultados_tabela.append({
+                'data': data_item or 'Período',
+                'nota': nota_item or '-',
+                'cfop': cfop_item or '-',
+                'valor': valor_fmt,
+                'status': status_txt,
+                'detalhe': detalhes_txt
+            })
+
+        msg = (
+            f"Conferência #{conferencia_id} [{label_modo}] concluída! "
+            f"Analisados: {resumo['total_analisados']} | OK: {resumo['correspondencias']} | Divergências: {resumo['divergencias']}"
+        )
+        return render_template('index.html', resultados=resultados_tabela, mensagem=msg, conferencia_id=conferencia_id)
+
+    except FileReadError as e:
+        return render_template('index.html', resultados=[], mensagem=f"Erro ao ler arquivo: {str(e)}")
+    except Exception as e:
+        return render_template('index.html', resultados=[], mensagem=f"Erro inesperado: {str(e)}")
+
+
+@app.route('/resultado/<int:conferencia_id>')
+def ver_resultado(conferencia_id):
+    conn = get_db_connection()
+    conf = conn.execute('SELECT * FROM conferencias WHERE id = ?', (conferencia_id,)).fetchone()
+    if not conf:
+        conn.close()
+        return redirect(url_for('index'))
+    itens_db = conn.execute('SELECT * FROM conferencia_itens WHERE conferencia_id = ?', (conferencia_id,)).fetchall()
+    conn.close()
+    itens = []
+    for row in itens_db:
+        item = dict(row)
+        item['diferencas'] = json.loads(item['diferencas_json']) if item['diferencas_json'] else []
+        itens.append(item)
+    return render_template('resultado.html', conf=dict(conf), itens=itens)
+
+
+@app.route('/relatorio/<int:conferencia_id>/<tipo>')
+def exportar_relatorio(conferencia_id, tipo):
+    conn = get_db_connection()
+    conf = conn.execute('SELECT * FROM conferencias WHERE id = ?', (conferencia_id,)).fetchone()
+    if not conf:
+        conn.close()
+        return "Conferência não encontrada", 404
+    itens_db = conn.execute('SELECT * FROM conferencia_itens WHERE conferencia_id = ?', (conferencia_id,)).fetchall()
+    conn.close()
+    resumo = {
+        'total_analisados': conf['total_analisados'],
+        'correspondencias': conf['total_correspondencias'],
+        'divergencias': conf['total_divergencias'],
+        'ausentes_planilha': conf['total_ausentes_planilha'],
+        'ausentes_livro': conf['total_ausentes_livro'],
+        'duplicidades': conf['total_duplicidades'],
+        'percentual_correspondencia': conf['percentual_correspondencia'],
+    }
+    itens = []
+    for row in itens_db:
+        item = dict(row)
+        item['diferencas'] = json.loads(item['diferencas_json']) if item['diferencas_json'] else []
+        itens.append(item)
+    Config.init_app()
+    if tipo == 'excel':
+        caminho = gerar_relatorio_excel(conferencia_id, conf['titulo'], resumo, itens)
+    elif tipo == 'pdf':
+        caminho = gerar_relatorio_pdf(conferencia_id, conf['titulo'], resumo, itens)
+    else:
+        return "Tipo inválido", 400
+    return send_file(caminho, as_attachment=True)
+
+
+@app.route('/api/item/<int:item_id>/status', methods=['POST'])
+def atualizar_status_item(item_id):
+    dados = request.get_json(silent=True) or {}
+    novo_status = dados.get('status', 'PENDENTE')
+    conn = get_db_connection()
+    conn.execute('UPDATE conferencia_itens SET status_revisao = ? WHERE id = ?', (novo_status, item_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'status': novo_status})
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
