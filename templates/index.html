@@ -4,171 +4,517 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Conferência Fiscal Inteligente</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
+        :root {
+            --primary: #1d4ed8;
+            --primary-hover: #1e40af;
+            --navy-dark: #0f172a;
+            --navy-mid: #1e3a8a;
+            --bg-page: #f1f5f9;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --success-bg: #dcfce7;
+            --success-text: #166534;
+            --danger-bg: #fee2e2;
+            --danger-text: #991b1b;
+            --warning-bg: #fef3c7;
+            --warning-text: #92400e;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
-            background-color: #f0f2f5;
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            color: #1e293b;
+            font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+            background-color: var(--bg-page);
+            color: var(--text-main);
+            line-height: 1.5;
         }
-        .navbar-brand-custom {
-            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
-            color: #fff;
-            padding: 1.5rem 0;
-            margin-bottom: 2rem;
-            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+
+        /* Cabeçalho */
+        .header {
+            background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy-mid) 100%);
+            color: #ffffff;
+            padding: 28px 20px;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+            margin-bottom: 30px;
         }
-        .card-main {
-            border: none;
+
+        .header-content {
+            max-width: 1050px;
+            margin: 0 auto;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header h1 {
+            font-size: 1.65rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 4px;
+        }
+
+        .header p {
+            font-size: 0.9rem;
+            color: #cbd5e1;
+        }
+
+        .header-badge {
+            background-color: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 600;
+        }
+
+        /* Container Principal */
+        .container {
+            max-width: 1050px;
+            margin: 0 auto 50px auto;
+            padding: 0 20px;
+        }
+
+        /* Alertas */
+        .alert {
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 24px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .alert-success {
+            background-color: var(--success-bg);
+            color: var(--success-text);
+            border-left: 5px solid #16a34a;
+        }
+
+        .alert-danger {
+            background-color: var(--danger-bg);
+            color: var(--danger-text);
+            border-left: 5px solid #dc2626;
+        }
+
+        .btn-dashboard {
+            background-color: var(--navy-dark);
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .btn-dashboard:hover {
+            background-color: #1e293b;
+        }
+
+        /* Cards */
+        .card {
+            background-color: var(--card-bg);
             border-radius: 14px;
+            padding: 28px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-            background: #ffffff;
+            border: 1px solid var(--border-color);
+            margin-bottom: 28px;
         }
+
+        .section-title {
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--primary);
+            margin-bottom: 14px;
+            display: block;
+        }
+
+        .divider {
+            border: 0;
+            border-top: 1px solid var(--border-color);
+            margin: 24px 0;
+        }
+
+        /* Grid de Formulário */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 18px;
+        }
+
+        .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2, .grid-4 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-weight: 600;
+            font-size: 0.88rem;
+            color: var(--text-main);
+            margin-bottom: 6px;
+        }
+
+        select, input[type="text"], input[type="date"], input[type="file"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.94rem;
+            color: var(--text-main);
+            background-color: #ffffff;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15);
+        }
+
+        .mode-select {
+            font-weight: 600;
+            border: 2px solid #93c5fd;
+            background-color: #eff6ff;
+            color: #1e3a8a;
+        }
+
+        .mode-hint {
+            background-color: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 0.86rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+        }
+
+        /* Caixas de Upload */
         .upload-box {
             border: 2px dashed #cbd5e1;
             border-radius: 10px;
-            padding: 1.25rem;
+            padding: 18px;
             background-color: #f8fafc;
             transition: all 0.2s ease;
         }
+
         .upload-box:hover {
-            border-color: #2563eb;
+            border-color: var(--primary);
             background-color: #eff6ff;
         }
-        .section-title {
-            font-size: 0.85rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #64748b;
-            margin-bottom: 0.75rem;
+
+        .upload-box .hint {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            display: block;
         }
-        .btn-primary-custom {
+
+        /* Botão Principal */
+        .btn-submit {
+            width: 100%;
+            margin-top: 24px;
             background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+            color: #ffffff;
             border: none;
             border-radius: 8px;
-            padding: 0.75rem 1.5rem;
-            font-weight: 600;
-            letter-spacing: 0.02em;
-            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            padding: 14px 20px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
         }
-        .btn-primary-custom:hover {
+
+        .btn-submit:hover {
+            background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%);
             transform: translateY(-1px);
-            box-shadow: 0 6px 15px rgba(37, 99, 235, 0.3);
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
         }
-        .table-custom thead th {
+
+        /* Tabela de Resultados */
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .table-header h2 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--navy-dark);
+        }
+
+        .count-badge {
+            background-color: #dbeafe;
+            color: #1e40af;
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        thead th {
             background-color: #f8fafc;
             color: #475569;
-            font-weight: 600;
-            font-size: 0.85rem;
+            font-weight: 700;
+            font-size: 0.8rem;
             text-transform: uppercase;
-            border-bottom: 2px solid #e2e8f0;
+            letter-spacing: 0.04em;
+            padding: 13px 15px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        tbody td {
+            padding: 13px 15px;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+        }
+
+        tbody tr:hover {
+            background-color: #f8fafc;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .cfop-tag {
+            background-color: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            color: #0f172a;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 0.84rem;
+        }
+
+        .badge-status {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+
+        .badge-ok {
+            background-color: var(--success-bg);
+            color: var(--success-text);
+            border: 1px solid #86efac;
+        }
+
+        .badge-divergente {
+            background-color: var(--danger-bg);
+            color: var(--danger-text);
+            border: 1px solid #fca5a5;
+        }
+
+        .badge-ausente {
+            background-color: var(--warning-bg);
+            color: var(--warning-text);
+            border: 1px solid #fcd34d;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
         }
     </style>
 </head>
 <body>
 
-    <!-- Cabeçalho Superior -->
-    <header class="navbar-brand-custom">
-        <div class="container">
-            <div class="d-flex flex-wrap justify-content-between align-items-center">
-                <div>
-                    <h2 class="fw-bold mb-1"><i class="bi bi-file-earmark-check-fill me-2"></i>Conferência Fiscal</h2>
-                    <p class="mb-0 text-white-50 small">Cruzamento automático entre Livro Fiscal (Entradas/Saídas) e Planilhas de Controle</p>
-                </div>
-                <span class="badge bg-light text-dark px-3 py-2 rounded-pill shadow-sm">
-                    <i class="bi bi-shield-check text-success me-1"></i> Auditoria Automatizada
-                </span>
+    <header class="header">
+        <div class="header-content">
+            <div>
+                <h1>Conferência Fiscal</h1>
+                <p>Cruzamento automático entre Livro Fiscal (Entradas/Saídas) e Planilhas da Empresa</p>
             </div>
+            <span class="header-badge">Auditoria Fiscal Automatizada</span>
         </div>
     </header>
 
-    <div class="container pb-5">
+    <div class="container">
 
-        <!-- Alerta de Feedback / Status -->
         {% if mensagem %}
-        <div class="alert {% if 'Erro' in mensagem %}alert-danger{% else %}alert-success{% endif %} shadow-sm border-0 rounded-3 d-flex flex-wrap justify-content-between align-items-center mb-4" role="alert">
-            <div class="fw-semibold">
-                <i class="bi {% if 'Erro' in mensagem %}bi-exclamation-triangle-fill{% else %}bi-check-circle-fill{% endif %} me-2"></i>
-                {{ mensagem }}
-            </div>
+        <div class="alert {% if 'Erro' in mensagem %}alert-danger{% else %}alert-success{% endif %}">
+            <span>{{ mensagem }}</span>
             {% if conferencia_id %}
-            <a href="/resultado/{{ conferencia_id }}" class="btn btn-sm btn-dark fw-semibold mt-2 mt-md-0">
-                <i class="bi bi-bar-chart-fill me-1"></i> Ver Dashboard Completo e Exportar
+            <a href="/resultado/{{ conferencia_id }}" class="btn-dashboard">
+                Ver Dashboard Completo e Exportar →
             </a>
             {% endif %}
         </div>
         {% endif %}
 
-        <!-- Card Principal do Formulário -->
-        <div class="card card-main p-4 mb-4">
+        <div class="card">
             <form method="POST" enctype="multipart/form-data">
                 
-                <!-- Passo 1: Modo de Operação -->
-                <div class="mb-4">
-                    <div class="section-title"><i class="bi bi-sliders me-1"></i> 1. Escolha o Modo de Conferência</div>
-                    <div class="row align-items-center g-3">
-                        <div class="col-md-7">
-                            <select name="modo_operacao" id="modoOperacao" class="form-select form-select-lg border-primary-subtle fw-semibold" required>
-                                <option value="resumo_cfop" selected>Modo 1: Resumo por CFOP (Totais Consolidados)</option>
-                                <option value="detalhado_nota">Modo 2: Detalhado por Nota Fiscal (Item a Item)</option>
-                            </select>
-                        </div>
-                        <div class="col-md-5">
-                            <div id="descricaoModo" class="small text-muted bg-light p-2 rounded border">
-                                <i class="bi bi-info-circle text-primary me-1"></i>
-                                Lê o quadro de <strong>Resumo no final do Livro Fiscal</strong> e soma os valores da planilha por <strong>CFOP (Código)</strong>.
-                            </div>
-                        </div>
+                <span class="section-title">1. Escolha o Modo de Conferência</span>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <select name="modo_operacao" id="modoOperacao" class="mode-select" required>
+                            <option value="resumo_cfop" selected>Modo 1: Resumo por CFOP (Totais Consolidados)</option>
+                            <option value="detalhado_nota">Modo 2: Detalhado por Nota Fiscal (Item a Item)</option>
+                        </select>
+                    </div>
+                    <div class="mode-hint" id="descricaoModo">
+                        Lê o quadro de Resumo no final do Livro Fiscal e soma os valores da planilha por CFOP (coluna Código).
                     </div>
                 </div>
 
-                <hr class="text-muted opacity-25 my-4">
+                <hr class="divider">
 
-                <!-- Passo 2: Upload dos Arquivos -->
-                <div class="mb-4">
-                    <div class="section-title"><i class="bi bi-cloud-arrow-up me-1"></i> 2. Selecione os Arquivos</div>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <div class="upload-box h-100">
-                                <label class="form-label fw-bold text-dark mb-1">
-                                    <i class="bi bi-file-earmark-pdf text-danger me-1"></i> Livro Fiscal
-                                </label>
-                                <p class="text-muted small mb-2">Aceita arquivo PDF (com ou sem resumo), Excel (.xlsx) ou CSV.</p>
-                                <input type="file" name="livro_fiscal" class="form-control" accept=".pdf,.csv,.xlsx" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="upload-box h-100">
-                                <label class="form-label fw-bold text-dark mb-1">
-                                    <i class="bi bi-file-earmark-excel text-success me-1"></i> Planilha Fiscal da Empresa
-                                </label>
-                                <p class="text-muted small mb-2">Aceita Excel (.xlsx) ou CSV (identifica automaticamente a coluna <strong>Código</strong>).</p>
-                                <input type="file" name="planilha_fiscal" class="form-control" accept=".xlsx,.csv" required>
-                            </div>
-                        </div>
+                <span class="section-title">2. Selecione os Arquivos</span>
+                <div class="grid-2">
+                    <div class="upload-box">
+                        <label>Livro Fiscal (PDF, Excel ou CSV)</label>
+                        <span class="hint">Aceita Livro de Entradas/Saídas em PDF, .xlsx ou .csv.</span>
+                        <input type="file" name="livro_fiscal" accept=".pdf,.csv,.xlsx" required>
+                    </div>
+                    <div class="upload-box">
+                        <label>Planilha Fiscal da Empresa (Excel ou CSV)</label>
+                        <span class="hint">Identifica automaticamente a coluna <strong>Código</strong> como CFOP.</span>
+                        <input type="file" name="planilha_fiscal" accept=".xlsx,.csv" required>
                     </div>
                 </div>
 
-                <hr class="text-muted opacity-25 my-4">
+                <hr class="divider">
 
-                <!-- Passo 3: Filtros Opcionais -->
-                <div class="mb-4">
-                    <div class="section-title"><i class="bi bi-funnel me-1"></i> 3. Filtros Opcionais (Deixe em branco para conferir tudo)</div>
-                    <div class="row g-3">
-                        <div class="col-sm-6 col-md-3">
-                            <label class="form-label small fw-semibold text-secondary">Data Inicial</label>
-                            <input type="date" name="data_inicio" class="form-control">
-                        </div>
-                        <div class="col-sm-6 col-md-3">
-                            <label class="form-label small fw-semibold text-secondary">Data Final</label>
-                            <input type="date" name="data_fim" class="form-control">
-                        </div>
-                        <div class="col-sm-6 col-md-3">
-                            <label class="form-label small fw-semibold text-secondary">Número da Nota</label>
-                            <input type="text" name="nota" class="form-control" placeholder="Ex: 1001">
-                        </div>
-                        <div class="col-sm-6 col-md-3">
-                            <label class="form-label small fw-semibold text-secondary">CFOP / Código</label>
-                            <input type="text" name="cfop" class="form-control" placeholder="Ex: 5102
+                <span class="section-title">3. Filtros Opcionais (Deixe em branco para conferir tudo)</span>
+                <div class="grid-4">
+                    <div class="form-group">
+                        <label>Data Inicial</label>
+                        <input type="date" name="data_inicio">
+                    </div>
+                    <div class="form-group">
+                        <label>Data Final</label>
+                        <input type="date" name="data_fim">
+                    </div>
+                    <div class="form-group">
+                        <label>Número da Nota</label>
+                        <input type="text" name="nota" placeholder="Ex: 1001">
+                    </div>
+                    <div class="form-group">
+                        <label>CFOP / Código</label>
+                        <input type="text" name="cfop" placeholder="Ex: 5102">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-submit">Realizar Conferência Fiscal</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <div class="table-header">
+                <h2>Resultados da Conferência</h2>
+                {% if resultados %}
+                <span class="count-badge">{{ resultados|length }} registro(s)</span>
+                {% endif %}
+            </div>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Período / Data</th>
+                            <th>Nota / Tipo</th>
+                            <th>CFOP</th>
+                            <th class="text-right">Valor (R$)</th>
+                            <th class="text-center">Status</th>
+                            <th>Detalhes / Ocorrência</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in resultados %}
+                        <tr>
+                            <td style="color: #64748b; font-size: 0.85rem;">{{ item.data }}</td>
+                            <td style="font-weight: 600;">{{ item.nota }}</td>
+                            <td><span class="cfop-tag">{{ item.cfop }}</span></td>
+                            <td class="text-right" style="font-weight: 700;">R$ {{ "%.2f"|format(item.valor) }}</td>
+                            <td class="text-center">
+                                {% if item.status == 'OK' %}
+                                    <span class="badge-status badge-ok">OK</span>
+                                {% elif 'DIVERGENCIA' in item.status %}
+                                    <span class="badge-status badge-divergente">DIVERGÊNCIA</span>
+                                {% else %}
+                                    <span class="badge-status badge-ausente">{{ item.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td style="color: #475569; font-size: 0.86rem;">{{ item.detalhe }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="empty-state">
+                                Nenhum registro conferido ainda. Escolha o modo, envie os arquivos acima e clique em <strong>Realizar Conferência Fiscal</strong>.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const selectModo = document.getElementById('modoOperacao');
+        const descModo = document.getElementById('descricaoModo');
+
+        selectModo.addEventListener('change', function() {
+            if (this.value === 'resumo_cfop') {
+                descModo.textContent = 'Lê o quadro de Resumo no final do Livro Fiscal e soma os valores da planilha por CFOP (coluna Código).';
+            } else {
+                descModo.textContent = 'Cruza Nota por Nota individualmente entre o Livro Fiscal e a Planilha da empresa.';
+            }
+        });
+    </script>
+</body>
+</html>
