@@ -21,8 +21,18 @@ def ler_arquivo_tabular(caminho_arquivo: str) -> list[dict]:
             linhas = list(ws.iter_rows(values_only=True))
             if len(linhas) < 2:
                 raise FileReadError("A planilha Excel está vazia ou sem dados.")
-            cabecalho = [str(c).strip() if c is not None else f"col_{i}" for i, c in enumerate(linhas[0])]
-            for row in linhas[1:]:
+
+            # Procura automaticamente em qual linha está o cabeçalho real (até a linha 15)
+            idx_cabecalho = 0
+            palavras_chave_cab = ['cfop', 'nota', 'nf', 'valor', 'total', 'contabil', 'contábil', 'data', 'emissao', 'emissão', 'documento']
+            for idx, row in enumerate(linhas[:15]):
+                texto_linha = " ".join([str(c).lower() for c in row if c is not None])
+                if any(p in texto_linha for p in palavras_chave_cab):
+                    idx_cabecalho = idx
+                    break
+
+            cabecalho = [str(c).strip() if c is not None else f"col_{i}" for i, c in enumerate(linhas[idx_cabecalho])]
+            for row in linhas[idx_cabecalho + 1:]:
                 if not any(row):
                     continue
                 registros.append({cabecalho[i]: (str(row[i]).strip() if row[i] is not None else '') for i in range(len(cabecalho))})
