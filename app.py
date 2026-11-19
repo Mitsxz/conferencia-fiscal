@@ -287,12 +287,14 @@ def index():
                 continue
 
             diffs = item.get('diferencas', [])
-            campos_div = {d.get('campo') for d in diffs}
+            tem_erro_valor = any(
+                'valor' in str(d.get('campo', '')).lower() for d in diffs
+            )
 
             if item['categoria_resultado'] == 'CORRESPONDENCIA':
                 status_txt = 'OK'
             elif item['categoria_resultado'] == 'DIVERGENCIA':
-                status_txt = 'DIVERGENCIA_DATA' if campos_div == {'data_emissao'} else 'DIVERGENCIA'
+                status_txt = 'DIVERGENCIA' if tem_erro_valor else 'DIVERGENCIA_DATA'
             else:
                 status_txt = item['categoria_resultado']
 
