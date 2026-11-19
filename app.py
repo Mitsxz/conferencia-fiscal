@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import uuid
 from collections import defaultdict
@@ -20,8 +21,8 @@ Config.init_app()
 init_db()
 
 
-def detectar_mapeamento_colunas(colunas: list, amostra_registros: list = None) -> dict:
-    """Identifica automaticamente as colunas de Data, Nota, CFOP e Valor."""
+def detectar_mapeamento_colunas(colunas: list) -> dict:
+    """Identifica automaticamente as colunas de Data, Nota, CFOP (incluindo 'Código') e Valor."""
     mapeamento = {}
     for col in colunas:
         c = col.lower().strip()
@@ -29,19 +30,18 @@ def detectar_mapeamento_colunas(colunas: list, amostra_registros: list = None) -
             mapeamento['data_emissao'] = col
         elif any(k in c for k in ['nota', 'nf', 'numero', 'número', 'doc', 'nfe', 'nfc']) and 'numero_nf' not in mapeamento:
             mapeamento['numero_nf'] = col
-        elif any(k in c for k in ['cfop', 'código', 'codigo', 'cod.', 'cód.', 'natureza', 'operacao', 'operação']) and 'cfop' not in mapeamento:
+        elif (c in ['cfop', 'código', 'codigo', 'cod', 'cód', 'cod. fiscal', 'cód. fiscal'] or 'cfop' in c) and 'cfop' not in mapeamento:
             mapeamento['cfop'] = col
         elif any(k in c for k in ['valor', 'total', 'vlr', 'liquido', 'líquido', 'contabil', 'contábil', 'mercadoria']) and 'valor_total' not in mapeamento:
             mapeamento['valor_total'] = col
-
     return mapeamento
 
 
 def agrupar_por_cfop(registros: list[dict]) -> list[dict]:
-    """Soma os valores por CFOP para comparar com o Resumo do Livro Fiscal."""
+    """Consolida e soma os valores por CFOP (funciona tanto se o arquivo já for resumo quanto se for detalhado)."""
     somas = defaultdict(float)
     for r in registros:
-        cfop = str(r.get('cfop', '')).replace('.', '').strip()
+        cfop = re.sub(r'\D', '', str(r.get('cfop', '')).strip())
         if cfop:
             somas[cfop] += float(r.get('valor_total', 0.0) or 0.0)
     return [{'cfop': k, 'valor_total': round(v, 2)} for k, v in somas.items()]
@@ -52,6 +52,7 @@ def index():
     if request.method == 'GET':
         return render_template('index.html', resultados=[], mensagem=None)
 
+    modo_operacao = request.form.get('modo_operacao', 'resumo_cfop')
     arquivo_livro = request.files.get('livro_fiscal')
     arquivo_planilha = request.files.get('planilha_fiscal')
 
@@ -72,8 +73,9 @@ def index():
         arquivo_livro.save(caminho_livro)
         arquivo_planilha.save(caminho_planilha)
 
-        regs_livro_raw = ler_arquivo_tabular(caminho_livro)
-        regs_plan_raw = ler_arquivo_tabular(caminho_planilha)
+        # Lê os arquivos conforme o modo escolhido pelo usuário
+        regs_livro_raw = ler_arquivo_tabular(caminho_livro, modo_operacao=modo_operacao)
+        regs_plan_raw = ler_arquivo_tabular(caminho_planilha, modo_operacao=modo_operacao)
 
         map_livro = detectar_mapeamento_colunas(list(regs_livro_raw[0].keys()))
         map_plan = detectar_mapeamento_colunas(list(regs_plan_raw[0].keys()))
@@ -81,40 +83,29 @@ def index():
         regs_livro_norm = normalizar_registros(regs_livro_raw, map_livro)
         regs_plan_norm = normalizar_registros(regs_plan_raw, map_plan)
 
-        # Filtra a planilha antes de agrupar, caso o usuário tenha informado Data Inicial/Final ou Nota
+        # Captura os filtros opcionais
         filtro_data_inicio = request.form.get('data_inicio', '').strip()
         filtro_data_fim = request.form.get('data_fim', '').strip()
         filtro_nota = request.form.get('nota', '').strip().lstrip('0')
-        filtro_cfop = request.form.get('cfop', '').strip().replace('.', '')
+        filtro_cfop = re.sub(r'\D', '', request.form.get('cfop', '').strip())
 
-        if filtro_data_inicio or filtro_data_fim or filtro_nota:
-            regs_plan_filtrados = []
-            for r in regs_plan_norm:
-                d = str(r.get('data_emissao', ''))
-                n = str(r.get('numero_nf', ''))
-                if filtro_data_inicio and d and d < filtro_data_inicio:
-                    continue
-                if filtro_data_fim and d and d > filtro_data_fim:
-                    continue
-                if filtro_nota and filtro_nota not in n:
-                    continue
-                regs_plan_filtrados.append(r)
-            if regs_plan_filtrados:
-                regs_plan_norm = regs_plan_filtrados
-
-        # Verifica se o Livro veio em formato de Resumo (tem CFOP, mas não tem numero_nf)
-        modo_resumo_cfop = ('numero_nf' not in map_livro) and ('cfop' in map_livro)
-
-        if modo_resumo_cfop:
+        if modo_operacao == 'resumo_cfop':
+            if 'cfop' not in map_livro:
+                raise FileReadError(f"Coluna de CFOP não encontrada no Livro. Colunas lidas: {list(regs_livro_raw[0].keys())}")
             if 'cfop' not in map_plan:
-                raise FileReadError("O Livro Fiscal está em formato de Resumo por CFOP, mas a Planilha não possui coluna 'CFOP'.")
+                raise FileReadError(f"Coluna de CFOP ('Código') não encontrada na Planilha. Colunas lidas: {list(regs_plan_raw[0].keys())}")
+
             regs_livro_final = agrupar_por_cfop(regs_livro_norm)
             regs_plan_final = agrupar_por_cfop(regs_plan_norm)
             campos_chave = ['cfop']
             campos_comparacao = ['valor_total']
         else:
-            if 'numero_nf' not in map_livro or 'numero_nf' not in map_plan:
-                raise FileReadError("Não foi possível identificar a coluna de Número da Nota ou CFOP nos arquivos.")
+            # Modo Detalhado por Nota Fiscal
+            if 'numero_nf' not in map_livro:
+                raise FileReadError(f"Coluna de Nota não encontrada no Livro. Colunas lidas: {list(regs_livro_raw[0].keys())}")
+            if 'numero_nf' not in map_plan:
+                raise FileReadError(f"Coluna de Nota não encontrada na Planilha. Colunas lidas: {list(regs_plan_raw[0].keys())}")
+
             regs_livro_final = regs_livro_norm
             regs_plan_final = regs_plan_norm
             campos_chave = ['numero_nf']
@@ -136,8 +127,9 @@ def index():
         resumo = resultado_cruzamento['resumo']
         itens = resultado_cruzamento['itens']
 
-        # Salva a conferência no banco de dados
-        titulo = f"Conferência {'(Resumo CFOP) ' if modo_resumo_cfop else ''}{datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        label_modo = "Resumo CFOP" if modo_operacao == 'resumo_cfop' else "Detalhado por Nota"
+        titulo = f"Conferência ({label_modo}) - {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -153,7 +145,7 @@ def index():
             nome_livro_orig,
             caminho_livro,
             json.dumps([nome_plan_orig]),
-            json.dumps({'chaves': campos_chave, 'comparacao': campos_comparacao}),
+            json.dumps({'modo': modo_operacao, 'chaves': campos_chave, 'comparacao': campos_comparacao}),
             0.05,
             resumo['total_analisados'],
             resumo['correspondencias'],
@@ -195,10 +187,16 @@ def index():
                 base = item['dados_planilha'][0]
 
             data_item = str(base.get('data_emissao', ''))
-            nota_item = str(base.get('numero_nf', 'Resumo CFOP' if modo_resumo_cfop else ''))
-            cfop_item = str(base.get('cfop', ''))
+            nota_item = str(base.get('numero_nf', 'Consolidado' if modo_operacao == 'resumo_cfop' else ''))
+            cfop_item = re.sub(r'\D', '', str(base.get('cfop', '')))
             valor_item = float(base.get('valor_total', 0.0) or 0.0)
 
+            if filtro_data_inicio and data_item and data_item < filtro_data_inicio:
+                continue
+            if filtro_data_fim and data_item and data_item > filtro_data_fim:
+                continue
+            if filtro_nota and filtro_nota not in nota_item:
+                continue
             if filtro_cfop and filtro_cfop != cfop_item:
                 continue
 
@@ -206,10 +204,10 @@ def index():
             detalhes_txt = "; ".join([
                 f"{d['campo']}: Livro (R$ {d['livro']}) vs Planilha (R$ {d['planilha']}) | Dif: R$ {d['diferenca']}"
                 for d in item.get('diferencas', [])
-            ]) or f"Total confere (Livro: R$ {valor_item:.2f})"
+            ]) or f"Total confere (R$ {valor_item:.2f})"
 
             resultados_tabela.append({
-                'data': data_item or 'Período Total',
+                'data': data_item or 'Período',
                 'nota': nota_item or '-',
                 'cfop': cfop_item or '-',
                 'valor': valor_item,
@@ -218,8 +216,8 @@ def index():
             })
 
         msg = (
-            f"Conferência #{conferencia_id} concluída! "
-            f"CFOPs/Itens Analisados: {resumo['total_analisados']} | "
+            f"Conferência #{conferencia_id} [{label_modo}] concluída! "
+            f"Analisados: {resumo['total_analisados']} | "
             f"OK: {resumo['correspondencias']} | "
             f"Divergências: {resumo['divergencias']}"
         )
