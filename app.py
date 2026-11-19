@@ -20,7 +20,7 @@ Config.init_app()
 init_db()
 
 
-def detectar_mapeamento_colunas(colunas: list) -> dict:
+def detectar_mapeamento_colunas(colunas: list, amostra_registros: list = None) -> dict:
     """Identifica automaticamente as colunas de Data, Nota, CFOP e Valor."""
     mapeamento = {}
     for col in colunas:
@@ -29,10 +29,11 @@ def detectar_mapeamento_colunas(colunas: list) -> dict:
             mapeamento['data_emissao'] = col
         elif any(k in c for k in ['nota', 'nf', 'numero', 'número', 'doc', 'nfe', 'nfc']) and 'numero_nf' not in mapeamento:
             mapeamento['numero_nf'] = col
-        elif any(k in c for k in ['cfop', 'cod. fiscal', 'cód. fiscal', 'codigo fiscal', 'código fiscal', 'natureza']) and 'cfop' not in mapeamento:
+        elif any(k in c for k in ['cfop', 'código', 'codigo', 'cod.', 'cód.', 'natureza', 'operacao', 'operação']) and 'cfop' not in mapeamento:
             mapeamento['cfop'] = col
         elif any(k in c for k in ['valor', 'total', 'vlr', 'liquido', 'líquido', 'contabil', 'contábil', 'mercadoria']) and 'valor_total' not in mapeamento:
             mapeamento['valor_total'] = col
+
     return mapeamento
 
 
