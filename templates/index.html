@@ -482,8 +482,10 @@
                             <td class="text-center">
                                 {% if item.status == 'OK' %}
                                     <span class="badge-status badge-ok">OK</span>
+                                {% elif item.status == 'DIVERGENCIA_DATA' %}
+                                    <span class="badge-status badge-ausente">DIVERGÊNCIA DE DATA</span>
                                 {% elif 'DIVERGENCIA' in item.status %}
-                                    <span class="badge-status badge-divergente">DIVERGÊNCIA</span>
+                                    <span class="badge-status badge-divergente">DIVERGÊNCIA DE VALOR</span>
                                 {% else %}
                                     <span class="badge-status badge-ausente">{{ item.status }}</span>
                                 {% endif %}
