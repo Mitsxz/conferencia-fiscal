@@ -102,25 +102,25 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                 registros = list(cfops_encontrados.values())
 
             else:
-                # Normaliza espaços e quebras de linha em todo o texto do PDF para não perder registros divididos em múltiplas linhas
                 texto_bruto = " ".join([p.extract_text() or '' for p in reader.pages])
                 texto_limpo = re.sub(r'\s+', ' ', texto_bruto)
 
-                # Captura cada lançamento entre a Data de Entrada e o CFOP (com hífen ou ponto)
+                # Layout exato do PDF:
+                # 29/10/2026Nota 1 11129/10/2026 RJ 14.300,00 2-919 2 14.300,002809
                 padrao_modelo_p1 = re.compile(
                     r'(\d{2}/\d{2}/\d{4})\s*'                  # 1. Data de entrada (ex: 29/10/2026)
-                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,80}?'       # Espécie/Série/valores intermediários (sem cruzar outra data)
-                    r'(\d{1,9})\s*'                            # 2. Número da Nota (ex: 2809 ou 036)
-                    r'(\d{2}/\d{2}/\d{4})\s*'                  # 3. Data de emissão (ex: 29/10/2026)
-                    r'(?:\d+\s*)?'                             # Código do emitente opcional (ex: 111)
+                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,80}?'       # Espécie / Série / Código emitente
+                    r'(\d{2}/\d{2}/\d{4})\s*'                  # 2. Data de emissão (ex: 29/10/2026)
                     r'[A-Z]{2}\s*'                             # UF (ex: RJ, SP, DF)
-                    r'(\d{1,3}(?:\.\d{3})*,\d{2})\s*'          # 4. Valor Contábil (ex: 14.300,00)
-                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,30}?'       # Eventual código contábil antes do CFOP
-                    r'([123567][\.\-]\d{3})'                   # 5. CFOP com hífen/ponto (ex: 2-919, 2-102)
+                    r'(\d{1,3}(?:\.\d{3})*,\d{2})\s*'          # 3. Valor Contábil (ex: 14.300,00)
+                    r'([123567][\.\-]\d{3})\s*'                # 4. CFOP (ex: 2-919)
+                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,60}?'       # Código tributação e valor da operação
+                    r'(?:,\d{2}|\s)(\d{1,9})'                  # 5. Número da Nota colado no fim (ex: 2809)
+                    r'(?=\s*\d{2}/\d{2}/\d{4}|\s*OBS|\s*TOTAL|\s*SUBTOTAL|\s*FOLHA|\s*$)'
                 )
 
                 for match in padrao_modelo_p1.finditer(texto_limpo):
-                    data_ent, nota_raw, data_emi, valor_str, cfop_raw = match.groups()
+                    data_ent, data_emi, valor_str, cfop_raw, nota_raw = match.groups()
                     nota_limpa = nota_raw.lstrip('0') or '0'
                     cfop_limpo = re.sub(r'\D', '', cfop_raw)
 
@@ -130,13 +130,6 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                         "cfop": cfop_limpo,
                         "valor": valor_str
                     })
-
-                # Diagnóstico: se capturou notas, mas a 2809 ficou de fora, exibe o trecho exato onde 2809 está no texto
-                notas_capturadas = {r['nota'] for r in registros}
-                if '2809' in texto_limpo and '2809' not in notas_capturadas:
-                    pos = texto_limpo.find('2809')
-                    trecho = texto_limpo[max(0, pos - 60):min(len(texto_limpo), pos + 140)]
-                    raise FileReadError(f"Diagnóstico Nota 2809 no texto do PDF: [{trecho}]")
 
                 if not registros:
                     amostra = texto_limpo[:500]
