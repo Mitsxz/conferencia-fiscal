@@ -4,8 +4,82 @@ import csv
 import openpyxl
 from pypdf import PdfReader
 
+try:
+    from odf.opendocument import load as load_ods
+    from odf.table import Table, TableRow, TableCell
+    from odf.text import P
+except ImportError:
+    load_ods = None
+
+
 class FileReadError(Exception):
     pass
+
+
+def _extrair_linhas_ods(caminho_arquivo: str) -> list[list[str]]:
+    if load_ods is None:
+        raise FileReadError("Biblioteca odfpy não instalada no servidor para ler arquivos .ods.")
+    doc = load_ods(caminho_arquivo)
+    tabelas = doc.spreadsheet.getElementsByType(Table)
+    if not tabelas:
+        return []
+    primeira_aba = tabelas[0]
+    linhas_resultado = []
+
+    for row in primeira_aba.getElementsByType(TableRow):
+        valores_linha = []
+        for cell in row.getElementsByType(TableCell):
+            repeticao = int(cell.getAttribute("numbercolumnsrepeated") or 1)
+            paragrafos = cell.getElementsByType(P)
+            texto_celula = " ".join(
+                "".join(n.data for n in p.childNodes if hasattr(n, "data"))
+                for p in paragrafos
+            ).strip()
+            if not texto_celula:
+                val_attr = cell.getAttribute("value")
+                if val_attr is not None:
+                    texto_celula = str(val_attr).strip()
+            # Evita expandir colunas vazias infinitas no final da linha do LibreOffice
+            if repeticao > 50 and not texto_celula:
+                continue
+            valores_linha.extend([texto_celula] * min(repeticao, 50))
+        if any(valores_linha):
+            linhas_resultado.append(valores_linha)
+    return linhas_resultado
+
+
+def _processar_matriz_planilha(linhas: list) -> list[dict]:
+    if len(linhas) < 2:
+        raise FileReadError("A planilha está vazia ou sem dados.")
+
+    idx_cabecalho = 0
+    palavras_chave_cab = [
+        'cfop', 'código', 'codigo', 'nota', 'nf', 'valor', 'total',
+        'contabil', 'contábil', 'data', 'emissao', 'emissão'
+    ]
+    for idx, row in enumerate(linhas[:25]):
+        texto_linha = " ".join([str(c).lower() for c in row if c is not None])
+        if sum(1 for p in palavras_chave_cab if p in texto_linha) >= 2 or any(
+            k in texto_linha for k in ['cfop', 'código', 'codigo']
+        ):
+            idx_cabecalho = idx
+            break
+
+    cabecalho = [
+        str(c).strip() if c is not None and str(c).strip() != '' else f"col_{i}"
+        for i, c in enumerate(linhas[idx_cabecalho])
+    ]
+    registros = []
+    for row in linhas[idx_cabecalho + 1:]:
+        if not any(row):
+            continue
+        reg = {}
+        for i in range(len(cabecalho)):
+            val = row[i] if i < len(row) and row[i] is not None else ''
+            reg[cabecalho[i]] = str(val).strip()
+        registros.append(reg)
+    return registros
+
 
 def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop') -> list[dict]:
     if not os.path.exists(caminho_arquivo):
@@ -19,22 +93,11 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
             wb = openpyxl.load_workbook(caminho_arquivo, data_only=True)
             ws = wb.active
             linhas = list(ws.iter_rows(values_only=True))
-            if len(linhas) < 2:
-                raise FileReadError("A planilha Excel está vazia ou sem dados.")
+            registros = _processar_matriz_planilha(linhas)
 
-            idx_cabecalho = 0
-            palavras_chave_cab = ['cfop', 'código', 'codigo', 'nota', 'nf', 'valor', 'total', 'contabil', 'contábil', 'data', 'emissao', 'emissão']
-            for idx, row in enumerate(linhas[:25]):
-                texto_linha = " ".join([str(c).lower() for c in row if c is not None])
-                if sum(1 for p in palavras_chave_cab if p in texto_linha) >= 2 or 'cfop' in texto_linha or 'código' in texto_linha or 'codigo' in texto_linha:
-                    idx_cabecalho = idx
-                    break
-
-            cabecalho = [str(c).strip() if c is not None and str(c).strip() != '' else f"col_{i}" for i, c in enumerate(linhas[idx_cabecalho])]
-            for row in linhas[idx_cabecalho + 1:]:
-                if not any(row):
-                    continue
-                registros.append({cabecalho[i]: (str(row[i]).strip() if row[i] is not None else '') for i in range(len(cabecalho))})
+        elif extensao == '.ods':
+            linhas = _extrair_linhas_ods(caminho_arquivo)
+            registros = _processar_matriz_planilha(linhas)
 
         elif extensao == '.csv':
             conteudo = None
@@ -105,17 +168,15 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                 texto_bruto = " ".join([p.extract_text() or '' for p in reader.pages])
                 texto_limpo = re.sub(r'\s+', ' ', texto_bruto)
 
-                # Layout exato do PDF:
-                # 29/10/2026Nota 1 11129/10/2026 RJ 14.300,00 2-919 2 14.300,002809
                 padrao_modelo_p1 = re.compile(
-                    r'(\d{2}/\d{2}/\d{4})\s*'                  # 1. Data de entrada (ex: 29/10/2026)
-                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,80}?'       # Espécie / Série / Código emitente
-                    r'(\d{2}/\d{2}/\d{4})\s*'                  # 2. Data de emissão (ex: 29/10/2026)
-                    r'[A-Z]{2}\s*'                             # UF (ex: RJ, SP, DF)
-                    r'(\d{1,3}(?:\.\d{3})*,\d{2})\s*'          # 3. Valor Contábil (ex: 14.300,00)
-                    r'([123567][\.\-]\d{3})\s*'                # 4. CFOP (ex: 2-919)
-                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,60}?'       # Código tributação e valor da operação
-                    r'(?:,\d{2}|\s)(\d{1,9})'                  # 5. Número da Nota colado no fim (ex: 2809)
+                    r'(\d{2}/\d{2}/\d{4})\s*'
+                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,80}?'
+                    r'(\d{2}/\d{2}/\d{4})\s*'
+                    r'[A-Z]{2}\s*'
+                    r'(\d{1,3}(?:\.\d{3})*,\d{2})\s*'
+                    r'([123567][\.\-]\d{3})\s*'
+                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,60}?'
+                    r'(?:,\d{2}|\s)(\d{1,9})'
                     r'(?=\s*\d{2}/\d{2}/\d{4}|\s*OBS|\s*TOTAL|\s*SUBTOTAL|\s*FOLHA|\s*$)'
                 )
 
@@ -135,7 +196,7 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                     amostra = texto_limpo[:500]
                     raise FileReadError(f"Nenhuma nota capturada. Amostra: {amostra}")
         else:
-            raise FileReadError(f"Formato não suportado ({extensao}). Envie .xlsx, .csv ou .pdf.")
+            raise FileReadError(f"Formato não suportado ({extensao}). Envie .xlsx, .ods, .csv ou .pdf.")
 
         if not registros:
             raise FileReadError("O arquivo enviado está vazio ou não possui linhas válidas.")
