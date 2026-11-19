@@ -39,7 +39,6 @@ def _extrair_linhas_ods(caminho_arquivo: str) -> list[list[str]]:
                 val_attr = cell.getAttribute("value")
                 if val_attr is not None:
                     texto_celula = str(val_attr).strip()
-            # Evita expandir colunas vazias infinitas no final da linha do LibreOffice
             if repeticao > 50 and not texto_celula:
                 continue
             valores_linha.extend([texto_celula] * min(repeticao, 50))
@@ -127,74 +126,37 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
 
         elif extensao == '.pdf':
             reader = PdfReader(caminho_arquivo)
+            texto_bruto = " ".join([p.extract_text() or '' for p in reader.pages])
+            texto_limpo = re.sub(r'\s+', ' ', texto_bruto)
 
-            if modo_operacao == 'resumo_cfop':
-                paginas_alvo = reader.pages[-15:] if len(reader.pages) > 15 else reader.pages
-                texto_completo = "\n".join([p.extract_text() or '' for p in paginas_alvo])
-                linhas = texto_completo.splitlines()
+            # Extrai sempre os lançamentos reais do Livro Fiscal (evita CFOPs fantasmas de cabeçalhos/rodapés)
+            padrao_modelo_p1 = re.compile(
+                r'(\d{2}/\d{2}/\d{4})\s*'
+                r'(?:(?!\d{2}/\d{2}/\d{4}).){0,80}?'
+                r'(\d{2}/\d{2}/\d{4})\s*'
+                r'[A-Z]{2}\s*'
+                r'(\d{1,3}(?:\.\d{3})*,\d{2})\s*'
+                r'([123567][\.\-]\d{3})\s*'
+                r'(?:(?!\d{2}/\d{2}/\d{4}).){0,60}?'
+                r'(?:,\d{2}|\s)(\d{1,9})'
+                r'(?=\s*\d{2}/\d{2}/\d{4}|\s*OBS|\s*TOTAL|\s*SUBTOTAL|\s*FOLHA|\s*$)'
+            )
 
-                indice_inicio = 0
-                palavras_resumo = ['RESUMO', 'DEMONSTRATIVO', 'TOTALIZACAO', 'TOTALIZAÇÃO', 'POR CFOP', 'CODIGO FISCAL', 'CÓDIGO FISCAL']
-                for idx, l in enumerate(linhas):
-                    if any(p in l.upper() for p in palavras_resumo):
-                        indice_inicio = idx
+            for match in padrao_modelo_p1.finditer(texto_limpo):
+                data_ent, data_emi, valor_str, cfop_raw, nota_raw = match.groups()
+                nota_limpa = nota_raw.lstrip('0') or '0'
+                cfop_limpo = re.sub(r'\D', '', cfop_raw)
 
-                linhas_analise = linhas[indice_inicio:] if indice_inicio > 0 else linhas
-                padrao_resumo_cfop = re.compile(r'(?:^|\s)([123567][\.\-]?\d{3})(?:\s+|\D+?)(\d{1,3}(?:\.\d{3})*,\d{2})')
+                registros.append({
+                    "data": data_ent,
+                    "nota": nota_limpa,
+                    "cfop": cfop_limpo,
+                    "valor": valor_str
+                })
 
-                cfops_encontrados = {}
-                for linha in linhas_analise:
-                    linha_limpa = linha.strip()
-                    if any(t in linha_limpa.upper() for t in ['TOTAL GERAL', 'SUBTOTAL', 'TOTAL DAS', 'TOTAL DOS']):
-                        continue
-                    match = padrao_resumo_cfop.search(linha_limpa)
-                    if match:
-                        cfop_raw, valor_str = match.groups()
-                        cfop_limpo = re.sub(r'\D', '', cfop_raw)
-                        if cfop_limpo.startswith('202'):
-                            continue
-                        cfops_encontrados[cfop_limpo] = {
-                            "cfop": cfop_limpo,
-                            "valor": valor_str
-                        }
-
-                if not cfops_encontrados:
-                    linhas_validas = [l.strip() for l in linhas_analise if l.strip()]
-                    amostra = " | ".join(linhas_validas[:30])
-                    raise FileReadError(f"Resumo não encontrado. Texto lido do fim do PDF: {amostra[:500]}")
-                registros = list(cfops_encontrados.values())
-
-            else:
-                texto_bruto = " ".join([p.extract_text() or '' for p in reader.pages])
-                texto_limpo = re.sub(r'\s+', ' ', texto_bruto)
-
-                padrao_modelo_p1 = re.compile(
-                    r'(\d{2}/\d{2}/\d{4})\s*'
-                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,80}?'
-                    r'(\d{2}/\d{2}/\d{4})\s*'
-                    r'[A-Z]{2}\s*'
-                    r'(\d{1,3}(?:\.\d{3})*,\d{2})\s*'
-                    r'([123567][\.\-]\d{3})\s*'
-                    r'(?:(?!\d{2}/\d{2}/\d{4}).){0,60}?'
-                    r'(?:,\d{2}|\s)(\d{1,9})'
-                    r'(?=\s*\d{2}/\d{2}/\d{4}|\s*OBS|\s*TOTAL|\s*SUBTOTAL|\s*FOLHA|\s*$)'
-                )
-
-                for match in padrao_modelo_p1.finditer(texto_limpo):
-                    data_ent, data_emi, valor_str, cfop_raw, nota_raw = match.groups()
-                    nota_limpa = nota_raw.lstrip('0') or '0'
-                    cfop_limpo = re.sub(r'\D', '', cfop_raw)
-
-                    registros.append({
-                        "data": data_ent,
-                        "nota": nota_limpa,
-                        "cfop": cfop_limpo,
-                        "valor": valor_str
-                    })
-
-                if not registros:
-                    amostra = texto_limpo[:500]
-                    raise FileReadError(f"Nenhuma nota capturada. Amostra: {amostra}")
+            if not registros:
+                amostra = texto_limpo[:500]
+                raise FileReadError(f"Nenhuma nota capturada no PDF. Amostra: {amostra}")
         else:
             raise FileReadError(f"Formato não suportado ({extensao}). Envie .xlsx, .ods, .csv ou .pdf.")
 
