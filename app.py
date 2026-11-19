@@ -38,6 +38,10 @@ def formatar_brl(valor) -> str:
 
 def detectar_mapeamento_colunas(colunas: list) -> dict:
     mapeamento = {}
+    termos_impostos = [
+        'icms', 'pis', 'cofins', 'ipi', 'iss', 'irrf', 'csll', 'inss',
+        'st', 'subst', 'base', 'bc', 'aliquota', 'alíquota', 'difal', 'fcp', 'tributo', 'imposto'
+    ]
     for col in colunas:
         c = col.lower().strip()
         if any(k in c for k in ['data', 'emissao', 'emissão', 'dt', 'entrada', 'saida', 'saída']) and 'data_emissao' not in mapeamento:
@@ -46,7 +50,11 @@ def detectar_mapeamento_colunas(colunas: list) -> dict:
             mapeamento['numero_nf'] = col
         elif (c in ['cfop', 'código', 'codigo', 'cod', 'cód', 'cod. fiscal', 'cód. fiscal'] or 'cfop' in c) and 'cfop' not in mapeamento:
             mapeamento['cfop'] = col
-        elif any(k in c for k in ['valor', 'total', 'vlr', 'liquido', 'líquido', 'contabil', 'contábil', 'mercadoria']) and 'valor_total' not in mapeamento:
+        elif (
+            any(k in c for k in ['valor', 'total', 'vlr', 'liquido', 'líquido', 'contabil', 'contábil', 'mercadoria'])
+            and not any(imp in c for imp in termos_impostos)
+            and 'valor_total' not in mapeamento
+        ):
             mapeamento['valor_total'] = col
     return mapeamento
 
