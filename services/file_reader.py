@@ -66,7 +66,6 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
             reader = PdfReader(caminho_arquivo)
 
             if modo_operacao == 'resumo_cfop':
-                # Modo 1: Foca nas últimas 15 páginas onde fica o Resumo por CFOP (aceita hífen: 2-102, 1-918, 2.102, 2102)
                 paginas_alvo = reader.pages[-15:] if len(reader.pages) > 15 else reader.pages
                 texto_completo = "\n".join([p.extract_text() or '' for p in paginas_alvo])
                 linhas = texto_completo.splitlines()
@@ -103,32 +102,29 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                 registros = list(cfops_encontrados.values())
 
             else:
-                # Modo 2: Detalhado por Nota (layout Modelo P1 com CFOP 2-102 e número colado na data)
                 texto_completo = "\n".join([p.extract_text() or '' for p in reader.pages])
                 linhas = texto_completo.splitlines()
 
-                # Padrão exato encontrado na amostra:
-                # Ex: 01/10/2026Nota 1 4,00 168,0003630/09/2026 SP 4.536,00 2-102 ...
+                # Aceita Código do Emitente opcional entre a Data de Emissão e a UF (ex: 29/10/2026 111 RJ 14.300,00 2-919)
                 padrao_modelo_p1 = re.compile(
-                    r'(\d{2}/\d{2}/\d{4})'                    # 1. Data de entrada (ex: 01/10/2026)
+                    r'(\d{2}/\d{2}/\d{4})'                    # 1. Data de entrada (ex: 29/10/2026)
                     r'.*?'                                    # Espécie / Série / valores intermediários
-                    r'(\d{1,9})'                              # 2. Número da Nota colado antes da data de emissão
-                    r'(\d{2}/\d{2}/\d{4})\s+'                 # 3. Data de emissão (ex: 30/09/2026)
-                    r'[A-Z]{2}\s+'                            # UF (ex: SP, DF)
-                    r'(\d{1,3}(?:\.\d{3})*,\d{2})\s+'         # 4. Valor Contábil (ex: 4.536,00)
-                    r'([123567][\.\-]?\d{3})'                 # 5. CFOP (ex: 2-102, 1-918)
+                    r'(\d{1,9})\s*'                           # 2. Número da Nota (ex: 2809 ou 036)
+                    r'(\d{2}/\d{2}/\d{4})\s+'                 # 3. Data de emissão (ex: 29/10/2026)
+                    r'(?:\d+\s+)?'                            # Código do emitente opcional (ex: 111)
+                    r'[A-Z]{2}\s+'                            # UF (ex: RJ, SP, DF)
+                    r'(\d{1,3}(?:\.\d{3})*,\d{2})\s+'         # 4. Valor Contábil (ex: 14.300,00)
+                    r'([123567][\.\-]?\d{3})'                 # 5. CFOP (ex: 2-919, 2-102)
                 )
 
                 for idx, linha in enumerate(linhas):
                     bloco = linha.strip()
-                    # Junta a próxima linha caso o lançamento quebre em duas linhas no PDF
                     if idx + 1 < len(linhas) and not re.match(r'^\d{2}/\d{2}/\d{4}', linhas[idx + 1].strip()):
                         bloco += " " + linhas[idx + 1].strip()
 
                     match = padrao_modelo_p1.search(bloco)
                     if match:
                         data_ent, nota_raw, data_emi, valor_str, cfop_raw = match.groups()
-                        # Remove zeros à esquerda da nota (ex: '036' -> '36', '013' -> '13')
                         nota_limpa = nota_raw.lstrip('0') or '0'
                         cfop_limpo = re.sub(r'\D', '', cfop_raw)
 
