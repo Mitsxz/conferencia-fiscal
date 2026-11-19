@@ -25,13 +25,13 @@ def detectar_mapeamento_colunas(colunas: list) -> dict:
     mapeamento = {}
     for col in colunas:
         c = col.lower().strip()
-        if any(k in c for k in ['data', 'emissao', 'emissão', 'dt']) and 'data_emissao' not in mapeamento:
+        if any(k in c for k in ['data', 'emissao', 'emissão', 'dt', 'entrada', 'saida', 'saída']) and 'data_emissao' not in mapeamento:
             mapeamento['data_emissao'] = col
-        elif any(k in c for k in ['nota', 'nf', 'numero', 'número', 'doc']) and 'numero_nf' not in mapeamento:
+        elif any(k in c for k in ['nota', 'nf', 'numero', 'número', 'doc', 'nfe', 'nfc']) and 'numero_nf' not in mapeamento:
             mapeamento['numero_nf'] = col
-        elif 'cfop' in c and 'cfop' not in mapeamento:
+        elif any(k in c for k in ['cfop', 'cod. fiscal', 'cód. fiscal', 'codigo fiscal', 'código fiscal', 'natureza']) and 'cfop' not in mapeamento:
             mapeamento['cfop'] = col
-        elif any(k in c for k in ['valor', 'total', 'vlr', 'liquido', 'líquido', 'contabil', 'contábil']) and 'valor_total' not in mapeamento:
+        elif any(k in c for k in ['valor', 'total', 'vlr', 'liquido', 'líquido', 'contabil', 'contábil', 'mercadoria']) and 'valor_total' not in mapeamento:
             mapeamento['valor_total'] = col
     return mapeamento
 
