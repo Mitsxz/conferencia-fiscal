@@ -8,8 +8,6 @@ except ImportError:
     FPDF = None
 
 def gerar_relatorio_excel(conferencia_id: int, titulo: str, resumo: dict, itens: list) -> str:
-    if FPDF is None:
-        raise RuntimeError("Biblioteca fpdf2 não disponível no ambiente.")
     nome_arquivo = f"Relatorio_Conferencia_{conferencia_id}.xlsx"
     caminho_saida = os.path.join(Config.REPORTS_FOLDER, nome_arquivo)
 
@@ -56,6 +54,8 @@ def gerar_relatorio_excel(conferencia_id: int, titulo: str, resumo: dict, itens:
     return caminho_saida
 
 def gerar_relatorio_pdf(conferencia_id: int, titulo: str, resumo: dict, itens: list) -> str:
+    if FPDF is None:
+        raise RuntimeError("Biblioteca fpdf2 não disponível no ambiente.")
     nome_arquivo = f"Relatorio_Conferencia_{conferencia_id}.pdf"
     caminho_saida = os.path.join(Config.REPORTS_FOLDER, nome_arquivo)
 
