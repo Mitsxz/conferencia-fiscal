@@ -14,33 +14,35 @@ def processar_arquivo(file):
     filename = file.filename.lower()
     
     try:
-        # 1. Leitura de arquivos CSV ou TXT
         if filename.endswith('.csv') or filename.endswith('.txt'):
             decoded_file = file.read().decode('utf-8', errors='ignore').splitlines()
             reader = csv.DictReader(decoded_file)
             for row in reader:
                 row_limpa = {k.strip().lower(): v for k, v in row.items() if k}
-                dados.append({
-                    "data": row_limpa.get("data", ""),
-                    "nota": str(row_limpa.get("nota", "")).strip(),
-                    "cfop": str(row_limpa.get("cfop", "")).strip(),
-                    "valor": float(row_limpa.get("valor", 0) or 0)
-                })
+                nota_str = str(row_limpa.get("nota", "")).strip().lstrip('0') # Remove zeros à esquerda para alinhar
+                if nota_str:
+                    dados.append({
+                        "data": str(row_limpa.get("data", "")).strip(),
+                        "nota": nota_str,
+                        "cfop": str(row_limpa.get("cfop", "")).strip(),
+                        "valor": float(str(row_limpa.get("valor", 0)).replace("R$", "").replace(".", "").replace(",", ".").strip() or 0)
+                    })
                 
-        # 2. Leitura de arquivos Excel (.xlsx)
         elif filename.endswith('.xlsx'):
-            wb = openpyxl.load_workbook(file)
+            wb = openpyxl.load_workbook(file, data_only=True)
             ws = wb.active
             for row in ws.iter_rows(min_row=2, values_only=True):
                 if any(row) and len(row) >= 4:
-                    dados.append({
-                        "data": str(row[0]) if row[0] else "",
-                        "nota": str(row[1]).strip() if row[1] else "",
-                        "cfop": str(row[2]).strip() if row[2] else "",
-                        "valor": float(row[3] or 0) if row[3] else 0.0
-                    })
+                    nota_str = str(row[1]).strip().lstrip('0') if row[1] else ""
+                    if nota_str:
+                        val_raw = str(row[3]).replace("R$", "").replace(".", "").replace(",", ".").strip() if row[3] else "0"
+                        dados.append({
+                            "data": str(row[0]).strip() if row[0] else "",
+                            "nota": nota_str,
+                            "cfop": str(row[2]).strip() if row[2] else "",
+                            "valor": float(val_raw or 0)
+                        })
                     
-        # 3. Leitura de arquivos PDF (Livro Fiscal em PDF)
         elif filename.endswith('.pdf'):
             reader = PdfReader(file)
             texto_completo = ""
@@ -49,37 +51,23 @@ def processar_arquivo(file):
                 if texto_ext:
                     texto_completo += texto_ext + "\n"
             
-            # Tenta extrair linhas estruturadas do PDF usando expressões regulares
-            # Procura por padrões como: Data (YYYY-MM-DD), Nota, CFOP e Valor
+            # Extração genérica inteligente de linhas do PDF
             linhas = texto_completo.splitlines()
             for linha in linhas:
-                # Exemplo de padrão buscado nas linhas do PDF
-                # Ajustável conforme o formato exato do seu PDF fiscal
                 match = re.search(r'(\d{4}-\d{2}-\d{2})\s+(\d+)\s+(\d{4})\s+([\d\.,]+)', linha)
                 if match:
                     data_val, nota_val, cfop_val, valor_str = match.groups()
+                    nota_limpa = nota_val.strip().lstrip('0')
                     valor_val = float(valor_str.replace('.', '').replace(',', '.'))
                     dados.append({
                         "data": data_val,
-                        "nota": nota_val.strip(),
+                        "nota": nota_limpa,
                         "cfop": cfop_val.strip(),
                         "valor": valor_val
                     })
-            
-            # Fallback caso o PDF não esteja em formato de colunas estritas na linha
-            if not dados:
-                # Procura apenas por números de notas e valores soltos no texto do PDF para teste
-                notas_encontradas = re.findall(r'\b(1\d{3})\b', texto_completo)
-                for n in set(notas_encontradas):
-                    dados.append({
-                        "data": "2026-06-01",
-                        "nota": n,
-                        "cfop": "5102",
-                        "valor": 150.00 # Padrão caso o PDF seja puramente textual sem layout tabular fixo
-                    })
 
     except Exception as e:
-        print(f"Erro ao processar o arquivo {filename}: {e}")
+        print(f"Erro ao processar arquivo: {e}")
         
     return dados
 
@@ -110,24 +98,28 @@ def index():
             item_planilha = planilha_dict.get(nota)
 
             status = "OK"
-            detalhe = "Conferido com sucesso."
+            detalhe = "Conferido com sucesso. Dados idênticos."
 
             if not item_livro:
                 status = "Divergente"
-                detalhe = "Presente apenas na Planilha."
+                detalhe = f"Nota {nota} presente apenas na Planilha."
                 item_ref = item_planilha
             elif not item_planilha:
                 status = "Divergente"
-                detalhe = "Presente apenas no Livro Fiscal."
+                detalhe = f"Nota {nota} presente apenas no Livro Fiscal."
                 item_ref = item_livro
             else:
                 item_ref = item_livro
-                if float(item_livro["valor"]) != float(item_planilha["valor"]):
+                # Comparação tolerante de valores (arredondando para 2 casas decimais)
+                val_livro = round(float(item_livro["valor"]), 2)
+                val_planilha = round(float(item_planilha["valor"]), 2)
+
+                if val_livro != val_planilha:
                     status = "Divergente"
-                    detalhe = f"Divergência de Valor (Livro: {item_livro['valor']} x Planilha: {item_planilha['valor']})"
-                elif item_livro["cfop"] != item_planilha["cfop"]:
+                    detalhe = f"Divergência de Valor: Livro (R$ {val_livro}) x Planilha (R$ {val_planilha})"
+                elif item_livro["cfop"].strip() != item_planilha["cfop"].strip():
                     status = "Divergente"
-                    detalhe = f"Divergência de CFOP (Livro: {item_livro['cfop']} x Planilha: {item_planilha['cfop']})"
+                    detalhe = f"Divergência de CFOP: Livro ({item_livro['cfop']}) x Planilha ({item_planilha['cfop']})"
 
             # Aplicação dos filtros
             incluir = True
@@ -150,7 +142,7 @@ def index():
                     "detalhe": detalhe
                 })
         
-        mensagem = f"Conferência concluída com PDF/Excel! Livro: {len(livro_dados)} | Planilha: {len(planilha_dados)}"
+        mensagem = f"Análise finalizada! Livro Lido: {len(livro_dados)} itens | Planilha Lida: {len(planilha_dados)} itens."
 
     return render_template("index.html", resultados=resultados, mensagem=mensagem)
 
