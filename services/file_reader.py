@@ -150,8 +150,10 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                             "valor": valor_str
                         })
 
-                if not registros:
-                    raise FileReadError("Modo Detalhado selecionado, mas nenhuma linha com (Data, Número, CFOP, Valor) foi encontrada no PDF.")
+                        if not registros:
+                        amostra = " | ".join([l.strip() for l in linhas if l.strip()][:12])
+                         raise FileReadError(f"Nenhuma linha encontrada. Texto lido do PDF: {amostra[:350]}")
+       
         else:
             raise FileReadError(f"Formato não suportado ({extensao}). Envie .xlsx, .csv ou .pdf.")
 
