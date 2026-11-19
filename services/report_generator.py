@@ -1,5 +1,5 @@
 import os
-import pandas as pd
+import openpyxl
 from fpdf import FPDF
 from config import Config
 
@@ -7,48 +7,46 @@ def gerar_relatorio_excel(conferencia_id: int, titulo: str, resumo: dict, itens:
     nome_arquivo = f"Relatorio_Conferencia_{conferencia_id}.xlsx"
     caminho_saida = os.path.join(Config.REPORTS_FOLDER, nome_arquivo)
 
-    df_resumo = pd.DataFrame([
-        {'Indicador': 'Título da Conferência', 'Valor': titulo},
-        {'Indicador': 'Total de Registros Analisados', 'Valor': resumo['total_analisados']},
-        {'Indicador': 'Correspondências Exatas', 'Valor': resumo['correspondencias']},
-        {'Indicador': 'Divergências Encontradas', 'Valor': resumo['divergencias']},
-        {'Indicador': 'Ausentes nas Planilhas (Só no Livro)', 'Valor': resumo['ausentes_planilha']},
-        {'Indicador': 'Ausentes no Livro (Só nas Planilhas)', 'Valor': resumo['ausentes_livro']},
-        {'Indicador': 'Possíveis Duplicidades', 'Valor': resumo['duplicidades']},
-        {'Indicador': 'Percentual de Correspondência (%)', 'Valor': f"{resumo['percentual_correspondencia']}%"},
-    ])
+    wb = openpyxl.Workbook()
+    ws_resumo = wb.active
+    ws_resumo.title = "Resumo"
+    ws_resumo.append(["Indicador", "Valor"])
+    ws_resumo.append(["Título da Conferência", titulo])
+    ws_resumo.append(["Total de Registros Analisados", resumo['total_analisados']])
+    ws_resumo.append(["Correspondências Exatas", resumo['correspondencias']])
+    ws_resumo.append(["Divergências Encontradas", resumo['divergencias']])
+    ws_resumo.append(["Ausentes nas Planilhas", resumo['ausentes_planilha']])
+    ws_resumo.append(["Ausentes no Livro", resumo['ausentes_livro']])
+    ws_resumo.append(["Possíveis Duplicidades", resumo['duplicidades']])
+    ws_resumo.append(["Percentual de Correspondência (%)", f"{resumo['percentual_correspondencia']}%"])
 
-    linhas_divergencias = []
-    linhas_ausentes = []
-    linhas_correspondencias = []
+    ws_div = wb.create_sheet("Divergencias_e_Duplicidades")
+    ws_aus = wb.create_sheet("Registros_Ausentes")
+    ws_ok = wb.create_sheet("Correspondencias_OK")
+
+    cabecalho = ["Chave Identificação", "Categoria", "Tipo Divergência", "Detalhamento", "Status Revisão"]
+    for ws in (ws_div, ws_aus, ws_ok):
+        ws.append(cabecalho)
 
     for item in itens:
         cat = item['categoria_resultado']
-        chave = item['chave_identificacao']
         diffs = item.get('diferencas') or []
         detalhe_diff = "; ".join([f"{d['campo']}: Livro({d['livro']}) vs Planilha({d['planilha']}) -> {d['diferenca']}" for d in diffs])
-
-        base_row = {
-            'Chave Identificação': chave,
-            'Categoria': cat,
-            'Tipo Divergência': item.get('tipo_divergencia') or 'OK',
-            'Detalhamento': detalhe_diff or 'Dados idênticos',
-            'Status Revisão': item.get('status_revisao', 'PENDENTE')
-        }
-
+        linha = [
+            item['chave_identificacao'],
+            cat,
+            item.get('tipo_divergencia') or 'OK',
+            detalhe_diff or 'Dados idênticos',
+            item.get('status_revisao', 'PENDENTE')
+        ]
         if cat in ['DIVERGENCIA', 'DUPLICIDADE']:
-            linhas_divergencias.append(base_row)
+            ws_div.append(linha)
         elif cat in ['AUSENTE_PLANILHA', 'AUSENTE_LIVRO']:
-            linhas_ausentes.append(base_row)
+            ws_aus.append(linha)
         else:
-            linhas_correspondencias.append(base_row)
+            ws_ok.append(linha)
 
-    with pd.ExcelWriter(caminho_saida, engine='openpyxl') as writer:
-        df_resumo.to_excel(writer, sheet_name='Resumo', index=False)
-        pd.DataFrame(linhas_divergencias).to_excel(writer, sheet_name='Divergencias_e_Duplicidades', index=False)
-        pd.DataFrame(linhas_ausentes).to_excel(writer, sheet_name='Registros_Ausentes', index=False)
-        pd.DataFrame(linhas_correspondencias).to_excel(writer, sheet_name='Correspondencias_OK', index=False)
-
+    wb.save(caminho_saida)
     return caminho_saida
 
 def gerar_relatorio_pdf(conferencia_id: int, titulo: str, resumo: dict, itens: list) -> str:
@@ -67,14 +65,13 @@ def gerar_relatorio_pdf(conferencia_id: int, titulo: str, resumo: dict, itens: l
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 8, "1. Resumo Executivo", ln=True)
     pdf.set_font("Helvetica", "", 10)
-    metricas = [
+    for m in [
         f"Total Analisados: {resumo['total_analisados']}",
         f"Correspondencias: {resumo['correspondencias']} ({resumo['percentual_correspondencia']}%)",
         f"Divergencias: {resumo['divergencias']}",
         f"Ausentes nas Planilhas: {resumo['ausentes_planilha']} | Ausentes no Livro: {resumo['ausentes_livro']}",
         f"Duplicidades: {resumo['duplicidades']}"
-    ]
-    for m in metricas:
+    ]:
         pdf.cell(0, 6, m, ln=True)
 
     pdf.ln(6)
