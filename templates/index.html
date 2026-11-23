@@ -758,6 +758,10 @@
             .toUpperCase();
     }
 
+    function compactarSemEspacos(txt) {
+        return normalizarTexto(txt).replace(/[^A-Z0-9]/g, '');
+    }
+
     async function carregarMapaDrive(forcarAtualizacao = false) {
         const lbl = document.getElementById('status-drive-sync');
         if (lbl) lbl.textContent = 'Sincronizando Drive...';
@@ -767,27 +771,34 @@
             indiceDrivePorNota.clear();
 
             if (json.sucesso && json.arquivos) {
-                const entradas = Object.entries(json.arquivos);
-                console.log('Amostra de nomes vindos do Drive:', entradas.slice(0, 10));
+                const entradas = Array.isArray(json.arquivos)
+                    ? json.arquivos
+                    : Object.entries(json.arquivos);
 
                 entradas.forEach(([nomeRaw, idOuUrl]) => {
                     const nomeNorm = normalizarTexto(nomeRaw);
-                    const urlFinal = idOuUrl.startsWith('http')
+                    const urlFinal = String(idOuUrl).startsWith('http')
                         ? idOuUrl
                         : `https://drive.google.com/file/d/${idOuUrl}/view`;
 
-                    // Extrai todos os blocos numéricos após _D_ (ou qualquer número longo no nome como fallback)
+                    // Localiza o marcador _D_ (ou D isolado) e extrai o código da nota + resto do nome (EMPRESABENEFICIADA)
                     const idxD = nomeNorm.search(/(?:^|[\s_-])D(?:[\s_-]+)/);
-                    const trechoBusca = idxD !== -1 ? nomeNorm.slice(idxD) : nomeNorm;
-                    const matchNums = trechoBusca.match(/\d+/g);
+                    const trechoDepoisD = idxD !== -1
+                        ? nomeNorm.slice(idxD).replace(/^(?:^|[\s_-])D(?:[\s_-]+)/, '')
+                        : nomeNorm;
 
-                    if (matchNums && matchNums.length > 0) {
-                        const notaLimpa = matchNums[0].replace(/^0+/, '') || '0';
+                    const matchNota = trechoDepoisD.match(/^[^\d]*(\d+)\s*(.*)$/);
+                    if (matchNota) {
+                        const notaLimpa = matchNota[1].replace(/^0+/, '') || '0';
+                        const parteBeneficiada = (matchNota[2] || '').trim();
+
                         if (!indiceDrivePorNota.has(notaLimpa)) {
                             indiceDrivePorNota.set(notaLimpa, []);
                         }
                         indiceDrivePorNota.get(notaLimpa).push({
                             nomeCompleto: nomeNorm,
+                            beneficiadaNorm: parteBeneficiada,
+                            beneficiadaCompacta: compactarSemEspacos(parteBeneficiada || nomeNorm),
                             url: urlFinal
                         });
                     }
@@ -810,17 +821,32 @@
         const candidatos = indiceDrivePorNota.get(notaLimpa);
         if (!candidatos || candidatos.length === 0) return null;
 
+        // Se só há 1 nota com esse número no Drive, já retorna direto
         if (candidatos.length === 1) return candidatos[0];
 
-        // Desempate pelo nome da empresa beneficiada em qualquer posição do nome do arquivo
+        // Comparação sem espaços para resolver "E M S" == "EMS" e nomes compostos/juntos
+        const empCompacta = compactarSemEspacos(empresaBeneficiada);
         const tokensEmp = extrairTokensLimpos(empresaBeneficiada);
+
+        // 1º Tentativa: Match exato ou por substring na versão compactada (ex: "EMS" dentro de "EMSLTDA" ou "EMPRESAEMS")
+        if (empCompacta.length >= 2) {
+            const matchCompacto = candidatos.find(c =>
+                c.beneficiadaCompacta.includes(empCompacta) ||
+                (c.beneficiadaCompacta.length >= 2 && empCompacta.includes(c.beneficiadaCompacta))
+            );
+            if (matchCompacto) return matchCompacto;
+        }
+
+        // 2º Tentativa: Pontuação por palavras-chave da empresa
         let melhor = candidatos[0];
         let maiorScore = -1;
 
         for (const cand of candidatos) {
             let hits = 0;
             for (const tk of tokensEmp) {
-                if (tk.length >= 2 && cand.nomeCompleto.includes(tk)) hits++;
+                if (tk.length >= 2 && (cand.beneficiadaNorm.includes(tk) || cand.beneficiadaCompacta.includes(tk))) {
+                    hits++;
+                }
             }
             if (hits > maiorScore) {
                 maiorScore = hits;
