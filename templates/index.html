@@ -511,6 +511,23 @@
         .st-ok { background: var(--ok-bg); color: var(--ok-text); }
         .st-ausente { background: var(--warn-bg); color: var(--warn-text); }
         .st-div { background: var(--err-bg); color: var(--err-text); }
+        .st-drive-ok { background: #dcfce7; color: #166534; }
+        .st-drive-no { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
+        .btn-drive {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: #1e3a8a;
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 5px 11px;
+            border-radius: 7px;
+            font-size: 0.76rem;
+            font-weight: 600;
+            white-space: nowrap;
+            transition: background 0.15s;
+        }
+        .btn-drive:hover { background: #14244b; }
     </style>
 </head>
 <body>
@@ -624,7 +641,9 @@
                     <option value="__TODAS__">TODAS AS EMPRESAS (Consolidado)</option>
                 </select>
             </div>
-            <div style="display: flex; gap: 10px;">
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <span id="status-drive-sync" style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;"></span>
+                <button type="button" class="btn-secondary" onclick="carregarMapaDrive(true)" title="Forçar nova leitura das pastas do Google Drive">↻ Atualizar Drive</button>
                 <button type="button" class="btn-secondary" onclick="exportarCSV()">Exportar Tabela (Excel/CSV)</button>
             </div>
             <div class="empresa-pills" id="empresa-pills"></div>
@@ -677,6 +696,7 @@
                             <th>Diferença</th>
                             <th>Status</th>
                             <th>Diagnóstico</th>
+                            <th>Google Drive</th>
                         </tr>
                     </thead>
                     <tbody id="tbody-resultados"></tbody>
@@ -695,6 +715,7 @@
     let filtroStatusAtual = 'TODOS';
     let linhasAtuaisTabela = [];
     let painelVinculosAberto = true;
+    let indiceDrivePorNota = new Map();
 
     const STOPWORDS = new Set([
         'LIVRO', 'FISCAL', 'FISCAIS', 'ENTRADA', 'ENTRADAS', 'SAIDA', 'SAIDAS',
@@ -719,10 +740,10 @@
 
     function escapeHtml(str) {
         return String(str == null ? '' : str)
-            .replace(/&/g, '&')
-            .replace(/</g, '<')
-            .replace(/>/g, '>')
-            .replace(/"/g, '"');
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }
 
     function aoSelecionarInput(inputEl, origem) {
@@ -735,6 +756,75 @@
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
             .toUpperCase();
+    }
+
+    async function carregarMapaDrive(forcarAtualizacao = false) {
+        const lbl = document.getElementById('status-drive-sync');
+        if (lbl) lbl.textContent = 'Sincronizando Drive...';
+        try {
+            const resp = await fetch(`/api/drive-notas?refresh=${forcarAtualizacao ? '1' : '0'}`);
+            const json = await resp.json();
+            indiceDrivePorNota.clear();
+
+            if (json.sucesso && json.arquivos) {
+                const entradas = Object.entries(json.arquivos);
+                entradas.forEach(([nomeRaw, url]) => {
+                    const nomeNorm = normalizarTexto(nomeRaw);
+                    // Formato: EMPRESAPARCEIRA_D_CÓDIGODANOTA EMPRESABENEFICIADA
+                    const idxD = nomeNorm.indexOf('_D_');
+                    if (idxD !== -1) {
+                        const depoisD = nomeNorm.slice(idxD + 3).trim();
+                        const matchNota = depoisD.match(/^(\d+)\s*(.*)$/);
+                        if (matchNota) {
+                            const notaLimpa = matchNota[1].replace(/^0+/, '') || '0';
+                            const beneficiada = (matchNota[2] || '').trim();
+                            if (!indiceDrivePorNota.has(notaLimpa)) {
+                                indiceDrivePorNota.set(notaLimpa, []);
+                            }
+                            indiceDrivePorNota.get(notaLimpa).push({
+                                nomeCompleto: nomeNorm,
+                                beneficiada: beneficiada,
+                                url: url
+                            });
+                        }
+                    }
+                });
+                if (lbl) lbl.textContent = `Drive: ${entradas.length} notas indexadas`;
+            } else {
+                if (lbl) lbl.textContent = 'Drive indisponível';
+            }
+        } catch (e) {
+            if (lbl) lbl.textContent = 'Erro ao ler Drive';
+        }
+        if (document.getElementById('painel-resultados').style.display === 'block') {
+            renderizarTabela();
+        }
+    }
+
+    function buscarNotaNoDrive(nota, empresaBeneficiada) {
+        if (!nota || nota === 'RESUMO') return null;
+        const notaLimpa = String(nota).replace(/\D/g, '').replace(/^0+/, '') || '0';
+        const candidatos = indiceDrivePorNota.get(notaLimpa);
+        if (!candidatos || candidatos.length === 0) return null;
+
+        if (candidatos.length === 1) return candidatos[0];
+
+        const tokensEmp = extrairTokensLimpos(empresaBeneficiada);
+        let melhor = candidatos[0];
+        let maiorScore = -1;
+
+        for (const cand of candidatos) {
+            const alvo = cand.beneficiada || cand.nomeCompleto;
+            let hits = 0;
+            for (const tk of tokensEmp) {
+                if (tk.length >= 2 && alvo.includes(tk)) hits++;
+            }
+            if (hits > maiorScore) {
+                maiorScore = hits;
+                melhor = cand;
+            }
+        }
+        return melhor;
     }
 
     function extrairTokensLimpos(nomeArquivo) {
@@ -1051,6 +1141,9 @@
             }
         }
 
+        progressTexto.textContent = 'Sincronizando notas do Google Drive...';
+        await carregarMapaDrive(false);
+
         progressTexto.textContent = `Concluído! ${filaArquivos.length} arquivo(s) processado(s).`;
         progressPct.textContent = '100%';
         progressFill.style.width = '100%';
@@ -1271,7 +1364,6 @@
             badge.textContent = `✓ Todas as ${qtdPareadas} planilha(s) vinculadas`;
         }
 
-        // 1. Lista de PDFs (Livros)
         const divLivros = document.getElementById('lista-vinculos-livros');
         divLivros.innerHTML = livros.map(liv => {
             const statusCnpj = liv.cnpjFormatado
@@ -1323,7 +1415,6 @@
             `;
         }).join('') || '<div style="font-size:0.82rem; color:#64748b;">Nenhum PDF carregado.</div>';
 
-        // 2. Lista de Planilhas
         const divPlanilhas = document.getElementById('lista-vinculos-planilhas');
         divPlanilhas.innerHTML = planilhas.map(pla => {
             const infoExtra = [
@@ -1479,7 +1570,22 @@
                 qtdProblemas++;
             }
 
-            linhas.push({ empresa, data, nota, cfop, valLiv, valPla, diff, status, diag });
+            const arqDrive = buscarNotaNoDrive(nota, empresa);
+
+            linhas.push({
+                empresa,
+                data,
+                nota,
+                cfop,
+                valLiv,
+                valPla,
+                diff,
+                status,
+                diag,
+                noDrive: Boolean(arqDrive),
+                driveUrl: arqDrive ? arqDrive.url : '',
+                driveNome: arqDrive ? arqDrive.nomeCompleto : ''
+            });
         });
 
         document.getElementById('kpi-livro').textContent = formatarMoeda(somaLivro);
@@ -1501,7 +1607,7 @@
         const tbody = document.getElementById('tbody-resultados');
 
         if (linhasExibidas.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:24px; color:#64748b;">Nenhum registro encontrado para este filtro.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:#64748b;">Nenhum registro encontrado para este filtro.</td></tr>`;
             return;
         }
 
@@ -1509,6 +1615,15 @@
             let stClass = 'st-ok';
             if (l.status === 'DIVERGENCIA_VALOR') stClass = 'st-div';
             else if (l.status.startsWith('AUSENTE')) stClass = 'st-ausente';
+
+            const celulaDrive = l.noDrive
+                ? `<div style="display:flex; align-items:center; gap:8px;">
+                       <span class="status-pill st-drive-ok">No Drive</span>
+                       <a href="${escapeHtml(l.driveUrl)}" target="_blank" rel="noopener noreferrer" class="btn-drive" title="${escapeHtml(l.driveNome)}">
+                           Abrir Nota ↗
+                       </a>
+                   </div>`
+                : `<span class="status-pill st-drive-no">Não está no Drive</span>`;
 
             return `
                 <tr>
@@ -1521,6 +1636,7 @@
                     <td style="font-weight:700; color:${Math.abs(l.diff) > 0.02 ? '#b91c1c' : '#166534'};">${formatarMoeda(l.diff)}</td>
                     <td><span class="status-pill ${stClass}">${escapeHtml(l.status)}</span></td>
                     <td style="color:#475569; font-size:0.82rem;">${escapeHtml(l.diag)}</td>
+                    <td>${celulaDrive}</td>
                 </tr>
             `;
         }).join('');
@@ -1528,7 +1644,7 @@
 
     function exportarCSV() {
         if (!linhasAtuaisTabela.length) return;
-        const cab = ['Empresa', 'Data', 'Nota', 'CFOP', 'Valor Livro', 'Valor Planilha', 'Diferenca', 'Status', 'Diagnostico'];
+        const cab = ['Empresa', 'Data', 'Nota', 'CFOP', 'Valor Livro', 'Valor Planilha', 'Diferenca', 'Status', 'Diagnostico', 'No Drive', 'Link Drive'];
         const csvLinhas = [cab.join(';')];
 
         linhasAtuaisTabela.forEach(l => {
@@ -1541,7 +1657,9 @@
                 l.valPla.toFixed(2).replace('.', ','),
                 l.diff.toFixed(2).replace('.', ','),
                 l.status,
-                `"${l.diag}"`
+                `"${l.diag}"`,
+                l.noDrive ? 'SIM' : 'NAO',
+                l.driveUrl || ''
             ].join(';'));
         });
 
