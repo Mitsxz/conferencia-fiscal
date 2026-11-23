@@ -768,28 +768,26 @@
 
             if (json.sucesso && json.arquivos) {
                 const entradas = Object.entries(json.arquivos);
+                console.log('Amostra de nomes vindos do Drive:', entradas.slice(0, 5));
+
                 entradas.forEach(([nomeRaw, url]) => {
                     const nomeNorm = normalizarTexto(nomeRaw);
-                    // Formato: EMPRESAPARCEIRA_D_CÓDIGODANOTA EMPRESABENEFICIADA
-                    const idxD = nomeNorm.indexOf('_D_');
-                    if (idxD !== -1) {
-                        const depoisD = nomeNorm.slice(idxD + 3).trim();
-                        const matchNota = depoisD.match(/^(\d+)\s*(.*)$/);
-                        if (matchNota) {
-                            const notaLimpa = matchNota[1].replace(/^0+/, '') || '0';
-                            const beneficiada = (matchNota[2] || '').trim();
-                            if (!indiceDrivePorNota.has(notaLimpa)) {
-                                indiceDrivePorNota.set(notaLimpa, []);
-                            }
-                            indiceDrivePorNota.get(notaLimpa).push({
-                                nomeCompleto: nomeNorm,
-                                beneficiada: beneficiada,
-                                url: url
-                            });
+                    // Aceita "_D_", "_D ", " D_", " D " seguido de opcional espaço/traço/letras e o número da nota
+                    const matchD = nomeNorm.match(/(?:^|[\s_-])D(?:[\s_-]+)[^\d]*(\d+)\s*(.*)$/);
+                    if (matchD) {
+                        const notaLimpa = matchD[1].replace(/^0+/, '') || '0';
+                        const beneficiada = (matchD[2] || '').trim();
+                        if (!indiceDrivePorNota.has(notaLimpa)) {
+                            indiceDrivePorNota.set(notaLimpa, []);
                         }
+                        indiceDrivePorNota.get(notaLimpa).push({
+                            nomeCompleto: nomeNorm,
+                            beneficiada: beneficiada,
+                            url: url
+                        });
                     }
                 });
-                if (lbl) lbl.textContent = `Drive: ${entradas.length} notas indexadas`;
+                if (lbl) lbl.textContent = `Drive: ${indiceDrivePorNota.size} notas prontas (${entradas.length} arquivos)`;
             } else {
                 if (lbl) lbl.textContent = `Drive erro: ${json.erro || 'indisponível'}`;
             }
