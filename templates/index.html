@@ -768,26 +768,31 @@
 
             if (json.sucesso && json.arquivos) {
                 const entradas = Object.entries(json.arquivos);
-                console.log('Amostra de nomes vindos do Drive:', entradas.slice(0, 5));
+                console.log('Amostra de nomes vindos do Drive:', entradas.slice(0, 10));
 
-                entradas.forEach(([nomeRaw, url]) => {
+                entradas.forEach(([nomeRaw, idOuUrl]) => {
                     const nomeNorm = normalizarTexto(nomeRaw);
-                    // Aceita "_D_", "_D ", " D_", " D " seguido de opcional espaço/traço/letras e o número da nota
-                    const matchD = nomeNorm.match(/(?:^|[\s_-])D(?:[\s_-]+)[^\d]*(\d+)\s*(.*)$/);
-                    if (matchD) {
-                        const notaLimpa = matchD[1].replace(/^0+/, '') || '0';
-                        const beneficiada = (matchD[2] || '').trim();
+                    const urlFinal = idOuUrl.startsWith('http')
+                        ? idOuUrl
+                        : `https://drive.google.com/file/d/${idOuUrl}/view`;
+
+                    // Extrai todos os blocos numéricos após _D_ (ou qualquer número longo no nome como fallback)
+                    const idxD = nomeNorm.search(/(?:^|[\s_-])D(?:[\s_-]+)/);
+                    const trechoBusca = idxD !== -1 ? nomeNorm.slice(idxD) : nomeNorm;
+                    const matchNums = trechoBusca.match(/\d+/g);
+
+                    if (matchNums && matchNums.length > 0) {
+                        const notaLimpa = matchNums[0].replace(/^0+/, '') || '0';
                         if (!indiceDrivePorNota.has(notaLimpa)) {
                             indiceDrivePorNota.set(notaLimpa, []);
                         }
                         indiceDrivePorNota.get(notaLimpa).push({
                             nomeCompleto: nomeNorm,
-                            beneficiada: beneficiada,
-                            url: url
+                            url: urlFinal
                         });
                     }
                 });
-                if (lbl) lbl.textContent = `Drive: ${indiceDrivePorNota.size} notas prontas (${entradas.length} arquivos)`;
+                if (lbl) lbl.textContent = `Drive: ${indiceDrivePorNota.size} notas indexadas (${entradas.length} arquivos)`;
             } else {
                 if (lbl) lbl.textContent = `Drive erro: ${json.erro || 'indisponível'}`;
             }
@@ -807,15 +812,15 @@
 
         if (candidatos.length === 1) return candidatos[0];
 
+        // Desempate pelo nome da empresa beneficiada em qualquer posição do nome do arquivo
         const tokensEmp = extrairTokensLimpos(empresaBeneficiada);
         let melhor = candidatos[0];
         let maiorScore = -1;
 
         for (const cand of candidatos) {
-            const alvo = cand.beneficiada || cand.nomeCompleto;
             let hits = 0;
             for (const tk of tokensEmp) {
-                if (tk.length >= 2 && alvo.includes(tk)) hits++;
+                if (tk.length >= 2 && cand.nomeCompleto.includes(tk)) hits++;
             }
             if (hits > maiorScore) {
                 maiorScore = hits;
