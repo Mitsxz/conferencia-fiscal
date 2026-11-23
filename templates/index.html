@@ -1139,8 +1139,7 @@
             }
         }
 
-        progressTexto.textContent = 'Sincronizando notas do Google Drive...';
-        await carregarMapaDrive(false);
+       carregarMapaDrive(false);
 
         progressTexto.textContent = `Concluído! ${filaArquivos.length} arquivo(s) processado(s).`;
         progressPct.textContent = '100%';
