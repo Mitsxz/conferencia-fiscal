@@ -791,7 +791,7 @@
                 });
                 if (lbl) lbl.textContent = `Drive: ${entradas.length} notas indexadas`;
             } else {
-                if (lbl) lbl.textContent = 'Drive indisponível';
+                if (lbl) lbl.textContent = `Drive erro: ${json.erro || 'indisponível'}`;
             }
         } catch (e) {
             if (lbl) lbl.textContent = 'Erro ao ler Drive';
