@@ -16,7 +16,7 @@ from services.file_reader import ler_arquivo_tabular, FileReadError
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
-DRIVE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbygvYCLJv2P6yudcUFs86LEUzNosTtOzLxrppVC8oBqQL55bhKo7KpwMdId5UbZkos/exec"
+DRIVE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzcR4SNL_S-a7VUrWMVRv5eEhKBJvvq-OhyaJZ1-f-qd0_zFr6Gl_c0974Uik0GDSGj/exec"
 
 # Captura CNPJ com 14 ou 15 dígitos (ex: 012.345.678/0001-99), com ou sem pontos e com espaços do pypdf
 CNPJ_FLEX_RE = re.compile(
