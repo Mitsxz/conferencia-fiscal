@@ -369,8 +369,14 @@ def api_drive_notas():
     url = f"{DRIVE_APPS_SCRIPT_URL}?refresh={refresh}"
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=25) as resp:
+        with urllib.request.urlopen(req, timeout=45) as resp:
             conteudo = resp.read().decode('utf-8')
+            if conteudo.strip().startswith('<'):
+                return jsonify({
+                    'sucesso': False,
+                    'erro': 'O Google retornou HTML em vez de JSON (verifique se a implantação está como "Qualquer pessoa").',
+                    'arquivos': {}
+                }), 500
             dados = json.loads(conteudo)
             return jsonify({'sucesso': True, 'arquivos': dados})
     except Exception as e:
