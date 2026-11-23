@@ -815,20 +815,14 @@
         }
     }
 
-    function buscarNotaNoDrive(nota, empresaBeneficiada) {
-        if (!nota || nota === 'RESUMO') return null;
-        const notaLimpa = String(nota).replace(/\D/g, '').replace(/^0+/, '') || '0';
-        const candidatos = indiceDrivePorNota.get(notaLimpa);
+    function selecionarMelhorCandidatoDrive(candidatos, empresaBeneficiada) {
         if (!candidatos || candidatos.length === 0) return null;
-
-        // Se só há 1 nota com esse número no Drive, já retorna direto
         if (candidatos.length === 1) return candidatos[0];
 
-        // Comparação sem espaços para resolver "E M S" == "EMS" e nomes compostos/juntos
         const empCompacta = compactarSemEspacos(empresaBeneficiada);
         const tokensEmp = extrairTokensLimpos(empresaBeneficiada);
 
-        // 1º Tentativa: Match exato ou por substring na versão compactada (ex: "EMS" dentro de "EMSLTDA" ou "EMPRESAEMS")
+        // 1. Match na empresa beneficiada compactada (ex: "EMS" dentro de "EMSLTDA" ou "E M S")
         if (empCompacta.length >= 2) {
             const matchCompacto = candidatos.find(c =>
                 c.beneficiadaCompacta.includes(empCompacta) ||
@@ -837,7 +831,7 @@
             if (matchCompacto) return matchCompacto;
         }
 
-        // 2º Tentativa: Pontuação por palavras-chave da empresa
+        // 2. Pontuação por palavras-chave da empresa
         let melhor = candidatos[0];
         let maiorScore = -1;
 
@@ -854,6 +848,31 @@
             }
         }
         return melhor;
+    }
+
+    function buscarNotaNoDrive(nota, empresaBeneficiada) {
+        if (!nota || nota === 'RESUMO') return null;
+        const notaLimpa = String(nota).replace(/\D/g, '').replace(/^0+/, '') || '0';
+
+        // 1ª tentativa: número exato (ex: 37654 == 37654)
+        let candidatos = indiceDrivePorNota.get(notaLimpa);
+        if (candidatos && candidatos.length > 0) {
+            return selecionarMelhorCandidatoDrive(candidatos, empresaBeneficiada);
+        }
+
+        // 2ª tentativa (comum em NFS-e e Recibos): planilha traz o ano na frente (ex: 202637654 ou 202600037654)
+        // enquanto o arquivo no Drive está salvo apenas como _D_37654
+        if (/^20\d{2}\d{2,}$/.test(notaLimpa)) {
+            const semAno = notaLimpa.slice(4).replace(/^0+/, '') || '0';
+            if (semAno.length >= 2) {
+                candidatos = indiceDrivePorNota.get(semAno);
+                if (candidatos && candidatos.length > 0) {
+                    return selecionarMelhorCandidatoDrive(candidatos, empresaBeneficiada);
+                }
+            }
+        }
+
+        return null;
     }
 
     function extrairTokensLimpos(nomeArquivo) {
