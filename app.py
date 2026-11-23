@@ -1,7 +1,9 @@
 import csv
+import json
 import os
 import re
 import tempfile
+import urllib.request
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 from openpyxl import load_workbook
@@ -13,6 +15,8 @@ from services.file_reader import ler_arquivo_tabular, FileReadError
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
+DRIVE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbygvYCLJv2P6yudcUFs86LEUzNosTtOzLxrppVC8oBqQL55bhKo7KpwMdId5UbZkos/exec"
 
 # Captura CNPJ com 14 ou 15 dígitos (ex: 012.345.678/0001-99), com ou sem pontos e com espaços do pypdf
 CNPJ_FLEX_RE = re.compile(
@@ -357,6 +361,20 @@ def normalizar_registros(registros_brutos: list[dict], extensao: str, modo_opera
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html')
+
+
+@app.route('/api/drive-notas', methods=['GET'])
+def api_drive_notas():
+    refresh = request.args.get('refresh', '0')
+    url = f"{DRIVE_APPS_SCRIPT_URL}?refresh={refresh}"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            conteudo = resp.read().decode('utf-8')
+            dados = json.loads(conteudo)
+            return jsonify({'sucesso': True, 'arquivos': dados})
+    except Exception as e:
+        return jsonify({'sucesso': False, 'erro': str(e), 'arquivos': {}}), 500
 
 
 @app.route('/api/extrair', methods=['POST'])
