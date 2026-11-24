@@ -95,7 +95,7 @@
             border-top: 1px solid var(--border);
         }
         .radio-group { display: flex; flex-wrap: wrap; gap: 16px; }
-                .radio-option {
+        .radio-option {
             display: flex;
             align-items: center;
             gap: 8px;
@@ -178,7 +178,7 @@
             border: 1px solid transparent;
         }
         .tag-livro { background: #dbeafe; color: #1e40af; }
-                .tag-plan { background: #e0e7ff; color: #3730a3; }
+        .tag-plan { background: #e0e7ff; color: #3730a3; }
         .badge-match-ok {
             background: var(--ok-bg);
             color: var(--ok-text);
@@ -338,7 +338,7 @@
             background: none;
             border: none;
             color: #991b1b;
-                        font-weight: 700;
+            font-weight: 700;
             cursor: pointer;
             font-size: 0.78rem;
         }
@@ -490,11 +490,12 @@
             font-weight: 700;
             font-size: 0.8rem;
             background: #ffffff;
-            white-space: nowrap;
-            min-width: 58px;
-            text-align: center;
+            white-space: nowrap !important;
+            min-width: 58px !important;
+            width: max-content !important;
+            text-align: center !important;
         }
-                .badge-emp {
+        .badge-emp {
             display: inline-block;
             padding: 3px 8px;
             border-radius: 6px;
@@ -532,18 +533,10 @@
         }
         .btn-drive:hover { background: #14244b; }
         table th:nth-child(4),
-table td:nth-child(4) {
-    min-width: 90px !important;
-    white-space: nowrap !important;
-}
-
-.badge-cfop {
-    white-space: nowrap !important;
-    min-width: 58px !important;
-    width: max-content !important;
-    display: inline-block !important;
-    text-align: center !important;
-}
+        table td:nth-child(4) {
+            min-width: 90px !important;
+            white-space: nowrap !important;
+        }
     </style>
 </head>
 <body>
@@ -732,6 +725,7 @@ table td:nth-child(4) {
     let linhasAtuaisTabela = [];
     let painelVinculosAberto = true;
     let indiceDrivePorNota = new Map();
+    let driveDisponivel = false;
 
     const STOPWORDS = new Set([
         'LIVRO', 'FISCAL', 'FISCAIS', 'ENTRADA', 'ENTRADAS', 'SAIDA', 'SAIDAS',
@@ -753,7 +747,8 @@ table td:nth-child(4) {
             box.innerHTML = '<strong>Erro na interface:</strong> ' + escapeHtml(msg) + ' (linha ' + line + ')';
         }
     };
-        function escapeHtml(str) {
+
+    function escapeHtml(str) {
         return String(str == null ? '' : str)
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -777,7 +772,6 @@ table td:nth-child(4) {
         return normalizarTexto(txt).replace(/[^A-Z0-9]/g, '');
     }
 
-    let driveDisponivel = false;
     function periodoDrive(data) {
         const t = String(data || '');
         let m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
@@ -785,10 +779,10 @@ table td:nth-child(4) {
         m = t.match(/^(\d{4})-(\d{2})-/);
         return m ? [m[1], Number(m[2])] : null;
     }
+
     async function carregarMapaDrive(forcarAtualizacao = false) {
         const lbl = document.getElementById('status-drive-sync');
 
-        // Coleta todas as notas únicas escaneadas das planilhas e livros
         const notasUnicas = Array.from(new Set(
             dadosExtraidos
                 .map(d => String(d.nota || '').replace(/\D/g, '').replace(/^0+/, ''))
@@ -812,8 +806,9 @@ table td:nth-child(4) {
             indiceDrivePorNota.clear();
 
             if (json.sucesso && Array.isArray(json.arquivos)) {
+                driveDisponivel = true;
                 json.arquivos.forEach(arq => {
-                    const urlFinal = `https://drive.google.com/file/d/${arq.id}/view`;
+                    const urlFinal = `https://drive.google.com/file/d/${encodeURIComponent(arq.id)}/view`;
                     const empArq = compactarSemEspacos(arq.empresa || '');
                     const listaNums = (arq.numeros && arq.numeros.length)
                         ? arq.numeros
@@ -827,26 +822,28 @@ table td:nth-child(4) {
                             indiceDrivePorNota.set(notaLimpa, []);
                         }
                         indiceDrivePorNota.get(notaLimpa).push({
+                            id: arq.id,
                             nomeCompleto: arq.nome,
-                            tipo: '',
+                            empresaRaw: arq.empresa || '',
                             empCompacta: empArq,
                             empPastaCompacta: '',
                             url: urlFinal,
-                            ehPrincipal: notaLimpa === arq.numeroPrincipal
+                            ehPrincipal: notaLimpa === String(arq.numeroPrincipal || '').replace(/\D/g, '').replace(/^0+/, '')
                         });
                     });
                 });
 
-                // Prioriza arquivos onde o número bate exatamente após o _D_
                 indiceDrivePorNota.forEach(lista => {
                     lista.sort((a, b) => (b.ehPrincipal ? 1 : 0) - (a.ehPrincipal ? 1 : 0));
                 });
 
                 if (lbl) lbl.textContent = `Drive: ${json.arquivos.length} arquivo(s) localizado(s) para ${notasUnicas.length} notas`;
             } else {
+                driveDisponivel = false;
                 if (lbl) lbl.textContent = `Drive erro: ${json.erro || 'indisponível'}`;
             }
         } catch (e) {
+            driveDisponivel = false;
             if (lbl) lbl.textContent = 'Erro ao buscar notas no Drive';
         }
 
@@ -854,42 +851,59 @@ table td:nth-child(4) {
             renderizarTabela();
         }
     }
-    function buscarNotaNoDrive(nota, empresa, data, emissao, cnpj) {
-        if (!driveDisponivel || !nota || nota === 'RESUMO') return null;
-        const n = String(nota).replace(/\D/g, '').replace(/^0+/, '');
-        if (!n) return null;
-        const periodos = [periodoDrive(data), periodoDrive(emissao)].filter(Boolean);
-        const anos = new Set(periodos.map(p => p[0]));
-        const numeros = [n];
-        if (n.length > 4 && anos.has(n.slice(0,4))) numeros.push(n.slice(4).replace(/^0+/, '') || '0');
-        const candidatos = new Map();
-        for (const numero of numeros) for (const arq of indiceDrivePorNota.get(numero) || []) candidatos.set(arq.id, arq);
-        const emp = compactarSemEspacos(empresa);
-        const tokens = extrairTokensLimpos(empresa);
-        const doc = String(cnpj || '').replace(/\D/g, '');
-        const avaliados = [];
-        for (const arq of candidatos.values()) {
-            const fontes = [arq.empresa, ...(arq.pastas || [])].filter(Boolean);
-            const empresaOk = (doc.length === 14 && (arq.cnpjs || []).includes(doc)) || fontes.some(x => {
-                const c = compactarSemEspacos(x);
-                const ts = extrairTokensLimpos(x);
-                return (emp.length >= 3 && c === emp) || (tokens.length > 0 && tokens.every(t => ts.includes(t)));
-            });
-            const periodoOk = periodos.some(p => String(arq.ano) === p[0] && Number(arq.mes) === p[1]);
-            const conflito = periodos.length && arq.ano && arq.mes && !periodoOk;
-            if (conflito) continue;
-            const exato = (arq.numeros || []).includes(n);
-            const confirmado = empresaOk && periodoOk && exato && arq.numeroRotulado === true;
-            avaliados.push({...arq, confirmado, score: (empresaOk ? 4 : 0) + (periodoOk ? 3 : 0) + (exato ? 2 : 0) + (arq.numeroRotulado ? 1 : 0)});
+
+    function selecionarMelhorCandidatoDrive(candidatos, empresaBeneficiada) {
+        if (!candidatos || candidatos.length === 0) return null;
+
+        const empCompacta = compactarSemEspacos(empresaBeneficiada);
+        const tokensEmp = extrairTokensLimpos(empresaBeneficiada);
+
+        // Pontua cada arquivo encontrado para esta nota (prioriza empresa correspondente e número após _D_)
+        const avaliados = candidatos.map(c => {
+            let score = c.ehPrincipal ? 5 : 1;
+            const cEmp = c.empCompacta || compactarSemEspacos(c.nomeCompleto);
+            const tokensArq = extrairTokensLimpos(c.empresaRaw || c.nomeCompleto);
+
+            if (empCompacta.length >= 2 && cEmp) {
+                if (cEmp === empCompacta || cEmp.includes(empCompacta) || empCompacta.includes(cEmp)) {
+                    score += 10;
+                } else if (tokensEmp.length > 0 && tokensEmp.some(t => t.length >= 3 && (cEmp.includes(t) || tokensArq.includes(t)))) {
+                    score += 6;
+                }
+            }
+            return { ...c, score };
+        });
+
+        avaliados.sort((a, b) => b.score - a.score);
+        return avaliados[0];
+    }
+
+    function buscarNotaNoDrive(nota, empresaBeneficiada, data, emissao) {
+        if (!nota || nota === 'RESUMO') return null;
+        const notaLimpa = String(nota).replace(/\D/g, '').replace(/^0+/, '') || '0';
+        if (!notaLimpa || notaLimpa === '0') return null;
+
+        // 1. Busca número exato (ex: 37654)
+        let candidatos = indiceDrivePorNota.get(notaLimpa);
+        if (candidatos && candidatos.length > 0) {
+            return selecionarMelhorCandidatoDrive(candidatos, empresaBeneficiada);
         }
-        avaliados.sort((a,b) => b.score-a.score);
-        if (!avaliados.length) return null;
-        const a = avaliados[0];
-        return {...a, confirmado: a.confirmado && (avaliados.length === 1 || a.score > avaliados[1].score), nomeCompleto: a.nome, url: `https://drive.google.com/file/d/${encodeURIComponent(a.id)}/view`};
+
+        // 2. Fallback para NFS-e/Recibos com ano na frente na planilha (ex: 202637654 -> 37654)
+        if (/^20\d{2}\d{2,}$/.test(notaLimpa)) {
+            const semAno = notaLimpa.slice(4).replace(/^0+/, '') || '0';
+            if (semAno.length >= 2) {
+                candidatos = indiceDrivePorNota.get(semAno);
+                if (candidatos && candidatos.length > 0) {
+                    return selecionarMelhorCandidatoDrive(candidatos, empresaBeneficiada);
+                }
+            }
+        }
+        return null;
     }
 
     function extrairTokensLimpos(nomeArquivo) {
-        let base = nomeArquivo.replace(/\.[^/.]+$/, '');
+        let base = String(nomeArquivo || '').replace(/\.[^/.]+$/, '');
         base = normalizarTexto(base);
         const partes = base.split(/[^A-Z0-9]+/).filter(Boolean);
         return partes.filter(p => {
@@ -999,7 +1013,7 @@ table td:nth-child(4) {
                 filaArquivos.push({
                     uid: 'f_' + (nextUid++),
                     file: f,
-                                        origem: origem,
+                    origem: origem,
                     tokens: tokens,
                     empresa: tokens.join(' '),
                     livroUidVinculado: '',
@@ -1199,10 +1213,8 @@ table td:nth-child(4) {
                 }
             } catch (err) {
                 erros.push(`• <strong>${escapeHtml(item.file.name)}</strong>: Erro de rede (${escapeHtml(err.message)})`);
-                            }
+            }
         }
-
-        carregarMapaDrive(false);
 
         progressTexto.textContent = `Concluído! ${filaArquivos.length} arquivo(s) processado(s).`;
         progressPct.textContent = '100%';
@@ -1220,6 +1232,9 @@ table td:nth-child(4) {
         montarSeletorEmpresas();
         document.getElementById('painel-resultados').style.display = 'block';
         renderizarTabela();
+
+        // Busca exatamente as notas extraídas no Google Drive
+        carregarMapaDrive(false);
     }
 
     function executarAutoPareamentoPosLeitura() {
@@ -1469,7 +1484,7 @@ table td:nth-child(4) {
                         </div>
                     </div>
                     <pre class="box-debug-cab" id="debug_${liv.uid}">${escapeHtml(liv.cabecalhoTexto || '(Nenhum texto extraído deste PDF)')}</pre>
-                                        <div class="vinculo-rodape">
+                    <div class="vinculo-rodape">
                         ${chipsHtml || '<span style="font-size:0.75rem; color:#92400e;">Nenhuma planilha vinculada</span>'}
                         ${selectAddPlanilha}
                     </div>
@@ -1562,15 +1577,15 @@ table td:nth-child(4) {
         btn.classList.add('active');
         renderizarTabela();
     }
-    function formatarCFOP(cfop) {
-    const codigo = String(cfop ?? '').replace(/\D/g, '');
 
-    if (codigo.length === 4) {
-        return codigo.slice(0, 1) + '-' + codigo.slice(1);
+    function formatarCFOP(cfop) {
+        const codigo = String(cfop ?? '').replace(/\D/g, '');
+        if (codigo.length === 4) {
+            return codigo.slice(0, 1) + '-' + codigo.slice(1);
+        }
+        return String(cfop ?? '');
     }
 
-    return String(cfop ?? '');
-}
     function formatarMoeda(val) {
         return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     }
@@ -1642,7 +1657,7 @@ table td:nth-child(4) {
                 qtdProblemas++;
             }
 
-            const arqDrive = buscarNotaNoDrive(nota, empresa, data, liv?.data_emissao, liv?.cnpj || pla?.cnpj);
+            const arqDrive = buscarNotaNoDrive(nota, empresa, data, liv?.data_emissao);
 
             linhas.push({
                 empresa,
@@ -1654,8 +1669,7 @@ table td:nth-child(4) {
                 diff,
                 status,
                 diag,
-                noDrive: Boolean(arqDrive?.confirmado),
-                drivePossivel: Boolean(arqDrive && !arqDrive.confirmado),
+                noDrive: Boolean(arqDrive),
                 driveUrl: arqDrive ? arqDrive.url : '',
                 driveNome: arqDrive ? arqDrive.nomeCompleto : ''
             });
@@ -1696,7 +1710,7 @@ table td:nth-child(4) {
                            Abrir Nota ↗
                        </a>
                    </div>`
-                : l.drivePossivel ? `<span class="status-pill st-drive-no">Possível correspondência</span> <a href="${escapeHtml(l.driveUrl)}" target="_blank" rel="noopener noreferrer">Ver arquivo</a>` : `<span class="status-pill st-drive-no">${!driveDisponivel ? 'Drive indisponível' : l.nota === 'RESUMO' ? 'Não se aplica' : 'Não localizado no índice'}</span>`;
+                : `<span class="status-pill st-drive-no">${l.nota === 'RESUMO' ? 'Não se aplica' : (!driveDisponivel && indiceDrivePorNota.size === 0 ? 'Sincronizando...' : 'Não está no Drive')}</span>`;
 
             return `
                 <tr>
@@ -1731,7 +1745,7 @@ table td:nth-child(4) {
                 l.diff.toFixed(2).replace('.', ','),
                 l.status,
                 `"${l.diag}"`,
-                l.noDrive ? 'SIM' : l.drivePossivel ? 'POSSIVEL' : !driveDisponivel ? 'INDISPONIVEL' : 'NAO LOCALIZADO',
+                l.noDrive ? 'SIM' : 'NAO',
                 l.driveUrl || ''
             ].join(';'));
         });
