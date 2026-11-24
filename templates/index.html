@@ -1500,7 +1500,15 @@
         btn.classList.add('active');
         renderizarTabela();
     }
+    function formatarCFOP(cfop) {
+    const codigo = String(cfop ?? '').replace(/\D/g, '');
 
+    if (codigo.length === 4) {
+        return codigo.slice(0, 1) + '-' + codigo.slice(1);
+    }
+
+    return String(cfop ?? '');
+}
     function formatarMoeda(val) {
         return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     }
@@ -1633,7 +1641,7 @@
                     <td><span class="badge-emp">${escapeHtml(l.empresa)}</span></td>
                     <td>${escapeHtml(l.data)}</td>
                     <td style="font-weight:700;">${escapeHtml(l.nota)}</td>
-                    <td><span class="badge-cfop">${escapeHtml(l.cfop)}</span></td>
+                    <td><span class="badge-cfop">${escapeHtml(formatarCFOP(l.cfop))}</span></td>
                     <td style="font-weight:600;">${formatarMoeda(l.valLiv)}</td>
                     <td style="font-weight:600;">${formatarMoeda(l.valPla)}</td>
                     <td style="font-weight:700; color:${Math.abs(l.diff) > 0.02 ? '#b91c1c' : '#166534'};">${formatarMoeda(l.diff)}</td>
@@ -1655,7 +1663,7 @@
                 l.empresa,
                 l.data,
                 l.nota,
-                l.cfop,
+                formatarCFOP(l.cfop),
                 l.valLiv.toFixed(2).replace('.', ','),
                 l.valPla.toFixed(2).replace('.', ','),
                 l.diff.toFixed(2).replace('.', ','),
