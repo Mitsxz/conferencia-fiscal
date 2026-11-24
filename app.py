@@ -368,16 +368,38 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/api/drive-notas', methods=['GET'])
+@app.route('/api/drive-notas', methods=['GET', 'POST'])
 def api_drive_notas():
-    refresh = request.args.get('refresh', '0')
     if not DRIVE_APPS_SCRIPT_URL or "SEU_ID_AQUI" in DRIVE_APPS_SCRIPT_URL or not DRIVE_TOKEN:
         return jsonify({'sucesso': False, 'erro': 'Configure DRIVE_APPS_SCRIPT_URL e DRIVE_TOKEN no app.py.', 'arquivos': []}), 503
 
-    url = DRIVE_APPS_SCRIPT_URL.strip() + '?' + urllib.parse.urlencode({'refresh': refresh, 'token': DRIVE_TOKEN.strip()})
+    notas = []
+    if request.method == 'POST':
+        payload_in = request.get_json(silent=True) or {}
+        notas = payload_in.get('notas', [])
+    else:
+        notas_str = request.args.get('notas', '')
+        notas = [n.strip() for n in notas_str.split(',') if n.strip()]
+
+    if not notas:
+        return jsonify({'sucesso': True, 'arquivos': []})
+
     try:
         ctx = ssl._create_unverified_context()
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        dados_envio = json.dumps({
+            'token': DRIVE_TOKEN.strip(),
+            'notas': notas
+        }).encode('utf-8')
+
+        req = urllib.request.Request(
+            DRIVE_APPS_SCRIPT_URL.strip(),
+            data=dados_envio,
+            headers={
+                'User-Agent': 'Mozilla/5.0',
+                'Content-Type': 'application/json'
+            },
+            method='POST'
+        )
         with urllib.request.urlopen(req, timeout=60, context=ctx) as resp:
             conteudo = resp.read().decode('utf-8')
             if conteudo.strip().startswith('<'):
