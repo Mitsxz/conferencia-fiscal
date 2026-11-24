@@ -373,22 +373,17 @@ def api_drive_notas():
     if not DRIVE_APPS_SCRIPT_URL or "SEU_ID_AQUI" in DRIVE_APPS_SCRIPT_URL or not DRIVE_TOKEN:
         return jsonify({'sucesso': False, 'erro': 'Configure DRIVE_APPS_SCRIPT_URL e DRIVE_TOKEN no app.py.', 'arquivos': []}), 503
 
-    notas = []
-    if request.method == 'POST':
-        payload_in = request.get_json(silent=True) or {}
-        notas = payload_in.get('notas', [])
-    else:
-        notas_str = request.args.get('notas', '')
-        notas = [n.strip() for n in notas_str.split(',') if n.strip()]
+    payload_in = request.get_json(silent=True) or {}
+    consultas = payload_in.get('consultas', [])
 
-    if not notas:
+    if not consultas:
         return jsonify({'sucesso': True, 'arquivos': []})
 
     try:
         ctx = ssl._create_unverified_context()
         dados_envio = json.dumps({
             'token': DRIVE_TOKEN.strip(),
-            'notas': notas
+            'consultas': consultas
         }).encode('utf-8')
 
         req = urllib.request.Request(
