@@ -19,7 +19,7 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 # COLE AQUI A URL /exec DO SEU GOOGLE APPS SCRIPT:
-DRIVE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzcR4SNL_S-a7VUrWMVRv5eEhKBJvvq-OhyaJZ1-f-qd0_zFr6Gl_c0974Uik0GDSGj/exec"
+DRIVE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw5Bx8L6KwsRLP0_ci-UVHpEKeKaQyy42V7-EWr7oCSfa4KPUwCq3NSzjUjOFGd747B/exec"
 DRIVE_TOKEN = "fiscal2026"
 
 # Captura CNPJ com 14 ou 15 dígitos (ex: 012.345.678/0001-99), com ou sem pontos e com espaços do pypdf
