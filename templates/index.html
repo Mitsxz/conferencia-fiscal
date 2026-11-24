@@ -66,24 +66,74 @@
             margin-bottom: 24px;
         }
 
-        .grid-upload {
+        .setup-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
             margin-bottom: 20px;
         }
 
-        .upload-box {
-            border: 2px dashed #cbd5e1;
-            border-radius: 12px;
-            padding: 20px;
+        .field-box {
             background: #f8fafc;
-            transition: all 0.2s;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
         }
-        .upload-box:hover { border-color: var(--navy-mid); background: #eff6ff; }
-        .upload-box h3 { font-size: 1rem; color: var(--navy-dark); margin-bottom: 6px; }
-        .upload-box p { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px; }
-        .upload-box input[type="file"] { width: 100%; font-size: 0.85rem; }
+        .field-box label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--navy-mid);
+            margin-bottom: 6px;
+        }
+        .field-box select, .field-box input[type="file"] {
+            width: 100%;
+            padding: 9px 10px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--navy-dark);
+            background: #ffffff;
+        }
+
+        .drive-planilha-box {
+            background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+            border: 1px solid #bfdbfe;
+            border-radius: 12px;
+            padding: 16px 18px;
+            margin-bottom: 18px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+        }
+        .drive-planilha-info {
+            flex: 1;
+            min-width: 280px;
+        }
+        .drive-planilha-info h4 {
+            font-size: 0.92rem;
+            color: var(--navy-dark);
+            margin-bottom: 4px;
+        }
+        .drive-planilha-info p {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+        .select-planilha-drive {
+            min-width: 320px;
+            max-width: 100%;
+            padding: 9px 12px;
+            border-radius: 8px;
+            border: 1px solid #93c5fd;
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: var(--navy-dark);
+            background: #ffffff;
+        }
 
         .modo-bar {
             display: flex;
@@ -134,88 +184,6 @@
         }
         .btn-secondary:hover { background: #f1f5f9; }
 
-        /* Fila e Pareamento */
-        .preview-lista {
-            margin-top: 18px;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            overflow: hidden;
-            display: none;
-        }
-        .preview-header {
-            background: #f8fafc;
-            padding: 10px 14px;
-            font-size: 0.83rem;
-            font-weight: 700;
-            color: var(--navy-dark);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: center;
-            gap: 8px;
-        }
-        .preview-itens {
-            max-height: 360px;
-            overflow-y: auto;
-        }
-        .preview-row {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            padding: 9px 14px;
-            border-bottom: 1px solid #f1f5f9;
-            font-size: 0.83rem;
-        }
-        .tag-tipo {
-            padding: 3px 8px;
-            border-radius: 6px;
-            font-size: 0.72rem;
-            font-weight: 700;
-            cursor: pointer;
-            border: 1px solid transparent;
-        }
-        .tag-livro { background: #dbeafe; color: #1e40af; }
-        .tag-plan { background: #e0e7ff; color: #3730a3; }
-        .badge-match-ok {
-            background: var(--ok-bg);
-            color: var(--ok-text);
-            padding: 2px 8px;
-            border-radius: 999px;
-            font-size: 0.72rem;
-            font-weight: 700;
-        }
-        .badge-match-info {
-            background: var(--info-bg);
-            color: var(--info-text);
-            padding: 2px 8px;
-            border-radius: 999px;
-            font-size: 0.72rem;
-            font-weight: 700;
-        }
-        .badge-match-warn {
-            background: var(--warn-bg);
-            color: var(--warn-text);
-            padding: 2px 8px;
-            border-radius: 999px;
-            font-size: 0.72rem;
-            font-weight: 700;
-        }
-        .input-empresa, .select-vinculo {
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            padding: 5px 8px;
-            font-size: 0.82rem;
-            font-weight: 700;
-            color: var(--navy-dark);
-            background: #ffffff;
-        }
-        .input-empresa { width: 185px; text-transform: uppercase; }
-        .select-vinculo { min-width: 240px; max-width: 310px; cursor: pointer; }
-
-        /* Progresso */
         .progress-box {
             display: none;
             margin-top: 18px;
@@ -249,138 +217,9 @@
             font-size: 0.84rem;
         }
 
-        /* Painel de Resultados */
         #painel-resultados { display: none; }
 
-        /* Card de Revisão de Vínculos Pós-Extração */
-        .vinculos-card {
-            background: #ffffff;
-            border: 2px solid #cbd5e1;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-        }
-        .vinculos-header {
-            background: #f8fafc;
-            padding: 13px 18px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
-        }
-        .vinculos-header h4 {
-            font-size: 0.95rem;
-            color: var(--navy-dark);
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 8px;
-        }
-        .vinculos-body {
-            padding: 16px 18px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
-            gap: 18px;
-        }
-        .vinculos-col h5 {
-            font-size: 0.78rem;
-            text-transform: uppercase;
-            color: var(--text-muted);
-            margin-bottom: 10px;
-            letter-spacing: 0.03em;
-        }
-        .vinculo-item {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            padding: 10px 12px;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            margin-bottom: 10px;
-            background: #fcfdff;
-            font-size: 0.82rem;
-        }
-        .vinculo-item.pendente {
-            border-color: #f59e0b;
-            background: #fffbeb;
-        }
-        .vinculo-topo {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: center;
-            gap: 8px;
-        }
-        .vinculo-rodape {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 6px;
-            padding-top: 6px;
-            border-top: 1px dashed #e2e8f0;
-        }
-        .chip-planilha {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            background: var(--ok-bg);
-            color: var(--ok-text);
-            padding: 2px 8px;
-            border-radius: 6px;
-            font-size: 0.74rem;
-            font-weight: 700;
-        }
-        .chip-planilha button {
-            background: none;
-            border: none;
-            color: #991b1b;
-            font-weight: 700;
-            cursor: pointer;
-            font-size: 0.78rem;
-        }
-        .meta-cnpj {
-            display: block;
-            font-size: 0.74rem;
-            color: var(--text-muted);
-            margin-top: 2px;
-        }
-        .btn-debug-cab {
-            background: none;
-            border: none;
-            color: var(--navy-mid);
-            font-size: 0.72rem;
-            font-weight: 600;
-            text-decoration: underline;
-            cursor: pointer;
-            margin-left: 6px;
-        }
-        .box-debug-cab {
-            display: none;
-            background: #0f172a;
-            color: #e2e8f0;
-            padding: 8px 10px;
-            border-radius: 6px;
-            font-family: monospace;
-            font-size: 0.72rem;
-            white-space: pre-wrap;
-            max-height: 150px;
-            overflow-y: auto;
-        }
-        .toast-vinculo {
-            display: none;
-            background: #ecfdf5;
-            color: #065f46;
-            border-bottom: 1px solid #a7f3d0;
-            padding: 8px 18px;
-            font-size: 0.82rem;
-            font-weight: 600;
-        }
-
-        .empresa-selector-bar {
+        .resumo-barra {
             background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
             border: 2px solid #bfdbfe;
             border-radius: 12px;
@@ -391,39 +230,6 @@
             align-items: center;
             justify-content: space-between;
             gap: 14px;
-        }
-        .empresa-select {
-            padding: 10px 14px;
-            border-radius: 8px;
-            border: 1px solid #93c5fd;
-            font-size: 0.95rem;
-            font-weight: 700;
-            color: var(--navy-dark);
-            background: #ffffff;
-            min-width: 320px;
-            cursor: pointer;
-        }
-        .empresa-pills {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 10px;
-            width: 100%;
-        }
-        .emp-pill {
-            padding: 6px 12px;
-            border-radius: 999px;
-            border: 1px solid #cbd5e1;
-            background: #ffffff;
-            font-size: 0.8rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-        .emp-pill.active {
-            background: var(--navy-dark);
-            color: #ffffff;
-            border-color: var(--navy-dark);
         }
 
         .kpis {
@@ -492,7 +298,6 @@
             background: #ffffff;
             white-space: nowrap !important;
             min-width: 58px !important;
-            width: max-content !important;
             text-align: center !important;
         }
         .badge-emp {
@@ -532,11 +337,6 @@
             transition: background 0.15s;
         }
         .btn-drive:hover { background: #14244b; }
-        table th:nth-child(4),
-        table td:nth-child(4) {
-            min-width: 90px !important;
-            white-space: nowrap !important;
-        }
     </style>
 </head>
 <body>
@@ -546,27 +346,86 @@
         <div style="display: flex; align-items: center; gap: 16px;">
             <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" style="height: 54px; width: auto; mix-blend-mode: lighten;">
             <div>
-                <h1>Conferência Fiscal</h1>
-                <p>Cruzamento automático entre Livro Fiscal (Entradas/Saídas) e Planilhas da Empresa</p>
+                <h1>Conferência Fiscal — Entradas (NF-e)</h1>
+                <p>Selecione a Empresa, o Mês/Ano e o Livro Fiscal (PDF) — a planilha e as NF-es vêm direto do Google Drive</p>
             </div>
         </div>
-        <span class="header-badge">Auditoria Fiscal Automatizada</span>
+        <span class="header-badge">Integração Direta Google Drive</span>
     </div>
 </header>
 
 <div class="container">
-    <!-- Card de Upload em Lote -->
     <div class="card">
-        <div class="grid-upload">
-            <div class="upload-box">
-                <h3>1. Livros Fiscais (PDFs)</h3>
-                <p>Selecione todos os PDFs (ex: Avant.pdf, DMF.pdf...)</p>
-                <input type="file" id="input-livros" multiple accept=".pdf,.xlsx,.ods,.csv" onchange="aoSelecionarInput(this, 'livro')">
+        <!-- Seleção de Empresa, Ano, Mês e PDF do Livro -->
+        <div class="setup-grid">
+            <div class="field-box">
+                <label for="sel-empresa">1. Empresa</label>
+                <select id="sel-empresa" onchange="consultarRecursosDrive()">
+                    <option value="MEDIC">MEDIC</option>
+                    <option value="SALVADOR">SALVADOR</option>
+                    <option value="ALPINE">ALPINE</option>
+                    <option value="NEUROPHARMA">NEUROPHARMA</option>
+                    <option value="NEOSURGICAL">NEOSURGICAL</option>
+                    <option value="DMF">DMF</option>
+                    <option value="DNA">DNA</option>
+                    <option value="ORTHOPRIME">ORTHOPRIME (Matriz)</option>
+                    <option value="ORTHOPRIME_FILIAL">ORTHOPRIME FILIAL</option>
+                    <option value="AVANT">AVANT</option>
+                    <option value="ALLIVIA_ERAS">ALLIVIA / ERAS</option>
+                    <option value="SURGILOG_MATRIZ_F05">SURGILOG (Matriz + F05)</option>
+                    <option value="SURGILOG_F02">SURGILOG F02</option>
+                    <option value="SURGILOG_F03">SURGILOG F03</option>
+                    <option value="SURGILOG_F04">SURGILOG F04</option>
+                    <option value="SURGILOG_F06">SURGILOG F06</option>
+                </select>
             </div>
-            <div class="upload-box">
-                <h3>2. Planilhas das Empresas</h3>
-                <p>Selecione as planilhas (.xlsx, .ods, .csv — mesmo com nomes genéricos)</p>
-                <input type="file" id="input-planilhas" multiple accept=".xlsx,.ods,.csv,.pdf" onchange="aoSelecionarInput(this, 'planilha')">
+
+            <div class="field-box">
+                <label for="sel-mes">2. Mês de Conferência</label>
+                <select id="sel-mes" onchange="consultarRecursosDrive()">
+                    <option value="1">01 - Janeiro</option>
+                    <option value="2">02 - Fevereiro</option>
+                    <option value="3">03 - Março</option>
+                    <option value="4">04 - Abril</option>
+                    <option value="5">05 - Maio</option>
+                    <option value="6">06 - Junho</option>
+                    <option value="7">07 - Julho</option>
+                    <option value="8">08 - Agosto</option>
+                    <option value="9">09 - Setembro</option>
+                    <option value="10" selected>10 - Outubro</option>
+                    <option value="11">11 - Novembro</option>
+                    <option value="12">12 - Dezembro</option>
+                </select>
+            </div>
+
+            <div class="field-box">
+                <label for="sel-ano">3. Ano</label>
+                <select id="sel-ano" onchange="consultarRecursosDrive()">
+                    <option value="2026" selected>2026</option>
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                </select>
+            </div>
+
+            <div class="field-box">
+                <label for="input-livros">4. Livro Fiscal de Entradas (PDF)</label>
+                <input type="file" id="input-livros" multiple accept=".pdf,.xlsx,.ods,.csv">
+            </div>
+        </div>
+
+        <!-- Seleção da Planilha encontrada no Drive (pasta ENTRADAS > ANO) -->
+        <div class="drive-planilha-box">
+            <div class="drive-planilha-info">
+                <h4>Planilha Consolidada no Google Drive (ENTRADAS &gt; ANO)</h4>
+                <p id="status-drive-busca">Carregando planilhas e notas NF-e do Google Drive...</p>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+                <select id="sel-planilha-drive" class="select-planilha-drive">
+                    <option value="">-- Buscando planilhas no Drive... --</option>
+                </select>
+                <button type="button" class="btn-secondary" onclick="consultarRecursosDrive(true)" title="Atualizar lista do Drive">
+                    ↻ Atualizar Drive
+                </button>
             </div>
         </div>
 
@@ -581,26 +440,11 @@
                     Resumo por CFOP (Totais)
                 </label>
             </div>
-            <button type="button" class="btn-primary" id="btn-processar" onclick="iniciarFilaConferencia()">
+            <button type="button" class="btn-primary" id="btn-processar" onclick="iniciarConferenciaDrive()">
                 Iniciar Conferência
             </button>
         </div>
 
-        <!-- Pré-visualização da Fila antes do envio -->
-        <div class="preview-lista" id="preview-lista">
-            <div class="preview-header">
-                <span>Fila de Arquivos (Vincule manualmente aqui ou aguarde o auto-pareamento via CNPJ)</span>
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <span id="contador-arquivos">0 arquivos</span>
-                    <button type="button" onclick="limparFila()" style="background:#fee2e2; color:#991b1b; border:none; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:700; cursor:pointer;">
-                        Limpar lista
-                    </button>
-                </div>
-            </div>
-            <div class="preview-itens" id="preview-itens"></div>
-        </div>
-
-        <!-- Barra de progresso da fila -->
         <div class="progress-box" id="progress-box">
             <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600;">
                 <span id="progress-texto">Preparando arquivos...</span>
@@ -614,58 +458,31 @@
         <div class="erros-lote" id="erros-lote"></div>
     </div>
 
-    <!-- Painel de Resultados Persistente com Revisão de Vínculos e Troca de Empresa -->
+    <!-- Painel de Resultados -->
     <div id="painel-resultados">
-        <!-- Revisão de Pareamento PDF <-> Planilha -->
-        <div class="vinculos-card" id="vinculos-card">
-            <div class="vinculos-header" onclick="togglePainelVinculos()">
-                <h4>
-                    <span>Pareamento PDF ↔ Planilha (Automático via CNPJ ou Manual)</span>
-                    <span id="resumo-vinculos-badge" class="badge-match-ok">0 pareados</span>
-                </h4>
-                <span id="toggle-vinculos-label" style="font-size: 0.8rem; font-weight: 600; color: var(--navy-mid);">
-                    Ocultar ▲
-                </span>
-            </div>
-            <div class="toast-vinculo" id="toast-vinculo"></div>
-            <div class="vinculos-body" id="vinculos-body">
-                <div class="vinculos-col">
-                    <h5>1. Livros Fiscais (PDFs) — Vincule planilhas diretamente ou renomeie</h5>
-                    <div id="lista-vinculos-livros"></div>
-                </div>
-                <div class="vinculos-col">
-                    <h5>2. Planilhas — Escolha o PDF / Empresa correspondente</h5>
-                    <div id="lista-vinculos-planilhas"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Seletor de Empresa -->
-        <div class="empresa-selector-bar">
+        <div class="resumo-barra">
             <div>
-                <div style="font-size: 0.78rem; font-weight: 700; color: var(--navy-mid); text-transform: uppercase; margin-bottom: 4px;">
-                    Alternar Resultados por Empresa / PDF:
+                <div style="font-size: 0.78rem; font-weight: 700; color: var(--navy-mid); text-transform: uppercase;">
+                    Conferência Ativa:
                 </div>
-                <select id="select-empresa" class="empresa-select" onchange="selecionarEmpresa(this.value)">
-                    <option value="__TODAS__">TODAS AS EMPRESAS (Consolidado)</option>
-                </select>
+                <div id="titulo-conferencia-ativa" style="font-size: 1.05rem; font-weight: 700; color: var(--navy-dark); margin-top: 2px;">
+                    —
+                </div>
             </div>
             <div style="display: flex; gap: 10px; align-items: center;">
-                <span id="status-drive-sync" style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;"></span>
-                <button type="button" class="btn-secondary" onclick="carregarMapaDrive(true)" title="Forçar nova leitura das pastas do Google Drive">↻ Atualizar Drive</button>
+                <span id="info-planilha-filtrada" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;"></span>
                 <button type="button" class="btn-secondary" onclick="exportarCSV()">Exportar Tabela (Excel/CSV)</button>
             </div>
-            <div class="empresa-pills" id="empresa-pills"></div>
         </div>
 
         <!-- KPIs -->
         <div class="kpis">
             <div class="kpi-card">
-                <div class="kpi-label">Total Livro Fiscal</div>
+                <div class="kpi-label">Total Livro Fiscal (NF-e)</div>
                 <div class="kpi-value" id="kpi-livro">R$ 0,00</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Total Planilhas</div>
+                <div class="kpi-label">Total Planilha Drive (Mês)</div>
                 <div class="kpi-value" id="kpi-planilha">R$ 0,00</div>
             </div>
             <div class="kpi-card">
@@ -678,7 +495,7 @@
             </div>
         </div>
 
-        <!-- Tabela de Conferência -->
+        <!-- Tabela -->
         <div class="card">
             <div class="filtros-tabela">
                 <div class="filter-pills" id="status-pills">
@@ -689,7 +506,7 @@
                     <button type="button" class="f-pill" data-st="AUSENTE_PLANILHA" onclick="mudarFiltroStatus('AUSENTE_PLANILHA', this)">Ausente Planilha</button>
                     <button type="button" class="f-pill" data-st="OK" onclick="mudarFiltroStatus('OK', this)">OK</button>
                 </div>
-                <input type="text" class="search-input" id="busca-tabela" placeholder="Buscar Nota, CFOP ou Empresa..." oninput="renderizarTabela()">
+                <input type="text" class="search-input" id="busca-tabela" placeholder="Buscar Nota ou CFOP..." oninput="renderizarTabela()">
             </div>
 
             <div class="table-wrap">
@@ -698,14 +515,14 @@
                         <tr>
                             <th>Empresa</th>
                             <th>Data</th>
-                            <th>Nota</th>
+                            <th>Nota (NF-e)</th>
                             <th>CFOP</th>
                             <th>Valor Livro</th>
                             <th>Valor Planilha</th>
                             <th>Diferença</th>
                             <th>Status</th>
                             <th>Diagnóstico</th>
-                            <th>Google Drive</th>
+                            <th>Pasta NFE (Drive)</th>
                         </tr>
                     </thead>
                     <tbody id="tbody-resultados"></tbody>
@@ -716,49 +533,42 @@
 </div>
 
 <script>
-    let nextUid = 1;
-    let filaArquivos = [];
-    let arquivosProcessados = [];
-    let dadosExtraidos = [];
-    let empresaSelecionada = '__TODAS__';
+    const EMPRESAS_CONFIG = {
+        'MEDIC': { label: 'MEDIC', aliases: ['MEDIC'] },
+        'SALVADOR': { label: 'SALVADOR', aliases: ['SALVADOR'] },
+        'ALPINE': { label: 'ALPINE', aliases: ['ALPINE'] },
+        'NEUROPHARMA': { label: 'NEUROPHARMA', aliases: ['NEUROPHARMA'] },
+        'NEOSURGICAL': { label: 'NEOSURGICAL', aliases: ['NEOSURGICAL'] },
+        'DMF': { label: 'DMF', aliases: ['DMF'] },
+        'DNA': { label: 'DNA', aliases: ['DNA'] },
+        'ORTHOPRIME': { label: 'ORTHOPRIME', aliases: ['ORTHOPRIME'] },
+        'ORTHOPRIME_FILIAL': { label: 'ORTHOPRIME FILIAL', aliases: ['ORTHOPRIME FILIAL'] },
+        'AVANT': { label: 'AVANT', aliases: ['AVANT'] },
+        'ALLIVIA_ERAS': { label: 'ALLIVIA / ERAS', aliases: ['ALLIVIA', 'ERAS'] },
+        'SURGILOG_MATRIZ_F05': { label: 'SURGILOG (Matriz + F05)', aliases: ['SURGILOG MATRIZ', 'SURGILOG F05'] },
+        'SURGILOG_F02': { label: 'SURGILOG F02', aliases: ['SURGILOG F02'] },
+        'SURGILOG_F03': { label: 'SURGILOG F03', aliases: ['SURGILOG F03'] },
+        'SURGILOG_F04': { label: 'SURGILOG F04', aliases: ['SURGILOG F04'] },
+        'SURGILOG_F06': { label: 'SURGILOG F06', aliases: ['SURGILOG F06'] }
+    };
+
+    let planilhasDisponiveisDrive = [];
+    let notasNfeDrive = [];
+    let registrosLivro = [];
+    let registrosPlanilha = [];
     let filtroStatusAtual = 'TODOS';
     let linhasAtuaisTabela = [];
-    let painelVinculosAberto = true;
-    let indiceDrivePorPasta = new Map();
-    let driveDisponivel = false;
 
-    const STOPWORDS = new Set([
-        'LIVRO', 'FISCAL', 'FISCAIS', 'ENTRADA', 'ENTRADAS', 'SAIDA', 'SAIDAS',
-        'PLANILHA', 'PLANILHAS', 'RELATORIO', 'RELATORIOS', 'NOTA', 'NOTAS',
-        'RESUMO', 'CFOP', 'CONFERENCIA', 'EMPRESA', 'SISTEMA', 'MODELO',
-        'P1', 'P2', 'REGISTRO', 'APURACAO', 'MENSAL', 'CONTABIL', 'XML', 'SPED',
-        'LTDA', 'EIRELI', 'ME', 'EPP', 'SA', 'COMERCIO', 'INDUSTRIA', 'SERVICOS',
-        'DE', 'DO', 'DA', 'DOS', 'DAS', 'E', 'EM', 'PARA', 'COM', 'POR',
-        'JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ',
-        'JANEIRO', 'FEVEREIRO', 'MARCO', 'ABRIL', 'MAIO', 'JUNHO',
-        'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO',
-        'TESTE', 'ARQUIVO', 'PLAN', 'LIV', 'LF', 'PDF', 'XLSX', 'XLS', 'CSV', 'ODS'
-    ]);
-
-    window.onerror = function(msg, url, line) {
-        const box = document.getElementById('erros-lote');
-        if (box) {
-            box.style.display = 'block';
-            box.innerHTML = '<strong>Erro na interface:</strong> ' + escapeHtml(msg) + ' (linha ' + line + ')';
-        }
-    };
+    window.addEventListener('DOMContentLoaded', () => {
+        consultarRecursosDrive(false);
+    });
 
     function escapeHtml(str) {
         return String(str == null ? '' : str)
-            .replace(/&/g, '&')
-            .replace(/</g, '<')
-            .replace(/>/g, '>')
-            .replace(/"/g, '"');
-    }
-
-    function aoSelecionarInput(inputEl, origem) {
-        if (!inputEl || !inputEl.files || inputEl.files.length === 0) return;
-        adicionarArquivosNaFila(inputEl.files, origem);
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }
 
     function normalizarTexto(txt) {
@@ -772,398 +582,82 @@
         return normalizarTexto(txt).replace(/[^A-Z0-9]/g, '');
     }
 
-    function periodoDrive(data) {
-        const t = String(data || '');
+    function extrairMesAnoData(dataStr) {
+        const t = String(dataStr || '').trim();
         let m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-        if (m) return [m[3], Number(m[2])];
+        if (m) return { mes: Number(m[2]), ano: m[3] };
         m = t.match(/^(\d{4})-(\d{2})-/);
-        return m ? [m[1], Number(m[2])] : null;
+        if (m) return { mes: Number(m[2]), ano: m[1] };
+        return null;
     }
 
-    async function carregarMapaDrive(forcarAtualizacao = false) {
-        const lbl = document.getElementById('status-drive-sync');
+    async function consultarRecursosDrive(forcar = false) {
+        const empKey = document.getElementById('sel-empresa').value;
+        const mes = Number(document.getElementById('sel-mes').value);
+        const ano = document.getElementById('sel-ano').value;
+        const cfg = EMPRESAS_CONFIG[empKey] || { label: empKey, aliases: [empKey] };
 
-        const consultasMap = new Map();
-        dadosExtraidos.forEach(d => {
-            if (!d.nota || d.nota === 'RESUMO') return;
-            if (!d.empresa || d.empresa.startsWith('SEM VÍNCULO')) return;
+        const statusEl = document.getElementById('status-drive-busca');
+        const selPlan = document.getElementById('sel-planilha-drive');
 
-            const p1 = periodoDrive(d.data);
-            const p2 = periodoDrive(d.data_emissao);
-            [p1, p2].filter(Boolean).forEach(([ano, mes]) => {
-                const chave = `${compactarSemEspacos(d.empresa)}|${ano}|${mes}`;
-                if (!consultasMap.has(chave)) {
-                    consultasMap.set(chave, { empresa: d.empresa, ano: String(ano), mes: Number(mes) });
-                }
-            });
-        });
-
-        const consultas = Array.from(consultasMap.values());
-        if (consultas.length === 0) {
-            if (lbl) lbl.textContent = 'Drive: aguardando leitura de empresa/data';
-            return;
-        }
-
-        if (lbl) lbl.textContent = `Varrendo ${consultas.length} pasta(s) mensal(is) no Drive...`;
+        statusEl.textContent = `Buscando planilha em ENTRADAS > ${ano} e notas em ${String(mes).padStart(2, '0')}-${ano} > NFE para ${cfg.label}...`;
+        selPlan.innerHTML = `<option value="">-- Carregando do Drive... --</option>`;
 
         try {
-            const resp = await fetch('/api/drive-notas', {
+            const resp = await fetch('/api/drive-entradas', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ consultas, refresh: forcarAtualizacao })
+                body: JSON.stringify({
+                    aliases: cfg.aliases,
+                    ano: ano,
+                    mes: mes,
+                    refresh: forcar
+                })
             });
             const json = await resp.json();
-            indiceDrivePorPasta.clear();
 
-            if (json.sucesso && Array.isArray(json.arquivos)) {
-                driveDisponivel = true;
-                json.arquivos.forEach(arq => {
-                    const chavePasta = `${compactarSemEspacos(arq.empresaPasta)}|${arq.ano}|${arq.mes}`;
-                    if (!indiceDrivePorPasta.has(chavePasta)) {
-                        indiceDrivePorPasta.set(chavePasta, []);
-                    }
-                    indiceDrivePorPasta.get(chavePasta).push({
-                        id: arq.id,
-                        nomeCompleto: arq.nome,
-                        tipoPasta: arq.tipoPasta || '',
-                        empresaPasta: arq.empresaPasta || '',
-                        empresaBenef: arq.empresaBenef || '',
-                        empBenefCompacta: compactarSemEspacos(arq.empresaBenef || ''),
-                        numeroPrincipal: String(arq.numeroPrincipal || ''),
-                        numeros: Array.isArray(arq.numeros) ? arq.numeros : [],
-                        url: `https://drive.google.com/file/d/${encodeURIComponent(arq.id)}/view`
-                    });
-                });
-
-                if (json.arquivos.length === 0 && Array.isArray(json.debug) && json.debug.length > 0) {
-                    if (lbl) lbl.textContent = `Drive (0 arqs): ${json.debug.join(' | ')}`;
-                } else {
-                    if (lbl) lbl.textContent = `Drive: ${json.arquivos.length} arquivo(s) lido(s) nas pastas do período`;
-                }
-            } else {
-                driveDisponivel = false;
-                if (lbl) lbl.textContent = `Drive erro: ${json.erro || 'indisponível'}`;
-            }
-        } catch (e) {
-            driveDisponivel = false;
-            if (lbl) lbl.textContent = 'Erro ao acessar pastas do Drive';
-        }
-
-        if (document.getElementById('painel-resultados').style.display === 'block') {
-            renderizarTabela();
-        }
-    }
-
-    function buscarNotaNoDrive(nota, empresaBeneficiada, data, emissao) {
-        if (!nota || nota === 'RESUMO') return null;
-        const notaLimpa = String(nota).replace(/\D/g, '').replace(/^0+/, '') || '0';
-        if (!notaLimpa || notaLimpa === '0') return null;
-
-        const numsBusca = [notaLimpa];
-        if (/^20\d{2}\d{2,}$/.test(notaLimpa)) {
-            const semAno = notaLimpa.slice(4).replace(/^0+/, '') || '0';
-            if (semAno.length >= 2) numsBusca.push(semAno);
-        }
-
-        const empComp = compactarSemEspacos(empresaBeneficiada);
-        const periodos = [periodoDrive(data), periodoDrive(emissao)].filter(Boolean);
-
-        const candidatosPasta = [];
-        const idsAdicionados = new Set();
-
-        for (const [ano, mes] of periodos) {
-            for (const [chave, listaArqs] of indiceDrivePorPasta.entries()) {
-                const [empPastaComp, pAno, pMes] = chave.split('|');
-                if (pAno !== String(ano) || Number(pMes) !== Number(mes)) continue;
-                if (empComp && empPastaComp && !empPastaComp.includes(empComp) && !empComp.includes(empPastaComp)) continue;
-
-                for (const arq of listaArqs) {
-                    if (!idsAdicionados.has(arq.id)) {
-                        idsAdicionados.add(arq.id);
-                        candidatosPasta.push(arq);
-                    }
-                }
-            }
-        }
-
-        if (candidatosPasta.length === 0) return null;
-
-        const matches = [];
-        for (const arq of candidatosPasta) {
-            const batePrincipal = numsBusca.includes(arq.numeroPrincipal);
-            const bateQualquerNum = arq.numeros.some(n => numsBusca.includes(n));
-
-            if (!batePrincipal && !bateQualquerNum) continue;
-
-            let score = 0;
-            if (batePrincipal) score += 10;
-            else if (bateQualquerNum) score += 5;
-
-            if (arq.empBenefCompacta && empComp && (arq.empBenefCompacta.includes(empComp) || empComp.includes(arq.empBenefCompacta))) {
-                score += 4;
-            }
-
-            matches.push({ ...arq, score });
-        }
-
-        if (matches.length === 0) return null;
-        matches.sort((a, b) => b.score - a.score);
-        return matches[0];
-    }
-
-    function extrairTokensLimpos(nomeArquivo) {
-        let base = String(nomeArquivo || '').replace(/\.[^/.]+$/, '');
-        base = normalizarTexto(base);
-        const partes = base.split(/[^A-Z0-9]+/).filter(Boolean);
-        return partes.filter(p => {
-            if (STOPWORDS.has(p)) return false;
-            if (/^\d+$/.test(p)) return false;
-            if (/^[A-Z]{1,3}\d{5,}$/.test(p)) return false;
-            return true;
-        });
-    }
-
-    function calcularSimilaridade(tokensA, tokensB) {
-        if (!tokensA.length || !tokensB.length) return 0;
-        let matches = 0;
-        for (const a of tokensA) {
-            for (const b of tokensB) {
-                if (a === b || (a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a)))) {
-                    matches++;
-                    break;
-                }
-            }
-        }
-        return matches / Math.min(tokensA.length, tokensB.length);
-    }
-
-    function recalcularPareamentoPreFila() {
-        const livros = filaArquivos.filter(f => f.origem === 'livro');
-        const planilhas = filaArquivos.filter(f => f.origem === 'planilha');
-
-        livros.forEach(liv => {
-            if (!liv.manual) {
-                liv.empresa = liv.tokens.length
-                    ? liv.tokens.join(' ')
-                    : liv.file.name.replace(/\.[^/.]+$/, '').toUpperCase();
-            }
-            liv.pareado = false;
-        });
-
-        for (let i = 0; i < livros.length; i++) {
-            for (let j = i + 1; j < livros.length; j++) {
-                if (!livros[j].manual && calcularSimilaridade(livros[i].tokens, livros[j].tokens) >= 0.8) {
-                    livros[j].empresa = livros[i].empresa;
-                }
-            }
-        }
-
-        planilhas.forEach(pla => {
-            if (pla.manual && pla.livroUidVinculado) {
-                const alvo = livros.find(l => l.uid === pla.livroUidVinculado);
-                if (alvo) {
-                    pla.empresa = alvo.empresa;
-                    pla.pareado = true;
-                    alvo.pareado = true;
-                    return;
-                } else {
-                    pla.manual = false;
-                    pla.livroUidVinculado = '';
-                }
-            }
-
-            if (livros.length === 0) {
-                pla.empresa = pla.tokens.length
-                    ? pla.tokens.join(' ')
-                    : pla.file.name.replace(/\.[^/.]+$/, '').toUpperCase();
-                pla.livroUidVinculado = '';
-                pla.pareado = false;
+            if (!json.sucesso) {
+                planilhasDisponiveisDrive = [];
+                notasNfeDrive = [];
+                statusEl.textContent = `Erro Drive: ${json.erro || 'falha na consulta'}`;
+                selPlan.innerHTML = `<option value="">-- Erro ao listar planilhas --</option>`;
                 return;
             }
 
-            if (livros.length === 1 && planilhas.length === 1) {
-                pla.empresa = livros[0].empresa;
-                pla.livroUidVinculado = livros[0].uid;
-                pla.pareado = true;
-                livros[0].pareado = true;
-                return;
-            }
+            planilhasDisponiveisDrive = json.planilhas || [];
+            notasNfeDrive = json.notasNfe || [];
 
-            let melhorLivro = null;
-            let melhorScore = 0;
-
-            for (const liv of livros) {
-                const score = calcularSimilaridade(pla.tokens, liv.tokens);
-                if (score > melhorScore) {
-                    melhorScore = score;
-                    melhorLivro = liv;
-                }
-            }
-
-            if (melhorLivro && melhorScore >= 0.5) {
-                pla.empresa = melhorLivro.empresa;
-                pla.livroUidVinculado = melhorLivro.uid;
-                pla.pareado = true;
-                melhorLivro.pareado = true;
+            if (planilhasDisponiveisDrive.length === 0) {
+                const dbg = (json.debug && json.debug.length) ? ` (${json.debug.join(' | ')})` : '';
+                statusEl.textContent = `Nenhuma planilha encontrada em ENTRADAS > ${ano}. ${notasNfeDrive.length} PDF(s) achado(s) em NFE.${dbg}`;
+                selPlan.innerHTML = `<option value="">-- Nenhuma planilha na pasta ${ano} --</option>`;
             } else {
-                pla.empresa = '';
-                pla.livroUidVinculado = '';
-                pla.pareado = false;
+                statusEl.textContent = `✓ ${planilhasDisponiveisDrive.length} planilha(s) achada(s) em ${ano} • ${notasNfeDrive.length} PDF(s) achado(s) na pasta NFE do mês.`;
+                selPlan.innerHTML = planilhasDisponiveisDrive.map((p, idx) =>
+                    `<option value="${idx}">${escapeHtml(p.nome)} (${escapeHtml(p.pastaOrigem)})</option>`
+                ).join('');
             }
-        });
-    }
-
-    function adicionarArquivosNaFila(fileList, origem) {
-        const novos = Array.from(fileList || []);
-        novos.forEach(f => {
-            const jaExiste = filaArquivos.some(item => item.origem === origem && item.file.name === f.name && item.file.size === f.size);
-            if (!jaExiste) {
-                const tokens = extrairTokensLimpos(f.name);
-                filaArquivos.push({
-                    uid: 'f_' + (nextUid++),
-                    file: f,
-                    origem: origem,
-                    tokens: tokens,
-                    empresa: tokens.join(' '),
-                    livroUidVinculado: '',
-                    pareado: false,
-                    manual: false
-                });
-            }
-        });
-        recalcularPareamentoPreFila();
-        renderizarFilaArquivos();
-    }
-
-    function alternarOrigemFila(uid) {
-        const item = filaArquivos.find(f => f.uid === uid);
-        if (!item) return;
-        item.origem = item.origem === 'livro' ? 'planilha' : 'livro';
-        item.manual = false;
-        item.livroUidVinculado = '';
-        item.empresa = '';
-        recalcularPareamentoPreFila();
-        renderizarFilaArquivos();
-    }
-
-    function alterarEmpresaLivro(uid, novoNome) {
-        const liv = filaArquivos.find(f => f.uid === uid);
-        if (!liv) return;
-        const nomeLimpo = novoNome.trim().toUpperCase() || 'GERAL';
-        liv.empresa = nomeLimpo;
-        liv.manual = true;
-
-        filaArquivos.forEach(item => {
-            if (item.origem === 'planilha' && item.livroUidVinculado === uid) {
-                item.empresa = nomeLimpo;
-            }
-        });
-        recalcularPareamentoPreFila();
-        renderizarFilaArquivos();
-    }
-
-    function vincularPlanilhaPreFila(uidPlanilha, uidLivroDestino) {
-        const pla = filaArquivos.find(f => f.uid === uidPlanilha);
-        if (!pla) return;
-        if (!uidLivroDestino) {
-            pla.livroUidVinculado = '';
-            pla.empresa = '';
-            pla.manual = false;
-        } else {
-            const liv = filaArquivos.find(f => f.uid === uidLivroDestino);
-            pla.livroUidVinculado = uidLivroDestino;
-            pla.empresa = liv ? liv.empresa : '';
-            pla.manual = true;
+        } catch (err) {
+            statusEl.textContent = `Erro de comunicação ao buscar pastas do Drive: ${err.message}`;
+            selPlan.innerHTML = `<option value="">-- Falha de conexão --</option>`;
         }
-        recalcularPareamentoPreFila();
-        renderizarFilaArquivos();
     }
 
-    function removerDaFila(uid) {
-        filaArquivos = filaArquivos.filter(f => f.uid !== uid);
-        recalcularPareamentoPreFila();
-        renderizarFilaArquivos();
-    }
+    async function iniciarConferenciaDrive() {
+        const empKey = document.getElementById('sel-empresa').value;
+        const cfg = EMPRESAS_CONFIG[empKey] || { label: empKey, aliases: [empKey] };
+        const mes = Number(document.getElementById('sel-mes').value);
+        const ano = document.getElementById('sel-ano').value;
+        const modo = document.querySelector('input[name="modo_operacao"]:checked').value;
 
-    function limparFila() {
-        filaArquivos = [];
-        document.getElementById('input-livros').value = '';
-        document.getElementById('input-planilhas').value = '';
-        renderizarFilaArquivos();
-    }
+        const inputLivros = document.getElementById('input-livros');
+        const filesLivros = inputLivros && inputLivros.files ? Array.from(inputLivros.files) : [];
 
-    function renderizarFilaArquivos() {
-        const box = document.getElementById('preview-lista');
-        const container = document.getElementById('preview-itens');
-        document.getElementById('contador-arquivos').textContent = `${filaArquivos.length} arquivo(s)`;
+        const selPlanIdx = document.getElementById('sel-planilha-drive').value;
+        const planilhaEscolhida = selPlanIdx !== '' ? planilhasDisponiveisDrive[Number(selPlanIdx)] : null;
 
-        if (filaArquivos.length === 0) {
-            box.style.display = 'none';
-            return;
-        }
-
-        const livros = filaArquivos.filter(f => f.origem === 'livro');
-
-        box.style.display = 'block';
-        container.innerHTML = filaArquivos.map(item => {
-            if (item.origem === 'livro') {
-                return `
-                    <div class="preview-row">
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <button type="button" class="tag-tipo tag-livro" data-uid="${item.uid}" onclick="alternarOrigemFila(this.dataset.uid)" title="Clique para alternar entre PDF Livro e Planilha">PDF LIVRO ⇄</button>
-                            <span style="font-weight:600;">${escapeHtml(item.file.name)}</span>
-                            ${item.pareado ? '<span class="badge-match-ok">✓ Com planilha</span>' : '<span class="badge-match-info">Lê CNPJ ao processar</span>'}
-                        </div>
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <span style="color:#64748b; font-size:0.78rem;">Empresa:</span>
-                            <input type="text" class="input-empresa" data-uid="${item.uid}" value="${escapeHtml(item.empresa)}"
-                                   onchange="alterarEmpresaLivro(this.dataset.uid, this.value)">
-                            <button type="button" data-uid="${item.uid}" onclick="removerDaFila(this.dataset.uid)" title="Remover arquivo"
-                                    style="background:none; border:none; color:#dc2626; font-weight:700; cursor:pointer; font-size:0.95rem; padding:0 4px;">
-                                ✕
-                            </button>
-                        </div>
-                    </div>
-                `;
-            } else {
-                const optionsHtml = `<option value="">-- Auto-parear por CNPJ na leitura --</option>` +
-                    livros.map(liv =>
-                        `<option value="${liv.uid}" ${liv.uid === item.livroUidVinculado ? 'selected' : ''}>${escapeHtml(liv.empresa)} (${escapeHtml(liv.file.name)})</option>`
-                    ).join('');
-
-                return `
-                    <div class="preview-row" style="background:#fafbff;">
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <button type="button" class="tag-tipo tag-plan" data-uid="${item.uid}" onclick="alternarOrigemFila(this.dataset.uid)" title="Clique para alternar entre Planilha e PDF Livro">PLANILHA ⇄</button>
-                            <span>${escapeHtml(item.file.name)}</span>
-                            ${item.pareado ? `<span class="badge-match-ok">✓ ${item.manual ? 'Vinculada manualmente' : 'Pareada pelo nome'}</span>` : '<span class="badge-match-info">Auto-pareia via CNPJ</span>'}
-                        </div>
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <span style="color:#64748b; font-size:0.78rem;">Vincular ao PDF:</span>
-                            <select class="select-vinculo" data-uid="${item.uid}" onchange="vincularPlanilhaPreFila(this.dataset.uid, this.value)">
-                                ${optionsHtml}
-                            </select>
-                            <button type="button" data-uid="${item.uid}" onclick="removerDaFila(this.dataset.uid)" title="Remover arquivo"
-                                    style="background:none; border:none; color:#dc2626; font-weight:700; cursor:pointer; font-size:0.95rem; padding:0 4px;">
-                                ✕
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }
-        }).join('');
-    }
-
-    async function iniciarFilaConferencia() {
-        if (filaArquivos.length === 0) {
-            const filesLiv = document.getElementById('input-livros').files;
-            const filesPla = document.getElementById('input-planilhas').files;
-            if (filesLiv && filesLiv.length) adicionarArquivosNaFila(filesLiv, 'livro');
-            if (filesPla && filesPla.length) adicionarArquivosNaFila(filesPla, 'planilha');
-        }
-
-        if (filaArquivos.length === 0) {
-            alert('Selecione os PDFs e/ou Planilhas antes de iniciar.');
+        if (filesLivros.length === 0 && !planilhaEscolhida) {
+            alert('Selecione o PDF do Livro Fiscal (e/ou aguarde o carregamento da planilha do Drive).');
             return;
         }
 
@@ -1179,406 +673,164 @@
         errosBox.style.display = 'none';
         errosBox.innerHTML = '';
 
-        arquivosProcessados = [];
-        dadosExtraidos = [];
+        registrosLivro = [];
+        registrosPlanilha = [];
         const erros = [];
-        const modo = document.querySelector('input[name="modo_operacao"]:checked').value;
 
-        for (let i = 0; i < filaArquivos.length; i++) {
-            const item = filaArquivos[i];
-            const pct = Math.round((i / filaArquivos.length) * 100);
-            progressTexto.textContent = `Processando ${i + 1} de ${filaArquivos.length}: ${item.file.name}`;
+        const totalEtapas = filesLivros.length + (planilhaEscolhida ? 1 : 0);
+        let etapaAtual = 0;
+
+        // 1. Processa o(s) PDF(s) do Livro Fiscal enviado(s)
+        for (const file of filesLivros) {
+            const pct = Math.round((etapaAtual / Math.max(totalEtapas, 1)) * 100);
+            progressTexto.textContent = `Lendo Livro Fiscal: ${file.name}...`;
             progressPct.textContent = `${pct}%`;
             progressFill.style.width = `${pct}%`;
 
             const formData = new FormData();
-            formData.append('arquivo', item.file);
+            formData.append('arquivo', file);
             formData.append('modo_operacao', modo);
 
             try {
                 const resp = await fetch('/api/extrair', { method: 'POST', body: formData });
                 const json = await resp.json();
-
                 if (!resp.ok || !json.sucesso) {
-                    erros.push(`• <strong>${escapeHtml(item.file.name)}</strong>: ${escapeHtml(json.erro || 'Falha na leitura')}`);
+                    erros.push(`• <strong>${escapeHtml(file.name)}</strong>: ${escapeHtml(json.erro || 'Erro ao ler PDF')}`);
                 } else {
-                    arquivosProcessados.push({
-                        uid: item.uid,
-                        nomeArquivo: item.file.name,
-                        origem: item.origem,
-                        tokensNome: item.tokens,
-                        empresaInicial: item.empresa,
-                        livroUidVinculado: item.livroUidVinculado || '',
-                        manualInicial: item.manual,
-                        empresaFinal: item.empresa || '',
-                        cnpj: json.cnpj || '',
-                        cnpjFormatado: json.cnpj_formatado || '',
-                        empresaDetectada: json.empresa_detectada || '',
-                        cabecalhoTexto: json.cabecalho_texto || '',
-                        motivoPareamento: '',
-                        pareado: false,
-                        registros: json.registros || []
+                    (json.registros || []).forEach(reg => {
+                        registrosLivro.push({
+                            empresa: cfg.label,
+                            data: reg.data,
+                            data_emissao: reg.data_emissao,
+                            nota: reg.nota,
+                            cfop: reg.cfop,
+                            valor: Number(reg.valor) || 0
+                        });
                     });
                 }
-            } catch (err) {
-                erros.push(`• <strong>${escapeHtml(item.file.name)}</strong>: Erro de rede (${escapeHtml(err.message)})`);
+            } catch (e) {
+                erros.push(`• <strong>${escapeHtml(file.name)}</strong>: Falha de rede (${escapeHtml(e.message)})`);
+            }
+            etapaAtual++;
+        }
+
+        // 2. Baixa e processa a Planilha Consolidada do Drive (filtrando apenas o Mês/Ano selecionado)
+        let totalBrutoPlanilha = 0;
+        let totalFiltradoMes = 0;
+
+        if (planilhaEscolhida) {
+            const pct = Math.round((etapaAtual / Math.max(totalEtapas, 1)) * 100);
+            progressTexto.textContent = `Baixando e lendo planilha do Drive: ${planilhaEscolhida.nome}...`;
+            progressPct.textContent = `${pct}%`;
+            progressFill.style.width = `${pct}%`;
+
+            try {
+                const resp = await fetch('/api/drive-extrair-planilha', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fileId: planilhaEscolhida.id,
+                        nome: planilhaEscolhida.nome,
+                        mimeType: planilhaEscolhida.mimeType,
+                        modo_operacao: modo
+                    })
+                });
+                const json = await resp.json();
+
+                if (!resp.ok || !json.sucesso) {
+                    erros.push(`• <strong>${escapeHtml(planilhaEscolhida.nome)}</strong>: ${escapeHtml(json.erro || 'Erro ao ler planilha do Drive')}`);
+                } else {
+                    const todosRegs = json.registros || [];
+                    totalBrutoPlanilha = todosRegs.length;
+
+                    // Verifica se a planilha possui datas para filtrar pelo mês/ano selecionado
+                    const regsComData = todosRegs.filter(r => extrairMesAnoData(r.data) !== null);
+                    if (regsComData.length > 0 && modo !== 'resumo_cfop') {
+                        todosRegs.forEach(reg => {
+                            const dt = extrairMesAnoData(reg.data);
+                            if (dt && dt.mes === mes && dt.ano === String(ano)) {
+                                registrosPlanilha.push({
+                                    empresa: cfg.label,
+                                    data: reg.data,
+                                    nota: reg.nota,
+                                    cfop: reg.cfop,
+                                    valor: Number(reg.valor) || 0
+                                });
+                            }
+                        });
+                    } else {
+                        todosRegs.forEach(reg => {
+                            registrosPlanilha.push({
+                                empresa: cfg.label,
+                                data: reg.data,
+                                nota: reg.nota,
+                                cfop: reg.cfop,
+                                valor: Number(reg.valor) || 0
+                            });
+                        });
+                    }
+                    totalFiltradoMes = registrosPlanilha.length;
+                }
+            } catch (e) {
+                erros.push(`• <strong>${escapeHtml(planilhaEscolhida.nome)}</strong>: Falha de rede (${escapeHtml(e.message)})`);
             }
         }
 
-        progressTexto.textContent = `Concluído! ${filaArquivos.length} arquivo(s) processado(s).`;
+        progressTexto.textContent = 'Conferência concluída!';
         progressPct.textContent = '100%';
         progressFill.style.width = '100%';
         btn.disabled = false;
 
         if (erros.length > 0) {
             errosBox.style.display = 'block';
-            errosBox.innerHTML = `<strong>Avisos durante a leitura:</strong><br>${erros.join('<br>')}`;
+            errosBox.innerHTML = `<strong>Avisos:</strong><br>${erros.join('<br>')}`;
         }
 
-        executarAutoPareamentoPosLeitura();
-        reconstruirDadosConsolidados();
-        renderizarPainelVinculos();
-        montarSeletorEmpresas();
+        document.getElementById('titulo-conferencia-ativa').textContent =
+            `${cfg.label} — ${String(mes).padStart(2, '0')}/${ano}`;
+
+        document.getElementById('info-planilha-filtrada').textContent = planilhaEscolhida
+            ? `Planilha: ${planilhaEscolhida.nome} (${totalFiltradoMes} de ${totalBrutoPlanilha} linhas no mês) • ${notasNfeDrive.length} PDF(s) em NFE`
+            : `Sem planilha do Drive selecionada • ${notasNfeDrive.length} PDF(s) em NFE`;
+
         document.getElementById('painel-resultados').style.display = 'block';
         renderizarTabela();
-
-        carregarMapaDrive(false);
     }
 
-    function executarAutoPareamentoPosLeitura() {
-        const livros = arquivosProcessados.filter(a => a.origem === 'livro');
-        const planilhas = arquivosProcessados.filter(a => a.origem === 'planilha');
+    function buscarNotaNaPastaNfe(nota, empresaLabel) {
+        if (!nota || nota === 'RESUMO' || notasNfeDrive.length === 0) return null;
+        const notaLimpa = String(nota).replace(/\D/g, '').replace(/^0+/, '') || '0';
+        if (!notaLimpa || notaLimpa === '0') return null;
 
-        const cnpjParaEmpresa = new Map();
+        const numsBusca = [notaLimpa];
+        if (/^20\d{2}\d{2,}$/.test(notaLimpa)) {
+            const semAno = notaLimpa.slice(4).replace(/^0+/, '') || '0';
+            if (semAno.length >= 2) numsBusca.push(semAno);
+        }
 
-        livros.forEach(liv => {
-            let nomeBase = liv.empresaInicial;
-            if (!liv.manualInicial && (!nomeBase || nomeBase === 'GERAL') && liv.empresaDetectada) {
-                nomeBase = liv.empresaDetectada.split(' ').slice(0, 3).join(' ');
+        const empComp = compactarSemEspacos(empresaLabel);
+        const candidatos = [];
+
+        for (const arq of notasNfeDrive) {
+            const batePrincipal = numsBusca.includes(arq.numeroPrincipal);
+            const bateQualquer = (arq.numeros || []).some(n => numsBusca.includes(n));
+            if (!batePrincipal && !bateQualquer) continue;
+
+            let score = batePrincipal ? 10 : 5;
+            const benefComp = compactarSemEspacos(arq.empresaBenef || '');
+            if (benefComp && empComp && (benefComp.includes(empComp) || empComp.includes(benefComp))) {
+                score += 4;
             }
-            if (!nomeBase) {
-                nomeBase = liv.nomeArquivo.replace(/\.[^/.]+$/, '').toUpperCase();
-            }
-
-            if (liv.cnpj && cnpjParaEmpresa.has(liv.cnpj)) {
-                liv.empresaFinal = cnpjParaEmpresa.get(liv.cnpj);
-            } else {
-                liv.empresaFinal = nomeBase;
-                if (liv.cnpj) {
-                    cnpjParaEmpresa.set(liv.cnpj, nomeBase);
-                }
-            }
-        });
-
-        planilhas.forEach(pla => {
-            if (pla.manualInicial && pla.livroUidVinculado) {
-                const alvo = livros.find(l => l.uid === pla.livroUidVinculado);
-                if (alvo) {
-                    pla.empresaFinal = alvo.empresaFinal;
-                    pla.pareado = true;
-                    pla.motivoPareamento = 'Manual';
-                    return;
-                }
-            }
-
-            if (pla.cnpj) {
-                const matchCnpj = livros.find(l => l.cnpj && l.cnpj === pla.cnpj);
-                if (matchCnpj) {
-                    pla.empresaFinal = matchCnpj.empresaFinal;
-                    pla.livroUidVinculado = matchCnpj.uid;
-                    pla.pareado = true;
-                    pla.motivoPareamento = 'CNPJ idêntico';
-                    return;
-                }
-            }
-
-            const cabPlanNorm = normalizarTexto(pla.empresaDetectada + ' ' + pla.cabecalhoTexto);
-            if (cabPlanNorm.trim().length > 5) {
-                let melhorLivro = null;
-                let melhorScore = 0;
-
-                for (const liv of livros) {
-                    const tokensEmpresa = extrairTokensLimpos(liv.empresaFinal);
-                    if (!tokensEmpresa.length) continue;
-
-                    let hits = 0;
-                    for (const tk of tokensEmpresa) {
-                        if (tk.length >= 3 && cabPlanNorm.includes(tk)) {
-                            hits++;
-                        }
-                    }
-                    const score = hits / tokensEmpresa.length;
-                    if (score > melhorScore) {
-                        melhorScore = score;
-                        melhorLivro = liv;
-                    }
-                }
-
-                if (melhorLivro && melhorScore >= 0.6) {
-                    pla.empresaFinal = melhorLivro.empresaFinal;
-                    pla.livroUidVinculado = melhorLivro.uid;
-                    pla.pareado = true;
-                    pla.motivoPareamento = 'Cabeçalho / Razão Social';
-                    return;
-                }
-            }
-
-            if (pla.empresaInicial) {
-                const matchNome = livros.find(l => l.empresaFinal === pla.empresaInicial || l.empresaInicial === pla.empresaInicial);
-                if (matchNome) {
-                    pla.empresaFinal = matchNome.empresaFinal;
-                    pla.livroUidVinculado = matchNome.uid;
-                    pla.pareado = true;
-                    pla.motivoPareamento = 'Nome do arquivo';
-                    return;
-                }
-            }
-
-            pla.pareado = false;
-            pla.livroUidVinculado = '';
-            pla.motivoPareamento = 'Pendente de vínculo';
-            pla.empresaFinal = `SEM VÍNCULO (${pla.nomeArquivo})`;
-        });
-    }
-
-    function reconstruirDadosConsolidados() {
-        dadosExtraidos = [];
-        arquivosProcessados.forEach(arq => {
-            const emp = arq.empresaFinal || 'GERAL';
-            arq.registros.forEach(reg => {
-                dadosExtraidos.push({
-                    empresa: emp,
-                    origem: arq.origem,
-                    data: reg.data,
-                    data_emissao: reg.data_emissao,
-                    cnpj: arq.cnpj,
-                    nota: reg.nota,
-                    cfop: reg.cfop,
-                    valor: Number(reg.valor) || 0
-                });
+            candidatos.push({
+                ...arq,
+                url: `https://drive.google.com/file/d/${encodeURIComponent(arq.id)}/view`,
+                score
             });
-        });
-    }
-
-    function mostrarToastVinculo(msg) {
-        const toast = document.getElementById('toast-vinculo');
-        toast.textContent = msg;
-        toast.style.display = 'block';
-        clearTimeout(toast._timer);
-        toast._timer = setTimeout(() => {
-            toast.style.display = 'none';
-        }, 4000);
-    }
-
-    function togglePainelVinculos() {
-        painelVinculosAberto = !painelVinculosAberto;
-        document.getElementById('vinculos-body').style.display = painelVinculosAberto ? 'grid' : 'none';
-        document.getElementById('toggle-vinculos-label').textContent = painelVinculosAberto ? 'Ocultar ▲' : 'Revisar / Ajustar ▼';
-    }
-
-    function toggleCabecalhoDebug(uid) {
-        const el = document.getElementById('debug_' + uid);
-        if (!el) return;
-        el.style.display = el.style.display === 'block' ? 'none' : 'block';
-    }
-
-    function renomearEmpresaPosLeitura(uidArquivo, novoNome) {
-        const nomeLimpo = novoNome.trim().toUpperCase();
-        if (!nomeLimpo) return;
-
-        const arqAlvo = arquivosProcessados.find(a => a.uid === uidArquivo);
-        if (!arqAlvo) return;
-
-        const nomeAntigo = arqAlvo.empresaFinal;
-        arquivosProcessados.forEach(a => {
-            if (a.empresaFinal === nomeAntigo) {
-                a.empresaFinal = nomeLimpo;
-            }
-        });
-
-        if (empresaSelecionada === nomeAntigo) {
-            empresaSelecionada = nomeLimpo;
         }
 
-        reconstruirDadosConsolidados();
-        renderizarPainelVinculos();
-        montarSeletorEmpresas();
-        renderizarTabela();
-        mostrarToastVinculo(`✓ Empresa renomeada para "${nomeLimpo}" e tabela atualizada.`);
-        carregarMapaDrive(false);
-    }
-
-    function vincularPorLivroUid(uidPlanilha, uidLivro) {
-        const pla = arquivosProcessados.find(a => a.uid === uidPlanilha);
-        if (!pla) return;
-
-        if (!uidLivro || uidLivro === '__SEM_VINCULO__') {
-            pla.pareado = false;
-            pla.livroUidVinculado = '';
-            pla.motivoPareamento = 'Sem vínculo';
-            pla.empresaFinal = `SEM VÍNCULO (${pla.nomeArquivo})`;
-            mostrarToastVinculo(`Vínculo removido de "${pla.nomeArquivo}".`);
-        } else {
-            const liv = arquivosProcessados.find(a => a.uid === uidLivro);
-            if (!liv) return;
-            pla.pareado = true;
-            pla.livroUidVinculado = liv.uid;
-            pla.motivoPareamento = 'Manual';
-            pla.empresaFinal = liv.empresaFinal;
-            mostrarToastVinculo(`✓ "${pla.nomeArquivo}" vinculada a "${liv.empresaFinal}" — KPIs e tabela recalculados!`);
-        }
-
-        reconstruirDadosConsolidados();
-        renderizarPainelVinculos();
-        montarSeletorEmpresas();
-        renderizarTabela();
-        carregarMapaDrive(false);
-    }
-
-    function renderizarPainelVinculos() {
-        const livros = arquivosProcessados.filter(a => a.origem === 'livro');
-        const planilhas = arquivosProcessados.filter(a => a.origem === 'planilha');
-
-        const qtdPareadas = planilhas.filter(p => p.pareado).length;
-        const qtdPendentes = planilhas.length - qtdPareadas;
-
-        const badge = document.getElementById('resumo-vinculos-badge');
-        if (qtdPendentes > 0) {
-            badge.className = 'badge-match-warn';
-            badge.textContent = `${qtdPareadas} pareada(s) • ${qtdPendentes} pendente(s)`;
-        } else {
-            badge.className = 'badge-match-ok';
-            badge.textContent = `✓ Todas as ${qtdPareadas} planilha(s) vinculadas`;
-        }
-
-        const divLivros = document.getElementById('lista-vinculos-livros');
-        divLivros.innerHTML = livros.map(liv => {
-            const statusCnpj = liv.cnpjFormatado
-                ? `CNPJ: ${liv.cnpjFormatado}`
-                : (!liv.cabecalhoTexto ? 'PDF sem texto (escaneado)' : 'CNPJ não encontrado no texto');
-
-            const infoExtra = [statusCnpj, liv.empresaDetectada].filter(Boolean).join(' • ');
-
-            const planilhasVinculadas = planilhas.filter(p => p.pareado && p.empresaFinal === liv.empresaFinal);
-            const planilhasOutras = planilhas.filter(p => !(p.pareado && p.empresaFinal === liv.empresaFinal));
-
-            const chipsHtml = planilhasVinculadas.map(p => `
-                <span class="chip-planilha">
-                    ✓ ${escapeHtml(p.nomeArquivo)}
-                    <button type="button" data-uid="${p.uid}" onclick="vincularPorLivroUid(this.dataset.uid, '__SEM_VINCULO__')" title="Desvincular planilha">✕</button>
-                </span>
-            `).join('');
-
-            const selectAddPlanilha = planilhasOutras.length > 0 ? `
-                <select class="select-vinculo" style="min-width:190px; font-weight:600;" data-livro-uid="${liv.uid}"
-                        onchange="if(this.value) vincularPorLivroUid(this.value, this.dataset.livroUid)">
-                    <option value="">+ Vincular planilha...</option>
-                    ${planilhasOutras.map(p => `<option value="${p.uid}">${escapeHtml(p.nomeArquivo)}</option>`).join('')}
-                </select>
-            ` : '';
-
-            return `
-                <div class="vinculo-item">
-                    <div class="vinculo-topo">
-                        <div>
-                            <strong>${escapeHtml(liv.nomeArquivo)}</strong>
-                            <span class="meta-cnpj">
-                                ${escapeHtml(infoExtra)}
-                                <button type="button" class="btn-debug-cab" data-uid="${liv.uid}" onclick="toggleCabecalhoDebug(this.dataset.uid)">Ver texto lido</button>
-                            </span>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:6px;">
-                            <span style="font-size:0.75rem; color:#64748b;">Empresa:</span>
-                            <input type="text" class="input-empresa" data-uid="${liv.uid}" value="${escapeHtml(liv.empresaFinal)}"
-                                   onchange="renomearEmpresaPosLeitura(this.dataset.uid, this.value)">
-                        </div>
-                    </div>
-                    <pre class="box-debug-cab" id="debug_${liv.uid}">${escapeHtml(liv.cabecalhoTexto || '(Nenhum texto extraído deste PDF)')}</pre>
-                    <div class="vinculo-rodape">
-                        ${chipsHtml || '<span style="font-size:0.75rem; color:#92400e;">Nenhuma planilha vinculada</span>'}
-                        ${selectAddPlanilha}
-                    </div>
-                </div>
-            `;
-        }).join('') || '<div style="font-size:0.82rem; color:#64748b;">Nenhum PDF carregado.</div>';
-
-        const divPlanilhas = document.getElementById('lista-vinculos-planilhas');
-        divPlanilhas.innerHTML = planilhas.map(pla => {
-            const infoExtra = [
-                pla.cnpjFormatado ? `CNPJ lido: ${pla.cnpjFormatado}` : 'Sem CNPJ no topo',
-                pla.empresaDetectada ? pla.empresaDetectada : ''
-            ].filter(Boolean).join(' • ');
-
-            const optionsHtml = `<option value="__SEM_VINCULO__" ${!pla.pareado ? 'selected' : ''}>-- Não vincular (manter separada) --</option>` +
-                livros.map(liv => {
-                    const selected = pla.pareado && (pla.livroUidVinculado === liv.uid || pla.empresaFinal === liv.empresaFinal);
-                    return `<option value="${liv.uid}" ${selected ? 'selected' : ''}>${escapeHtml(liv.empresaFinal)} (${escapeHtml(liv.nomeArquivo)})</option>`;
-                }).join('');
-
-            return `
-                <div class="vinculo-item ${pla.pareado ? '' : 'pendente'}">
-                    <div class="vinculo-topo">
-                        <div>
-                            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                                <strong>${escapeHtml(pla.nomeArquivo)}</strong>
-                                <span class="${pla.pareado ? 'badge-match-ok' : 'badge-match-warn'}">
-                                    ${pla.pareado ? '✓ ' + escapeHtml(pla.motivoPareamento) : '⚠ Vincular PDF'}
-                                </span>
-                            </div>
-                            <span class="meta-cnpj">
-                                ${escapeHtml(infoExtra)}
-                                <button type="button" class="btn-debug-cab" data-uid="${pla.uid}" onclick="toggleCabecalhoDebug(this.dataset.uid)">Ver texto lido</button>
-                            </span>
-                        </div>
-                        <div>
-                            <select class="select-vinculo" data-uid="${pla.uid}" onchange="vincularPorLivroUid(this.dataset.uid, this.value)">
-                                ${optionsHtml}
-                            </select>
-                        </div>
-                    </div>
-                    <pre class="box-debug-cab" id="debug_${pla.uid}">${escapeHtml(pla.cabecalhoTexto || '(Sem cabeçalho textual)')}</pre>
-                </div>
-            `;
-        }).join('') || '<div style="font-size:0.82rem; color:#64748b;">Nenhuma planilha carregada.</div>';
-    }
-
-    function montarSeletorEmpresas() {
-        const empresasSet = new Set(arquivosProcessados.map(a => a.empresaFinal).filter(Boolean));
-        const empresas = Array.from(empresasSet).sort();
-
-        const select = document.getElementById('select-empresa');
-        const pills = document.getElementById('empresa-pills');
-
-        const cnpjPorEmpresa = new Map();
-        arquivosProcessados.forEach(a => {
-            if (a.empresaFinal && a.cnpjFormatado && !cnpjPorEmpresa.has(a.empresaFinal)) {
-                cnpjPorEmpresa.set(a.empresaFinal, a.cnpjFormatado);
-            }
-        });
-
-        select.innerHTML = `<option value="__TODAS__">TODAS AS EMPRESAS (${empresas.length} empresas)</option>` +
-            empresas.map(emp => {
-                const cnpjTxt = cnpjPorEmpresa.get(emp) ? ` — CNPJ: ${cnpjPorEmpresa.get(emp)}` : '';
-                return `<option value="${escapeHtml(emp)}">${escapeHtml(emp + cnpjTxt)}</option>`;
-            }).join('');
-
-        pills.innerHTML = `<button type="button" class="emp-pill active" data-emp="__TODAS__" onclick="selecionarEmpresa('__TODAS__')">Todas (${empresas.length})</button>` +
-            empresas.map(emp => `<button type="button" class="emp-pill" data-emp="${escapeHtml(emp)}" onclick="selecionarEmpresa(this.dataset.emp)">${escapeHtml(emp)}</button>`).join('');
-
-        if (empresaSelecionada !== '__TODAS__' && empresas.includes(empresaSelecionada)) {
-            selecionarEmpresa(empresaSelecionada);
-        } else {
-            empresaSelecionada = '__TODAS__';
-        }
-    }
-
-    function selecionarEmpresa(emp) {
-        empresaSelecionada = emp;
-        document.getElementById('select-empresa').value = emp;
-        document.querySelectorAll('.emp-pill').forEach(p => {
-            p.classList.toggle('active', p.getAttribute('data-emp') === emp);
-        });
-        renderizarTabela();
+        if (candidatos.length === 0) return null;
+        candidatos.sort((a, b) => b.score - a.score);
+        return candidatos[0];
     }
 
     function mudarFiltroStatus(st, btn) {
@@ -1602,31 +854,27 @@
 
     function renderizarTabela() {
         const modo = document.querySelector('input[name="modo_operacao"]:checked').value;
-        const filtrados = empresaSelecionada === '__TODAS__'
-            ? dadosExtraidos
-            : dadosExtraidos.filter(d => d.empresa === empresaSelecionada);
-
         const mapaLivro = new Map();
         const mapaPlan = new Map();
 
-        filtrados.forEach(item => {
+        registrosLivro.forEach(item => {
             const chave = modo === 'resumo_cfop'
                 ? `${item.empresa}|${item.cfop}`
                 : `${item.empresa}|${item.nota}|${item.cfop}`;
-
-            const alvo = item.origem === 'livro' ? mapaLivro : mapaPlan;
-            const atual = alvo.get(chave) || {
-                empresa: item.empresa,
-                data: item.data,
-                data_emissao: item.data_emissao,
-                cnpj: item.cnpj,
-                nota: item.nota,
-                cfop: item.cfop,
-                valor: 0
-            };
+            const atual = mapaLivro.get(chave) || { ...item, valor: 0 };
             if (atual.data === '-' && item.data !== '-') atual.data = item.data;
             atual.valor = Math.round((atual.valor + item.valor) * 100) / 100;
-            alvo.set(chave, atual);
+            mapaLivro.set(chave, atual);
+        });
+
+        registrosPlanilha.forEach(item => {
+            const chave = modo === 'resumo_cfop'
+                ? `${item.empresa}|${item.cfop}`
+                : `${item.empresa}|${item.nota}|${item.cfop}`;
+            const atual = mapaPlan.get(chave) || { ...item, valor: 0 };
+            if (atual.data === '-' && item.data !== '-') atual.data = item.data;
+            atual.valor = Math.round((atual.valor + item.valor) * 100) / 100;
+            mapaPlan.set(chave, atual);
         });
 
         const todasChaves = new Set([...mapaLivro.keys(), ...mapaPlan.keys()]);
@@ -1655,11 +903,11 @@
 
             if (!liv && pla) {
                 status = 'AUSENTE_LIVRO';
-                diag = 'Existência: Livro (Ausente) vs Planilha (Presente) | Consta nas Planilhas, mas não no Livro Fiscal';
+                diag = 'Consta na Planilha do Drive, mas não no Livro Fiscal (PDF)';
                 qtdProblemas++;
             } else if (liv && !pla) {
                 status = 'AUSENTE_PLANILHA';
-                diag = 'Existência: Livro (Presente) vs Planilha (Ausente) | Consta no Livro Fiscal, mas não nas Planilhas';
+                diag = 'Consta no Livro Fiscal (PDF), mas não na Planilha do Drive';
                 qtdProblemas++;
             } else if (Math.abs(diff) > 0.02) {
                 status = 'DIVERGENCIA_VALOR';
@@ -1667,7 +915,7 @@
                 qtdProblemas++;
             }
 
-            const arqDrive = buscarNotaNoDrive(nota, empresa, data, liv?.data_emissao);
+            const arqDrive = buscarNotaNaPastaNfe(nota, empresa);
 
             linhas.push({
                 empresa,
@@ -1681,7 +929,7 @@
                 diag,
                 noDrive: Boolean(arqDrive),
                 driveUrl: arqDrive ? arqDrive.url : '',
-                driveNome: arqDrive ? arqDrive.nomeCompleto : ''
+                driveNome: arqDrive ? arqDrive.nome : ''
             });
         });
 
@@ -1694,7 +942,7 @@
         const linhasExibidas = linhas.filter(l => {
             if (filtroStatusAtual === 'PROBLEMAS' && l.status === 'OK') return false;
             if (filtroStatusAtual !== 'TODOS' && filtroStatusAtual !== 'PROBLEMAS' && l.status !== filtroStatusAtual) return false;
-            if (termoBusca && !l.nota.toLowerCase().includes(termoBusca) && !l.cfop.includes(termoBusca) && !l.empresa.toLowerCase().includes(termoBusca)) {
+            if (termoBusca && !l.nota.toLowerCase().includes(termoBusca) && !l.cfop.includes(termoBusca)) {
                 return false;
             }
             return true;
@@ -1715,12 +963,12 @@
 
             const celulaDrive = l.noDrive
                 ? `<div style="display:flex; align-items:center; gap:8px;">
-                       <span class="status-pill st-drive-ok">No Drive</span>
+                       <span class="status-pill st-drive-ok">Na pasta NFE</span>
                        <a href="${escapeHtml(l.driveUrl)}" target="_blank" rel="noopener noreferrer" class="btn-drive" title="${escapeHtml(l.driveNome)}">
-                           Abrir Nota ↗
+                           Abrir NF-e ↗
                        </a>
                    </div>`
-                : `<span class="status-pill st-drive-no">${l.nota === 'RESUMO' ? 'Não se aplica' : (!driveDisponivel && indiceDrivePorPasta.size === 0 ? 'Sincronizando...' : 'Não está no Drive')}</span>`;
+                : `<span class="status-pill st-drive-no">${l.nota === 'RESUMO' ? 'Não se aplica' : 'Ausente na NFE'}</span>`;
 
             return `
                 <tr>
@@ -1741,7 +989,7 @@
 
     function exportarCSV() {
         if (!linhasAtuaisTabela.length) return;
-        const cab = ['Empresa', 'Data', 'Nota', 'CFOP', 'Valor Livro', 'Valor Planilha', 'Diferenca', 'Status', 'Diagnostico', 'No Drive', 'Link Drive'];
+        const cab = ['Empresa', 'Data', 'Nota', 'CFOP', 'Valor Livro', 'Valor Planilha', 'Diferenca', 'Status', 'Diagnostico', 'Na Pasta NFE', 'Link Drive'];
         const csvLinhas = [cab.join(';')];
 
         linhasAtuaisTabela.forEach(l => {
@@ -1764,8 +1012,8 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        const sufixo = empresaSelecionada === '__TODAS__' ? 'TODAS_EMPRESAS' : empresaSelecionada;
-        a.download = `conferencia_fiscal_${sufixo}.csv`;
+        const emp = document.getElementById('sel-empresa').value;
+        a.download = `conferencia_fiscal_${emp}.csv`;
         a.click();
         URL.revokeObjectURL(url);
     }
