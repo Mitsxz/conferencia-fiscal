@@ -1,485 +1,437 @@
-import csv
-import json
 import os
 import re
+import io
+import json
 import ssl
-import tempfile
+import base64
+import unicodedata
 import urllib.request
-import urllib.parse
 from flask import Flask, render_template, request, jsonify
-from werkzeug.utils import secure_filename
-from openpyxl import load_workbook
-from pypdf import PdfReader
-from odf.opendocument import load as load_ods
-from odf.table import Table, TableRow, TableCell
-from odf.teletype import extractText
-from services.file_reader import ler_arquivo_tabular, FileReadError
+import pandas as pd
+import pdfplumber
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
-# COLE AQUI A URL /exec DO SEU GOOGLE APPS SCRIPT:
 DRIVE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw5Bx8L6KwsRLP0_ci-UVHpEKeKaQyy42V7-EWr7oCSfa4KPUwCq3NSzjUjOFGd747B/exec"
 DRIVE_TOKEN = "fiscal2026"
 
-# Captura CNPJ com 14 ou 15 dígitos (ex: 012.345.678/0001-99), com ou sem pontos e com espaços do pypdf
-CNPJ_FLEX_RE = re.compile(
-    r'(?<!\d)(0?\d{2})\s*\.?\s*(\d{3})\s*\.?\s*(\d{3})\s*/\s*(\d{4})\s*[-\s]?\s*(\d{2})(?!\d)'
-)
-
-# Captura CNPJ sem barra/traço próximo a rótulos (CNPJ, C.N.P.J., CGC, Inscrição)
-CNPJ_ROTULADO_RE = re.compile(
-    r'(?:c\.?\s*n\.?\s*p\.?\s*j\.?|c\.?\s*g\.?\s*c\.?|cpf\s*/\s*cnpj|inscri[çc][ãa]o)[^\d]{0,25}(0?\d{14})(?!\d)',
-    re.IGNORECASE
-)
-
-RAZAO_ROTULADA_RE = re.compile(
-    r'(?:empresa|raz[ãa]o\s*social|firma|contribuinte|nome\s*empresarial|estabelecimento)\s*[:\-]\s*([^\n|;]{3,90})',
-    re.IGNORECASE
-)
-
-SUFIXO_EMPRESA_RE = re.compile(
-    r'\b([A-Z0-9À-Ú][A-Z0-9À-Ú\s&.,\-]{2,70}\b(?:LTDA|EIRELI|S/A|S\.A\.|ME|EPP|COMERCIO|COMÉRCIO|INDUSTRIA|INDÚSTRIA|SERVICOS|SERVIÇOS|DISTRIBUIDORA))\b'
-)
+def normalizar_texto(txt):
+    if txt is None:
+        return ""
+    s = unicodedata.normalize("NFD", str(txt))
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    return s.upper().strip()
 
 
-def validar_cnpj(cnpj_digits: str) -> bool:
-    if len(cnpj_digits) != 14 or len(set(cnpj_digits)) == 1:
-        return False
-
-    pesos_1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
-    soma_1 = sum(int(d) * p for d, p in zip(cnpj_digits[:12], pesos_1))
-    resto_1 = soma_1 % 11
-    dig_1 = '0' if resto_1 < 2 else str(11 - resto_1)
-
-    pesos_2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
-    soma_2 = sum(int(d) * p for d, p in zip(cnpj_digits[:13], pesos_2))
-    resto_2 = soma_2 % 11
-    dig_2 = '0' if resto_2 < 2 else str(11 - resto_2)
-
-    return cnpj_digits[-2:] == dig_1 + dig_2
+def limpar_numero_nota(val):
+    if val is None:
+        return ""
+    s = str(val).strip()
+    if s.endswith(".0"):
+        s = s[:-2]
+    digits = re.sub(r"\D", "", s).lstrip("0")
+    return digits or "0"
 
 
-def normalizar_14_digitos(digits: str) -> str:
-    if len(digits) == 15 and digits.startswith('0'):
-        return digits[1:]
-    return digits
+def limpar_cfop(val):
+    if val is None:
+        return ""
+    s = str(val).strip()
+    if s.endswith(".0"):
+        s = s[:-2]
+    digits = re.sub(r"\D", "", s)
+    return digits[:4] if len(digits) >= 4 else digits
 
 
-def formatar_cnpj(cnpj_digits: str) -> str:
-    if len(cnpj_digits) != 14:
-        return cnpj_digits
-    return f"{cnpj_digits[:2]}.{cnpj_digits[2:5]}.{cnpj_digits[5:8]}/{cnpj_digits[8:12]}-{cnpj_digits[12:]}"
-
-
-def extrair_texto_pdf_paginas(caminho_temp: str, max_paginas: int = 2) -> str:
-    partes = []
-    try:
-        reader = PdfReader(caminho_temp)
-        for page in reader.pages[:max_paginas]:
-            txt = ''
-            try:
-                txt = page.extract_text(extraction_mode="layout") or ''
-            except TypeError:
-                txt = page.extract_text() or ''
-            except Exception:
-                txt = page.extract_text() or ''
-
-            if txt.strip():
-                linhas_limpas = [re.sub(r'[ \t]{2,}', ' | ', l.strip()) for l in txt.splitlines() if l.strip()]
-                partes.append('\n'.join(linhas_limpas))
-    except Exception:
-        pass
-    return '\n'.join(partes)
-
-
-def extrair_cabecalho_texto(caminho_temp: str, extensao: str, max_linhas: int = 60) -> str:
-    linhas = []
-    try:
-        if extensao == '.pdf':
-            return extrair_texto_pdf_paginas(caminho_temp, max_paginas=2)
-
-        elif extensao == '.xlsx':
-            wb = load_workbook(caminho_temp, read_only=True, data_only=True)
-            try:
-                ws = wb.active
-                for row in ws.iter_rows(max_row=max_linhas, values_only=True):
-                    vals = [str(c).strip() for c in row if c is not None and str(c).strip()]
-                    if vals:
-                        linhas.append(' | '.join(vals))
-            finally:
-                wb.close()
-
-        elif extensao == '.ods':
-            doc = load_ods(caminho_temp)
-            tabelas = doc.getElementsByType(Table)
-            if tabelas:
-                rows = tabelas[0].getElementsByType(TableRow)[:max_linhas]
-                for row in rows:
-                    vals = []
-                    for cell in row.getElementsByType(TableCell):
-                        txt = extractText(cell).strip()
-                        if txt:
-                            vals.append(txt)
-                    if vals:
-                        linhas.append(' | '.join(vals))
-
-        elif extensao == '.csv':
-            for enc in ('utf-8-sig', 'latin-1'):
-                try:
-                    with open(caminho_temp, 'r', encoding=enc, errors='strict') as f:
-                        for idx, raw_line in enumerate(f):
-                            if idx >= max_linhas:
-                                break
-                            parts = [p.strip() for p in re.split(r'[;,\t]', raw_line) if p.strip()]
-                            if parts:
-                                linhas.append(' | '.join(parts))
-                    break
-                except UnicodeDecodeError:
-                    continue
-    except Exception:
-        pass
-
-    return '\n'.join(linhas)
-
-
-def extrair_identificacao(texto_documento: str) -> dict:
-    if not texto_documento:
-        return {'cnpj': '', 'cnpj_formatado': '', 'empresa_detectada': ''}
-
-    cnpj_valido = ''
-    linha_do_cnpj = ''
-
-    # 1. Busca CNPJs com barra/traço (14 ou 15 dígitos com zero à esquerda, com ou sem pontos/espaços)
-    for m in CNPJ_FLEX_RE.finditer(texto_documento):
-        bruto = ''.join(m.groups())
-        digits = normalizar_14_digitos(bruto)
-        if validar_cnpj(digits):
-            cnpj_valido = digits
-            inicio = texto_documento.rfind('\n', 0, m.start()) + 1
-            fim = texto_documento.find('\n', m.end())
-            linha_do_cnpj = texto_documento[inicio: fim if fim != -1 else len(texto_documento)]
-            break
-
-    # 2. Fallback: CNPJ sem pontuação próximo a rótulo (CNPJ, CGC, Inscrição)
-    if not cnpj_valido:
-        for m in CNPJ_ROTULADO_RE.finditer(texto_documento):
-            digits = normalizar_14_digitos(m.group(1))
-            if validar_cnpj(digits):
-                cnpj_valido = digits
-                inicio = texto_documento.rfind('\n', 0, m.start()) + 1
-                fim = texto_documento.find('\n', m.end())
-                linha_do_cnpj = texto_documento[inicio: fim if fim != -1 else len(texto_documento)]
-                break
-
-    # 3. Extrai Razão Social / Nome da Empresa
-    empresa_detectada = ''
-    m_rot = RAZAO_ROTULADA_RE.search(texto_documento[:3000])
-    if m_rot:
-        cand = CNPJ_FLEX_RE.sub('', m_rot.group(1))
-        cand = re.sub(r'\b(?:c\.?n\.?p\.?j\.?|c\.?g\.?c\.?|ie|inscri[çc][ãa]o|per[íi]odo|folha|p[áa]gina).*$', '', cand, flags=re.IGNORECASE)
-        cand = re.sub(r'\s+', ' ', cand).strip(' -:|')
-        if len(cand) >= 3 and not cand.isdigit():
-            empresa_detectada = cand.upper()
-
-    if not empresa_detectada:
-        for linha in texto_documento.splitlines()[:35]:
-            linha_up = linha.upper()
-            m_suf = SUFIXO_EMPRESA_RE.search(linha_up)
-            if m_suf:
-                cand = CNPJ_FLEX_RE.sub('', m_suf.group(1))
-                cand = re.sub(r'\s+', ' ', cand).strip(' -:|')
-                if len(cand) >= 4:
-                    empresa_detectada = cand
-                    break
-
-    # 4. Fallback: se achou CNPJ na mesma linha do nome da empresa
-    if not empresa_detectada and linha_do_cnpj:
-        cand = CNPJ_FLEX_RE.sub('', linha_do_cnpj)
-        cand = re.sub(r'\b(?:empresa|raz[ãa]o\s*social|firma|c\.?n\.?p\.?j\.?|c\.?g\.?c\.?|ie|inscri[çc][ãa]o\s*estadual)\b\s*[:\-]?', '', cand, flags=re.IGNORECASE)
-        cand = re.sub(r'\s+', ' ', cand).strip(' -:|')
-        if len(cand) >= 4 and not cand.isdigit():
-            empresa_detectada = cand.upper()[:70]
-
-    return {
-        'cnpj': cnpj_valido,
-        'cnpj_formatado': formatar_cnpj(cnpj_valido) if cnpj_valido else '',
-        'empresa_detectada': empresa_detectada
-    }
-
-
-def parse_valor_br(valor_raw) -> float:
-    if isinstance(valor_raw, (int, float)):
-        return float(valor_raw)
-    if valor_raw is None:
+def parse_valor_br(val):
+    if val is None:
         return 0.0
-    texto = str(valor_raw).replace('R$', '').strip()
-    if not texto:
+    if isinstance(val, (int, float)):
+        if pd.isna(val):
+            return 0.0
+        return round(float(val), 2)
+    s = str(val).strip()
+    if not s or s == "-":
         return 0.0
-    texto = re.sub(r'[^\d,.-]', '', texto)
-    if not texto:
+    s = re.sub(r"[^\d,.-]", "", s)
+    if not s:
         return 0.0
-    if ',' in texto and '.' in texto:
-        if texto.rfind(',') > texto.rfind('.'):
-            texto = texto.replace('.', '').replace(',', '.')
+    if "," in s and "." in s:
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
         else:
-            texto = texto.replace(',', '')
-    elif ',' in texto:
-        texto = texto.replace(',', '.')
+            s = s.replace(",", "")
+    elif "," in s:
+        s = s.replace(".", "").replace(",", ".")
     try:
-        return float(texto)
+        return round(float(s), 2)
     except ValueError:
         return 0.0
 
 
-def limpar_cfop(valor_raw) -> str:
-    if valor_raw is None:
-        return ''
-    digits = re.sub(r'\D', '', str(valor_raw))
-    return digits if len(digits) == 4 else ''
+def formatar_data_str(val):
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return "-"
+    if hasattr(val, "strftime"):
+        return val.strftime("%d/%m/%Y")
+    s = str(val).strip()
+    if not s or s.lower() in ("nan", "nat", "none"):
+        return "-"
+    m_iso = re.match(r"^(\d{4})-(\d{2})-(\d{2})", s)
+    if m_iso:
+        return f"{m_iso.group(3)}/{m_iso.group(2)}/{m_iso.group(1)}"
+    m_br = re.match(r"^(\d{2})[/.-](\d{2})[/.-](\d{4})", s)
+    if m_br:
+        return f"{m_br.group(1)}/{m_br.group(2)}/{m_br.group(3)}"
+    return s
 
 
-def limpar_nota(valor_raw) -> str:
-    if valor_raw is None:
-        return ''
-    digits = re.sub(r'\D', '', str(valor_raw))
-    if not digits:
-        return ''
-    return digits.lstrip('0') or '0'
+def extrair_cnpj_e_empresa(texto):
+    if not texto:
+        return "", "", ""
+    m_cnpj = re.search(r"(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})", texto)
+    cnpj_fmt = m_cnpj.group(1) if m_cnpj else ""
+    cnpj_limpo = re.sub(r"\D", "", cnpj_fmt)
 
-
-def detectar_mapeamento_colunas(colunas: list[str]) -> dict:
-    cols_lower = {c: c.strip().lower() for c in colunas}
-
-    termos_imposto = [
-        'icms', 'ipi', 'pis', 'cofins', 'ibs', 'cbs', 'iss', 'is ',
-        'st', 'subst', 'alíquota', 'aliquota', 'aliq', 'base', 'bc ',
-        'isentas', 'outras', 'retido', 'diferido', 'crédito', 'credito'
-    ]
-
-    nomes_prioritarios_valor = [
-        'valor contábil', 'valor contabil', 'vlr. contábil', 'vlr contábil', 'vlr contabil',
-        'valor total', 'vlr. total', 'vlr total', 'total da nota', 'total nota',
-        'valor da nota', 'valor nota', 'valor líquido', 'valor liquido',
-        'valor dos produtos', 'valor produtos', 'valor mercadoria', 'valor merc.', 'valor'
-    ]
-
-    col_cfop = None
-    for orig, low in cols_lower.items():
-        if 'cfop' in low or low in ('código', 'codigo', 'cod. fiscal', 'cod fiscal'):
-            col_cfop = orig
+    empresa_det = ""
+    for linha in texto.splitlines()[:25]:
+        l_norm = normalizar_texto(linha)
+        if any(k in l_norm for k in ["LTDA", "EIRELI", "S/A", "S.A", "ME", "EPP", "COMERCIO", "INDUSTRIA", "SERVICOS", "HOSPITALAR", "MEDICO", "MEDICOS"]):
+            empresa_det = re.sub(r"\s+", " ", l_norm).strip()
             break
 
-    col_nota = None
-    for orig, low in cols_lower.items():
-        if any(t in low for t in ['valor', 'total', 'vlr', 'data', 'serie', 'série', 'chave']):
-            continue
-        if any(k in low for k in ['nota', 'nf', 'nº', 'numero', 'número', 'doc', 'documento']):
-            col_nota = orig
-            break
+    return cnpj_limpo, cnpj_fmt, empresa_det
 
-    col_data = None
-    for orig, low in cols_lower.items():
-        if any(k in low for k in ['data', 'emissão', 'emissao', 'entrada', 'dt.']):
-            col_data = orig
-            break
 
-    col_valor = None
-    for prio in nomes_prioritarios_valor:
-        for orig, low in cols_lower.items():
-            if any(imp in low for imp in termos_imposto):
-                continue
-            if prio in low:
-                col_valor = orig
-                break
-        if col_valor:
-            break
+# ==============================================================================
+# EXTRAÇÃO DE LIVRO FISCAL (PDF)
+# ==============================================================================
+def processar_pdf_livro(file_bytes, modo_operacao="notas"):
+    registros = []
+    texto_cabecalho = ""
 
+    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+        for idx, page in enumerate(pdf.pages):
+            txt = page.extract_text() or ""
+            if idx < 2:
+                texto_cabecalho += txt + "\n"
+
+            if modo_operacao == "resumo_cfop":
+                # Procura blocos de resumo por CFOP no PDF
+                for linha in txt.splitlines():
+                    l_clean = linha.strip()
+                    m_cfop = re.match(r"^([123567][.\-]?\d{3})\b(.*)$", l_clean)
+                    if m_cfop:
+                        cfop = limpar_cfop(m_cfop.group(1))
+                        valores = re.findall(r"\d{1,3}(?:\.\d{3})*,\d{2}", m_cfop.group(2))
+                        if valores:
+                            val_contabil = parse_valor_br(valores[0])
+                            if val_contabil > 0:
+                                registros.append({
+                                    "data": "-",
+                                    "data_emissao": "-",
+                                    "nota": "RESUMO",
+                                    "cfop": cfop,
+                                    "valor": val_contabil
+                                })
+            else:
+                # Extração nota a nota linha a linha
+                data_atual = "-"
+                for linha in txt.splitlines():
+                    l_clean = linha.strip()
+                    if not l_clean:
+                        continue
+
+                    datas_linha = re.findall(r"\b(\d{2}/\d{2}/\d{4})\b", l_clean)
+                    if datas_linha:
+                        data_atual = datas_linha[0]
+
+                    m_cfop = re.search(r"\b([123][.\-]?\d{3})\b", l_clean)
+                    valores_linha = re.findall(r"\b\d{1,3}(?:\.\d{3})*,\d{2}\b", l_clean)
+
+                    if m_cfop and valores_linha:
+                        cfop = limpar_cfop(m_cfop.group(1))
+                        # Ignora linhas de totalizador de CFOP ou página
+                        l_up = normalizar_texto(l_clean)
+                        if any(p in l_up for p in ["TOTAL", "SUBTOTAL", "TRANSPORTE", "RESUMO"]):
+                            continue
+
+                        # Extrai número da nota (antes do CFOP ou após espécie NF/NFE/55)
+                        antes_cfop = l_clean[:m_cfop.start()]
+                        antes_sem_datas = re.sub(r"\d{2}/\d{2}/\d{4}", " ", antes_cfop)
+                        nums_candidatos = re.findall(r"\b0*(\d{1,9})\b", antes_sem_datas)
+                        # Filtra modelos fiscais comuns (55, 1, 01) quando há número maior
+                        nums_filtrados = [n for n in nums_candidatos if n not in ("55", "1", "01", "0")]
+                        nota = (nums_filtrados[-1] if nums_filtrados else (nums_candidatos[-1] if nums_candidatos else "")).lstrip("0")
+
+                        if nota and len(nota) <= 9:
+                            val_contabil = parse_valor_br(valores_linha[0])
+                            data_emissao = datas_linha[1] if len(datas_linha) > 1 else data_atual
+                            registros.append({
+                                "data": data_atual,
+                                "data_emissao": data_emissao,
+                                "nota": nota,
+                                "cfop": cfop,
+                                "valor": val_contabil
+                            })
+
+    cnpj_limpo, cnpj_fmt, empresa_det = extrair_cnpj_e_empresa(texto_cabecalho)
     return {
-        'cfop': col_cfop,
-        'nota': col_nota,
-        'data': col_data,
-        'valor': col_valor
+        "sucesso": True,
+        "cnpj": cnpj_limpo,
+        "cnpj_formatado": cnpj_fmt,
+        "empresa_detectada": empresa_det,
+        "cabecalho_texto": texto_cabecalho[:2500],
+        "registros": registros
     }
 
 
-def normalizar_registros(registros_brutos: list[dict], extensao: str, modo_operacao: str) -> list[dict]:
-    if not registros_brutos:
-        return []
+# ==============================================================================
+# EXTRAÇÃO DE PLANILHA (.XLSX, .XLS, .CSV, .ODS)
+# ==============================================================================
+def encontrar_cabecalho_df(df_raw):
+    palavras_chave = ["NOTA", "NF", "NUMERO", "DOCUMENTO", "CFOP", "VALOR", "TOTAL", "CONTABIL", "DATA", "ENTRADA", "EMISSAO"]
+    melhor_idx = 0
+    melhor_score = -1
 
-    if extensao == '.pdf':
-        saida = []
-        for item in registros_brutos:
-            cfop = limpar_cfop(item.get('cfop', ''))
-            if not cfop:
-                continue
-            nota = 'RESUMO' if modo_operacao == 'resumo_cfop' else limpar_nota(item.get('nota', ''))
-            if modo_operacao == 'notas' and not nota:
-                continue
-            saida.append({
-                'data': str(item.get('data', '-')).strip() or '-',
-                'data_emissao': item.get('data_emissao', ''),
-                'nota': nota,
-                'cfop': cfop,
-                'valor': round(parse_valor_br(item.get('valor', 0)), 2)
-            })
-        return saida
+    for idx in range(min(25, len(df_raw))):
+        linha_vals = [normalizar_texto(v) for v in df_raw.iloc[idx].tolist()]
+        score = sum(1 for v in linha_vals if any(k in v for k in palavras_chave))
+        if score > melhor_score:
+            melhor_score = score
+            melhor_idx = idx
 
-    colunas = list(registros_brutos[0].keys())
-    mapa = detectar_mapeamento_colunas(colunas)
+    return melhor_idx if melhor_score >= 2 else 0
 
-    if not mapa['cfop']:
-        raise FileReadError(f"Coluna de CFOP não encontrada. Colunas: {', '.join(colunas)}")
-    if not mapa['valor']:
-        raise FileReadError(f"Coluna de Valor Contábil/Total não encontrada. Colunas: {', '.join(colunas)}")
-    if modo_operacao == 'notas' and not mapa['nota']:
-        raise FileReadError(f"Coluna de Número da Nota não encontrada. Colunas: {', '.join(colunas)}")
 
-    saida = []
-    for row in registros_brutos:
-        cfop = limpar_cfop(row.get(mapa['cfop'], ''))
-        if not cfop:
+def mapear_colunas(colunas):
+    col_nota = None
+    col_cfop = None
+    col_valor = None
+    col_data = None
+    col_emissao = None
+
+    for c in colunas:
+        cn = normalizar_texto(c)
+        if not cn or cn.startswith("UNNAMED"):
             continue
 
-        if modo_operacao == 'resumo_cfop':
-            nota = 'RESUMO'
-        else:
-            nota = limpar_nota(row.get(mapa['nota'], ''))
-            if not nota:
+        if col_nota is None and any(k in cn for k in ["NOTA", "NFE", "NF-E", "NUM DOC", "NUMERO", "N. DOC", "DOCUMENTO", "DOC."]):
+            if "CHAVE" not in cn and "SERIE" not in cn and "DATA" not in cn:
+                col_nota = c
+
+        if col_cfop is None and "CFOP" in cn:
+            col_cfop = c
+
+        if col_valor is None and any(k in cn for k in ["VALOR CONTABIL", "VLR CONTABIL", "VALOR TOTAL", "VLR TOTAL", "TOTAL NF", "VALOR NF", "VALOR DOCUMENTO", "VALOR"]):
+            if not any(x in cn for x in ["ICMS", "IPI", "PIS", "COFINS", "BASE", "DESCONTO", "FRETE", "UNIT"]):
+                col_valor = c
+
+        if col_data is None and any(k in cn for k in ["DATA ENTRADA", "DT ENTRADA", "ENTRADA", "LANCAMENTO", "DATA"]):
+            if "EMISSAO" not in cn:
+                col_data = c
+
+        if col_emissao is None and "EMISSAO" in cn:
+            col_emissao = c
+
+    # Fallback para coluna de valor caso tenha ficado mais genérica
+    if col_valor is None:
+        for c in colunas:
+            cn = normalizar_texto(c)
+            if "VALOR" in cn or "TOTAL" in cn:
+                col_valor = c
+                break
+
+    if col_data is None and col_emissao is not None:
+        col_data = col_emissao
+
+    return col_nota, col_cfop, col_valor, col_data, col_emissao
+
+
+def processar_planilha_bytes(file_bytes, filename, modo_operacao="notas"):
+    ext = os.path.splitext(filename.lower())[1]
+    todas_abas = {}
+
+    if ext == ".csv":
+        for sep in [";", ",", "\t"]:
+            try:
+                df_try = pd.read_csv(io.BytesIO(file_bytes), sep=sep, header=None, dtype=str, encoding="utf-8", errors="replace")
+                if df_try.shape[1] > 1:
+                    todas_abas["CSV"] = df_try
+                    break
+            except Exception:
+                continue
+        if not todas_abas:
+            todas_abas["CSV"] = pd.read_csv(io.BytesIO(file_bytes), header=None, dtype=str, encoding="latin1")
+    else:
+        engine = "odf" if ext == ".ods" else None
+        xls = pd.ExcelFile(io.BytesIO(file_bytes), engine=engine)
+        for sheet_name in xls.sheet_names:
+            todas_abas[sheet_name] = xls.parse(sheet_name, header=None, dtype=object)
+
+    registros = []
+    texto_cab = ""
+
+    for sheet_name, df_raw in todas_abas.items():
+        if df_raw is None or df_raw.empty:
+            continue
+
+        idx_cab = encontrar_cabecalho_df(df_raw)
+        for r in range(idx_cab):
+            linha_txt = " ".join(str(x) for x in df_raw.iloc[r].tolist() if pd.notna(x)).strip()
+            if linha_txt:
+                texto_cab += linha_txt + "\n"
+
+        headers = [str(x).strip() if pd.notna(x) else f"COL_{i}" for i, x in enumerate(df_raw.iloc[idx_cab].tolist())]
+        df = df_raw.iloc[idx_cab + 1:].copy()
+        df.columns = headers
+
+        col_nota, col_cfop, col_valor, col_data, col_emissao = mapear_colunas(headers)
+        if col_valor is None or (col_nota is None and col_cfop is None):
+            continue
+
+        for _, row in df.iterrows():
+            val_num = parse_valor_br(row.get(col_valor))
+            cfop_str = limpar_cfop(row.get(col_cfop)) if col_cfop else ""
+            nota_str = limpar_numero_nota(row.get(col_nota)) if col_nota else "RESUMO"
+            data_str = formatar_data_str(row.get(col_data)) if col_data else "-"
+            emissao_str = formatar_data_str(row.get(col_emissao)) if col_emissao else data_str
+
+            # Ignora linhas vazias ou totalizadoras
+            linha_concat = " ".join(normalizar_texto(v) for v in row.tolist() if pd.notna(v))
+            if any(t in linha_concat for t in ["TOTAL GERAL", "SUBTOTAL", "TOTAIS"]):
                 continue
 
-        data_str = str(row.get(mapa['data'], '-')).strip() if mapa['data'] else '-'
-        if not data_str:
-            data_str = '-'
+            if modo_operacao == "resumo_cfop":
+                if not cfop_str or val_num == 0:
+                    continue
+                registros.append({
+                    "data": data_str,
+                    "data_emissao": emissao_str,
+                    "nota": "RESUMO",
+                    "cfop": cfop_str,
+                    "valor": val_num
+                })
+            else:
+                if (not nota_str or nota_str == "0") and val_num == 0:
+                    continue
+                if not nota_str or nota_str == "0":
+                    continue
+                registros.append({
+                    "data": data_str,
+                    "data_emissao": emissao_str,
+                    "nota": nota_str,
+                    "cfop": cfop_str,
+                    "valor": val_num
+                })
 
-        valor_num = round(parse_valor_br(row.get(mapa['valor'], 0)), 2)
-        saida.append({
-            'data': data_str,
-            'nota': nota,
-            'cfop': cfop,
-            'valor': valor_num
-        })
+    cnpj_limpo, cnpj_fmt, empresa_det = extrair_cnpj_e_empresa(texto_cab)
+    return {
+        "sucesso": True,
+        "cnpj": cnpj_limpo,
+        "cnpj_formatado": cnpj_fmt,
+        "empresa_detectada": empresa_det,
+        "cabecalho_texto": texto_cab[:2500],
+        "registros": registros
+    }
 
-    return saida
 
-
-@app.route('/', methods=['GET'])
+# ==============================================================================
+# ROTAS FLASK
+# ==============================================================================
+@app.route("/")
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
 
 
-@app.route('/api/drive-notas', methods=['GET', 'POST'])
-def api_drive_notas():
-    if not DRIVE_APPS_SCRIPT_URL or "SEU_ID_AQUI" in DRIVE_APPS_SCRIPT_URL or not DRIVE_TOKEN:
-        return jsonify({'sucesso': False, 'erro': 'Configure DRIVE_APPS_SCRIPT_URL e DRIVE_TOKEN no app.py.', 'arquivos': []}), 503
-
-    payload_in = request.get_json(silent=True) or {}
-    consultas = payload_in.get('consultas', [])
-
-    if not consultas:
-        return jsonify({'sucesso': True, 'arquivos': []})
-
-    try:
-        ctx = ssl._create_unverified_context()
-        dados_envio = json.dumps({
-            'token': DRIVE_TOKEN.strip(),
-            'consultas': consultas
-        }).encode('utf-8')
-
-        req = urllib.request.Request(
-            DRIVE_APPS_SCRIPT_URL.strip(),
-            data=dados_envio,
-            headers={
-                'User-Agent': 'Mozilla/5.0',
-                'Content-Type': 'application/json'
-            },
-            method='POST'
-        )
-        with urllib.request.urlopen(req, timeout=60, context=ctx) as resp:
-            conteudo = resp.read().decode('utf-8')
-            if conteudo.strip().startswith('<'):
-                return jsonify({
-                    'sucesso': False,
-                    'erro': 'O Google retornou HTML em vez de JSON (verifique se a implantação está como "Qualquer pessoa").',
-                    'arquivos': []
-                }), 500
-            dados = json.loads(conteudo)
-            if not isinstance(dados, dict) or not dados.get('sucesso'):
-                return jsonify({
-                    'sucesso': False,
-                    'erro': dados.get('erro', 'Resposta inválida') if isinstance(dados, dict) else 'Resposta inválida',
-                    'arquivos': []
-                }), 502
-            return jsonify(dados)
-    except Exception as e:
-        return jsonify({'sucesso': False, 'erro': f'Falha na comunicação: {str(e)}', 'arquivos': []}), 500
-
-
-@app.route('/api/extrair', methods=['POST'])
+@app.route("/api/extrair", methods=["POST"])
 def api_extrair():
-    if 'arquivo' not in request.files:
-        return jsonify({'sucesso': False, 'erro': 'Nenhum arquivo enviado.'}), 400
+    if "arquivo" not in request.files:
+        return jsonify({"sucesso": False, "erro": "Nenhum arquivo enviado."}), 400
 
-    arquivo = request.files['arquivo']
-    if not arquivo or not arquivo.filename:
-        return jsonify({'sucesso': False, 'erro': 'Arquivo inválido.'}), 400
-
-    modo_operacao = request.form.get('modo_operacao', 'notas')
-    nome_original = arquivo.filename
-    extensao = os.path.splitext(nome_original)[1].lower()
-    nome_seguro = secure_filename(nome_original) or f"upload{extensao}"
-
-    fd, caminho_temp = tempfile.mkstemp(suffix=f"_{nome_seguro}")
-    os.close(fd)
+    arquivo = request.files["arquivo"]
+    modo = request.form.get("modo_operacao", "notas")
+    nome = arquivo.filename or ""
+    ext = os.path.splitext(nome.lower())[1]
 
     try:
-        arquivo.save(caminho_temp)
-
-        cabecalho_texto = extrair_cabecalho_texto(caminho_temp, extensao, max_linhas=60)
-        identificacao = extrair_identificacao(cabecalho_texto)
-
-        resultado_leitura = ler_arquivo_tabular(caminho_temp, modo_operacao=modo_operacao)
-
-        if isinstance(resultado_leitura, dict):
-            registros_brutos = resultado_leitura.get('registros', [])
-            cab_extra = resultado_leitura.get('cabecalho_texto', '')
-            if cab_extra and not identificacao['cnpj']:
-                cabecalho_texto = cab_extra
-                identificacao = extrair_identificacao(cabecalho_texto)
+        file_bytes = arquivo.read()
+        if ext == ".pdf":
+            resultado = processar_pdf_livro(file_bytes, modo)
+        elif ext in (".xlsx", ".xls", ".csv", ".ods"):
+            resultado = processar_planilha_bytes(file_bytes, nome, modo)
         else:
-            registros_brutos = resultado_leitura
+            return jsonify({"sucesso": False, "erro": f"Formato não suportado: {ext}"}), 400
 
-        registros_limpos = normalizar_registros(registros_brutos, extensao, modo_operacao)
-        cab_preview = '\n'.join(cabecalho_texto.splitlines()[:25])[:1500]
-
-        return jsonify({
-            'sucesso': True,
-            'arquivo': nome_original,
-            'cnpj': identificacao['cnpj'],
-            'cnpj_formatado': identificacao['cnpj_formatado'],
-            'empresa_detectada': identificacao['empresa_detectada'],
-            'cabecalho_texto': cab_preview,
-            'registros': registros_limpos
-        })
-    except FileReadError as e:
-        return jsonify({
-            'sucesso': False,
-            'arquivo': nome_original,
-            'erro': str(e)
-        }), 400
+        return jsonify(resultado)
     except Exception as e:
-        return jsonify({
-            'sucesso': False,
-            'arquivo': nome_original,
-            'erro': f"Erro ao processar {nome_original}: {str(e)}"
-        }), 500
-    finally:
-        if os.path.exists(caminho_temp):
-            try:
-                os.remove(caminho_temp)
-            except OSError:
-                pass
+        return jsonify({"sucesso": False, "erro": f"Erro ao processar {nome}: {str(e)}"}), 500
 
 
-if __name__ == '__main__':
-    app.run(debug=True)
+def _chamar_apps_script(payload_dict, timeout=45):
+    if not DRIVE_APPS_SCRIPT_URL or "COLE_A_NOVA_URL_AQUI" in DRIVE_APPS_SCRIPT_URL:
+        raise RuntimeError("Configure a nova URL do Google Apps Script na variável DRIVE_APPS_SCRIPT_URL do app.py.")
+
+    ctx = ssl._create_unverified_context()
+    payload_dict["token"] = DRIVE_TOKEN.strip()
+    req = urllib.request.Request(
+        DRIVE_APPS_SCRIPT_URL.strip(),
+        data=json.dumps(payload_dict).encode("utf-8"),
+        headers={"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"},
+        method="POST"
+    )
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+        conteudo = resp.read().decode("utf-8")
+        if conteudo.strip().startswith("<"):
+            raise RuntimeError('O Google retornou HTML em vez de JSON. Verifique se a implantação está como "Qualquer pessoa".')
+        return json.loads(conteudo)
+
+
+@app.route("/api/drive-entradas", methods=["POST"])
+def api_drive_entradas():
+    body = request.get_json(silent=True) or {}
+    try:
+        dados = _chamar_apps_script({
+            "acao": "buscar_entradas",
+            "aliases": body.get("aliases", []),
+            "ano": body.get("ano", ""),
+            "mes": body.get("mes", 0)
+        }, timeout=45)
+        return jsonify(dados)
+    except Exception as e:
+        return jsonify({"sucesso": False, "erro": str(e)}), 500
+
+
+@app.route("/api/drive-extrair-planilha", methods=["POST"])
+def api_drive_extrair_planilha():
+    body = request.get_json(silent=True) or {}
+    file_id = body.get("fileId", "")
+    nome = body.get("nome", "planilha_drive.xlsx")
+    mime_type = body.get("mimeType", "")
+    modo = body.get("modo_operacao", "notas")
+
+    if not file_id:
+        return jsonify({"sucesso": False, "erro": "fileId não informado."}), 400
+
+    try:
+        dados = _chamar_apps_script({
+            "acao": "baixar_planilha",
+            "fileId": file_id,
+            "mimeType": mime_type
+        }, timeout=60)
+
+        if not dados.get("sucesso") or not dados.get("base64"):
+            return jsonify({"sucesso": False, "erro": dados.get("erro", "Falha ao baixar planilha do Drive")}), 502
+
+        raw_bytes = base64.b64decode(dados["base64"])
+        ext = dados.get("ext", ".xlsx")
+        nome_final = nome if nome.lower().endswith((".xlsx", ".xls", ".csv", ".ods")) else (nome + ext)
+
+        resultado = processar_planilha_bytes(raw_bytes, nome_final, modo)
+        return jsonify(resultado)
+    except Exception as e:
+        return jsonify({"sucesso": False, "erro": f"Erro ao processar planilha do Drive: {str(e)}"}), 500
+
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)
