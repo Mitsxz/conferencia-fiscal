@@ -95,7 +95,7 @@
             border-top: 1px solid var(--border);
         }
         .radio-group { display: flex; flex-wrap: wrap; gap: 16px; }
-        .radio-option {
+                .radio-option {
             display: flex;
             align-items: center;
             gap: 8px;
@@ -178,7 +178,7 @@
             border: 1px solid transparent;
         }
         .tag-livro { background: #dbeafe; color: #1e40af; }
-        .tag-plan { background: #e0e7ff; color: #3730a3; }
+                .tag-plan { background: #e0e7ff; color: #3730a3; }
         .badge-match-ok {
             background: var(--ok-bg);
             color: var(--ok-text);
@@ -338,7 +338,7 @@
             background: none;
             border: none;
             color: #991b1b;
-            font-weight: 700;
+                        font-weight: 700;
             cursor: pointer;
             font-size: 0.78rem;
         }
@@ -491,7 +491,7 @@
             font-size: 0.8rem;
             background: #ffffff;
         }
-        .badge-emp {
+                .badge-emp {
             display: inline-block;
             padding: 3px 8px;
             border-radius: 6px;
@@ -737,8 +737,7 @@
             box.innerHTML = '<strong>Erro na interface:</strong> ' + escapeHtml(msg) + ' (linha ' + line + ')';
         }
     };
-
-    function escapeHtml(str) {
+        function escapeHtml(str) {
         return String(str == null ? '' : str)
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -762,117 +761,69 @@
         return normalizarTexto(txt).replace(/[^A-Z0-9]/g, '');
     }
 
+    let driveDisponivel = false;
+    function periodoDrive(data) {
+        const t = String(data || '');
+        let m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+        if (m) return [m[3], Number(m[2])];
+        m = t.match(/^(\d{4})-(\d{2})-/);
+        return m ? [m[1], Number(m[2])] : null;
+    }
     async function carregarMapaDrive(forcarAtualizacao = false) {
         const lbl = document.getElementById('status-drive-sync');
+        driveDisponivel = false;
+        indiceDrivePorNota.clear();
         if (lbl) lbl.textContent = 'Sincronizando Drive...';
         try {
             const resp = await fetch(`/api/drive-notas?refresh=${forcarAtualizacao ? '1' : '0'}`);
             const json = await resp.json();
-            indiceDrivePorNota.clear();
-
-            if (json.sucesso && json.arquivos) {
-                const entradas = Array.isArray(json.arquivos)
-                    ? json.arquivos
-                    : Object.entries(json.arquivos);
-
-                entradas.forEach(([nomeRaw, idOuUrl]) => {
-                    const nomeNorm = normalizarTexto(nomeRaw);
-                    const urlFinal = String(idOuUrl).startsWith('http')
-                        ? idOuUrl
-                        : `https://drive.google.com/file/d/${idOuUrl}/view`;
-
-                    // Localiza o marcador _D_ (ou D isolado) e extrai o código da nota + resto do nome (EMPRESABENEFICIADA)
-                    const idxD = nomeNorm.search(/(?:^|[\s_-])D(?:[\s_-]+)/);
-                    const trechoDepoisD = idxD !== -1
-                        ? nomeNorm.slice(idxD).replace(/^(?:^|[\s_-])D(?:[\s_-]+)/, '')
-                        : nomeNorm;
-
-                    const matchNota = trechoDepoisD.match(/^[^\d]*(\d+)\s*(.*)$/);
-                    if (matchNota) {
-                        const notaLimpa = matchNota[1].replace(/^0+/, '') || '0';
-                        const parteBeneficiada = (matchNota[2] || '').trim();
-
-                        if (!indiceDrivePorNota.has(notaLimpa)) {
-                            indiceDrivePorNota.set(notaLimpa, []);
-                        }
-                        indiceDrivePorNota.get(notaLimpa).push({
-                            nomeCompleto: nomeNorm,
-                            beneficiadaNorm: parteBeneficiada,
-                            beneficiadaCompacta: compactarSemEspacos(parteBeneficiada || nomeNorm),
-                            url: urlFinal
-                        });
-                    }
-                });
-                if (lbl) lbl.textContent = `Drive: ${indiceDrivePorNota.size} notas indexadas (${entradas.length} arquivos)`;
-            } else {
-                if (lbl) lbl.textContent = `Drive erro: ${json.erro || 'indisponível'}`;
+            if (!resp.ok || !json.sucesso || !Array.isArray(json.arquivos)) throw new Error(json.erro || 'Resposta inválida');
+            for (const arq of json.arquivos) {
+                for (const numero of new Set(arq.numeros || [])) {
+                    const n = String(numero).replace(/^0+/, '') || '0';
+                    if (!indiceDrivePorNota.has(n)) indiceDrivePorNota.set(n, []);
+                    indiceDrivePorNota.get(n).push(arq);
+                }
             }
+            driveDisponivel = true;
+            if (lbl) lbl.textContent = `Drive: ${json.arquivos.length} arquivos (NFS, NFSE e recibos)`;
         } catch (e) {
-            if (lbl) lbl.textContent = 'Erro ao ler Drive';
+            if (lbl) lbl.textContent = 'Drive indisponível: ' + e.message;
         }
-        if (document.getElementById('painel-resultados').style.display === 'block') {
-            renderizarTabela();
-        }
+        if (document.getElementById('painel-resultados').style.display === 'block') renderizarTabela();
     }
-
-    function selecionarMelhorCandidatoDrive(candidatos, empresaBeneficiada) {
-        if (!candidatos || candidatos.length === 0) return null;
-        if (candidatos.length === 1) return candidatos[0];
-
-        const empCompacta = compactarSemEspacos(empresaBeneficiada);
-        const tokensEmp = extrairTokensLimpos(empresaBeneficiada);
-
-        // 1. Match na empresa beneficiada compactada (ex: "EMS" dentro de "EMSLTDA" ou "E M S")
-        if (empCompacta.length >= 2) {
-            const matchCompacto = candidatos.find(c =>
-                c.beneficiadaCompacta.includes(empCompacta) ||
-                (c.beneficiadaCompacta.length >= 2 && empCompacta.includes(c.beneficiadaCompacta))
-            );
-            if (matchCompacto) return matchCompacto;
+    function buscarNotaNoDrive(nota, empresa, data, emissao, cnpj) {
+        if (!driveDisponivel || !nota || nota === 'RESUMO') return null;
+        const n = String(nota).replace(/\D/g, '').replace(/^0+/, '');
+        if (!n) return null;
+        const periodos = [periodoDrive(data), periodoDrive(emissao)].filter(Boolean);
+        const anos = new Set(periodos.map(p => p[0]));
+        const numeros = [n];
+        if (n.length > 4 && anos.has(n.slice(0,4))) numeros.push(n.slice(4).replace(/^0+/, '') || '0');
+        const candidatos = new Map();
+        for (const numero of numeros) for (const arq of indiceDrivePorNota.get(numero) || []) candidatos.set(arq.id, arq);
+        const emp = compactarSemEspacos(empresa);
+        const tokens = extrairTokensLimpos(empresa);
+        const doc = String(cnpj || '').replace(/\D/g, '');
+        const avaliados = [];
+        for (const arq of candidatos.values()) {
+            const fontes = [arq.empresa, ...(arq.pastas || [])].filter(Boolean);
+            const empresaOk = (doc.length === 14 && (arq.cnpjs || []).includes(doc)) || fontes.some(x => {
+                const c = compactarSemEspacos(x);
+                const ts = extrairTokensLimpos(x);
+                return (emp.length >= 3 && c === emp) || (tokens.length > 0 && tokens.every(t => ts.includes(t)));
+            });
+            const periodoOk = periodos.some(p => String(arq.ano) === p[0] && Number(arq.mes) === p[1]);
+            const conflito = periodos.length && arq.ano && arq.mes && !periodoOk;
+            if (conflito) continue;
+            const exato = (arq.numeros || []).includes(n);
+            const confirmado = empresaOk && periodoOk && exato && arq.numeroRotulado === true;
+            avaliados.push({...arq, confirmado, score: (empresaOk ? 4 : 0) + (periodoOk ? 3 : 0) + (exato ? 2 : 0) + (arq.numeroRotulado ? 1 : 0)});
         }
-
-        // 2. Pontuação por palavras-chave da empresa
-        let melhor = candidatos[0];
-        let maiorScore = -1;
-
-        for (const cand of candidatos) {
-            let hits = 0;
-            for (const tk of tokensEmp) {
-                if (tk.length >= 2 && (cand.beneficiadaNorm.includes(tk) || cand.beneficiadaCompacta.includes(tk))) {
-                    hits++;
-                }
-            }
-            if (hits > maiorScore) {
-                maiorScore = hits;
-                melhor = cand;
-            }
-        }
-        return melhor;
-    }
-
-    function buscarNotaNoDrive(nota, empresaBeneficiada) {
-        if (!nota || nota === 'RESUMO') return null;
-        const notaLimpa = String(nota).replace(/\D/g, '').replace(/^0+/, '') || '0';
-
-        // 1ª tentativa: número exato (ex: 37654 == 37654)
-        let candidatos = indiceDrivePorNota.get(notaLimpa);
-        if (candidatos && candidatos.length > 0) {
-            return selecionarMelhorCandidatoDrive(candidatos, empresaBeneficiada);
-        }
-
-        // 2ª tentativa (comum em NFS-e e Recibos): planilha traz o ano na frente (ex: 202637654 ou 202600037654)
-        // enquanto o arquivo no Drive está salvo apenas como _D_37654
-        if (/^20\d{2}\d{2,}$/.test(notaLimpa)) {
-            const semAno = notaLimpa.slice(4).replace(/^0+/, '') || '0';
-            if (semAno.length >= 2) {
-                candidatos = indiceDrivePorNota.get(semAno);
-                if (candidatos && candidatos.length > 0) {
-                    return selecionarMelhorCandidatoDrive(candidatos, empresaBeneficiada);
-                }
-            }
-        }
-
-        return null;
+        avaliados.sort((a,b) => b.score-a.score);
+        if (!avaliados.length) return null;
+        const a = avaliados[0];
+        return {...a, confirmado: a.confirmado && (avaliados.length === 1 || a.score > avaliados[1].score), nomeCompleto: a.nome, url: `https://drive.google.com/file/d/${encodeURIComponent(a.id)}/view`};
     }
 
     function extrairTokensLimpos(nomeArquivo) {
@@ -986,7 +937,7 @@
                 filaArquivos.push({
                     uid: 'f_' + (nextUid++),
                     file: f,
-                    origem: origem,
+                                        origem: origem,
                     tokens: tokens,
                     empresa: tokens.join(' '),
                     livroUidVinculado: '',
@@ -1186,10 +1137,10 @@
                 }
             } catch (err) {
                 erros.push(`• <strong>${escapeHtml(item.file.name)}</strong>: Erro de rede (${escapeHtml(err.message)})`);
-            }
+                            }
         }
 
-       carregarMapaDrive(false);
+        carregarMapaDrive(false);
 
         progressTexto.textContent = `Concluído! ${filaArquivos.length} arquivo(s) processado(s).`;
         progressPct.textContent = '100%';
@@ -1314,6 +1265,8 @@
                     empresa: emp,
                     origem: arq.origem,
                     data: reg.data,
+                    data_emissao: reg.data_emissao,
+                    cnpj: arq.cnpj,
                     nota: reg.nota,
                     cfop: reg.cfop,
                     valor: Number(reg.valor) || 0
@@ -1454,7 +1407,7 @@
                         </div>
                     </div>
                     <pre class="box-debug-cab" id="debug_${liv.uid}">${escapeHtml(liv.cabecalhoTexto || '(Nenhum texto extraído deste PDF)')}</pre>
-                    <div class="vinculo-rodape">
+                                        <div class="vinculo-rodape">
                         ${chipsHtml || '<span style="font-size:0.75rem; color:#92400e;">Nenhuma planilha vinculada</span>'}
                         ${selectAddPlanilha}
                     </div>
@@ -1570,6 +1523,8 @@
             const atual = alvo.get(chave) || {
                 empresa: item.empresa,
                 data: item.data,
+                data_emissao: item.data_emissao,
+                cnpj: item.cnpj,
                 nota: item.nota,
                 cfop: item.cfop,
                 valor: 0
@@ -1617,7 +1572,7 @@
                 qtdProblemas++;
             }
 
-            const arqDrive = buscarNotaNoDrive(nota, empresa);
+            const arqDrive = buscarNotaNoDrive(nota, empresa, data, liv?.data_emissao, liv?.cnpj || pla?.cnpj);
 
             linhas.push({
                 empresa,
@@ -1629,7 +1584,8 @@
                 diff,
                 status,
                 diag,
-                noDrive: Boolean(arqDrive),
+                noDrive: Boolean(arqDrive?.confirmado),
+                drivePossivel: Boolean(arqDrive && !arqDrive.confirmado),
                 driveUrl: arqDrive ? arqDrive.url : '',
                 driveNome: arqDrive ? arqDrive.nomeCompleto : ''
             });
@@ -1670,7 +1626,7 @@
                            Abrir Nota ↗
                        </a>
                    </div>`
-                : `<span class="status-pill st-drive-no">Não está no Drive</span>`;
+                : l.drivePossivel ? `<span class="status-pill st-drive-no">Possível correspondência</span> <a href="${escapeHtml(l.driveUrl)}" target="_blank" rel="noopener noreferrer">Ver arquivo</a>` : `<span class="status-pill st-drive-no">${!driveDisponivel ? 'Drive indisponível' : l.nota === 'RESUMO' ? 'Não se aplica' : 'Não localizado no índice'}</span>`;
 
             return `
                 <tr>
@@ -1705,7 +1661,7 @@
                 l.diff.toFixed(2).replace('.', ','),
                 l.status,
                 `"${l.diag}"`,
-                l.noDrive ? 'SIM' : 'NAO',
+                l.noDrive ? 'SIM' : l.drivePossivel ? 'POSSIVEL' : !driveDisponivel ? 'INDISPONIVEL' : 'NAO LOCALIZADO',
                 l.driveUrl || ''
             ].join(';'));
         });
