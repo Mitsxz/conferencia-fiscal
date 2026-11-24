@@ -2,6 +2,7 @@ import csv
 import json
 import os
 import re
+import ssl
 import tempfile
 import urllib.request
 import urllib.parse
@@ -17,7 +18,8 @@ from services.file_reader import ler_arquivo_tabular, FileReadError
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
-DRIVE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/SEU_ID_AQUI/exec"
+# COLE AQUI A URL /exec DO SEU GOOGLE APPS SCRIPT:
+DRIVE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzcR4SNL_S-a7VUrWMVRv5eEhKBJvvq-OhyaJZ1-f-qd0_zFr6Gl_c0974Uik0GDSGj/exec"
 DRIVE_TOKEN = "fiscal2026"
 
 # Captura CNPJ com 14 ou 15 dígitos (ex: 012.345.678/0001-99), com ou sem pontos e com espaços do pypdf
@@ -191,7 +193,7 @@ def extrair_identificacao(texto_documento: str) -> dict:
                     empresa_detectada = cand
                     break
 
-    # 4. Fallback: se achou CNPJ na mesma linha do nome da empresa (ex: "EMPRESA XYZ | CNPJ: 12.345...")
+    # 4. Fallback: se achou CNPJ na mesma linha do nome da empresa
     if not empresa_detectada and linha_do_cnpj:
         cand = CNPJ_FLEX_RE.sub('', linha_do_cnpj)
         cand = re.sub(r'\b(?:empresa|raz[ãa]o\s*social|firma|c\.?n\.?p\.?j\.?|c\.?g\.?c\.?|ie|inscri[çc][ãa]o\s*estadual)\b\s*[:\-]?', '', cand, flags=re.IGNORECASE)
@@ -369,25 +371,31 @@ def index():
 @app.route('/api/drive-notas', methods=['GET'])
 def api_drive_notas():
     refresh = request.args.get('refresh', '0')
-    if not DRIVE_APPS_SCRIPT_URL or not DRIVE_TOKEN:
-        return jsonify({'sucesso': False, 'erro': 'Configure DRIVE_APPS_SCRIPT_URL e DRIVE_TOKEN.', 'arquivos': []}), 503
-    url = DRIVE_APPS_SCRIPT_URL + '?' + urllib.parse.urlencode({'refresh': refresh, 'token': DRIVE_TOKEN})
+    if not DRIVE_APPS_SCRIPT_URL or "SEU_ID_AQUI" in DRIVE_APPS_SCRIPT_URL or not DRIVE_TOKEN:
+        return jsonify({'sucesso': False, 'erro': 'Configure DRIVE_APPS_SCRIPT_URL e DRIVE_TOKEN no app.py.', 'arquivos': []}), 503
+
+    url = DRIVE_APPS_SCRIPT_URL.strip() + '?' + urllib.parse.urlencode({'refresh': refresh, 'token': DRIVE_TOKEN.strip()})
     try:
+        ctx = ssl._create_unverified_context()
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=60, context=ctx) as resp:
             conteudo = resp.read().decode('utf-8')
             if conteudo.strip().startswith('<'):
                 return jsonify({
                     'sucesso': False,
                     'erro': 'O Google retornou HTML em vez de JSON (verifique se a implantação está como "Qualquer pessoa").',
-                    'arquivos': {}
+                    'arquivos': []
                 }), 500
             dados = json.loads(conteudo)
             if not isinstance(dados, dict) or not dados.get('sucesso'):
-                return jsonify({'sucesso': False, 'erro': dados.get('erro', 'Resposta inválida') if isinstance(dados, dict) else 'Resposta inválida', 'arquivos': []}), 502
+                return jsonify({
+                    'sucesso': False,
+                    'erro': dados.get('erro', 'Resposta inválida') if isinstance(dados, dict) else 'Resposta inválida',
+                    'arquivos': []
+                }), 502
             return jsonify(dados)
     except Exception as e:
-        return jsonify({'sucesso': False, 'erro': 'Falha na comunicação com o Drive.', 'arquivos': []}), 500
+        return jsonify({'sucesso': False, 'erro': f'Falha na comunicação: {str(e)}', 'arquivos': []}), 500
 
 
 @app.route('/api/extrair', methods=['POST'])
@@ -457,4 +465,4 @@ def api_extrair():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True)
