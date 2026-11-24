@@ -4,6 +4,7 @@ import os
 import re
 import tempfile
 import urllib.request
+import urllib.parse
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 from openpyxl import load_workbook
@@ -16,7 +17,8 @@ from services.file_reader import ler_arquivo_tabular, FileReadError
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
-DRIVE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzcR4SNL_S-a7VUrWMVRv5eEhKBJvvq-OhyaJZ1-f-qd0_zFr6Gl_c0974Uik0GDSGj/exec"
+DRIVE_APPS_SCRIPT_URL = os.environ.get("DRIVE_APPS_SCRIPT_URL", "")
+DRIVE_TOKEN = os.environ.get("DRIVE_TOKEN", "")
 
 # Captura CNPJ com 14 ou 15 dígitos (ex: 012.345.678/0001-99), com ou sem pontos e com espaços do pypdf
 CNPJ_FLEX_RE = re.compile(
@@ -314,6 +316,7 @@ def normalizar_registros(registros_brutos: list[dict], extensao: str, modo_opera
                 continue
             saida.append({
                 'data': str(item.get('data', '-')).strip() or '-',
+                'data_emissao': item.get('data_emissao', ''),
                 'nota': nota,
                 'cfop': cfop,
                 'valor': round(parse_valor_br(item.get('valor', 0)), 2)
@@ -366,7 +369,9 @@ def index():
 @app.route('/api/drive-notas', methods=['GET'])
 def api_drive_notas():
     refresh = request.args.get('refresh', '0')
-    url = f"{DRIVE_APPS_SCRIPT_URL}?refresh={refresh}"
+    if not DRIVE_APPS_SCRIPT_URL or not DRIVE_TOKEN:
+        return jsonify({'sucesso': False, 'erro': 'Configure DRIVE_APPS_SCRIPT_URL e DRIVE_TOKEN.', 'arquivos': []}), 503
+    url = DRIVE_APPS_SCRIPT_URL + '?' + urllib.parse.urlencode({'refresh': refresh, 'token': DRIVE_TOKEN})
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=60) as resp:
@@ -378,9 +383,11 @@ def api_drive_notas():
                     'arquivos': {}
                 }), 500
             dados = json.loads(conteudo)
-            return jsonify({'sucesso': True, 'arquivos': dados})
+            if not isinstance(dados, dict) or not dados.get('sucesso'):
+                return jsonify({'sucesso': False, 'erro': dados.get('erro', 'Resposta inválida') if isinstance(dados, dict) else 'Resposta inválida', 'arquivos': []}), 502
+            return jsonify(dados)
     except Exception as e:
-        return jsonify({'sucesso': False, 'erro': str(e), 'arquivos': {}}), 500
+        return jsonify({'sucesso': False, 'erro': 'Falha na comunicação com o Drive.', 'arquivos': []}), 500
 
 
 @app.route('/api/extrair', methods=['POST'])
