@@ -1,19 +1,23 @@
 import os
 import re
 import io
+import csv
 import json
 import ssl
 import base64
+import datetime
 import unicodedata
 import urllib.request
 from flask import Flask, render_template, request, jsonify
-import pandas as pd
-import pdfplumber
+import openpyxl
+from pypdf import PdfReader
 
 app = Flask(__name__)
 
+
 DRIVE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw5Bx8L6KwsRLP0_ci-UVHpEKeKaQyy42V7-EWr7oCSfa4KPUwCq3NSzjUjOFGd747B/exec"
 DRIVE_TOKEN = "fiscal2026"
+
 
 def normalizar_texto(txt):
     if txt is None:
@@ -47,8 +51,6 @@ def parse_valor_br(val):
     if val is None:
         return 0.0
     if isinstance(val, (int, float)):
-        if pd.isna(val):
-            return 0.0
         return round(float(val), 2)
     s = str(val).strip()
     if not s or s == "-":
@@ -70,9 +72,9 @@ def parse_valor_br(val):
 
 
 def formatar_data_str(val):
-    if val is None or (isinstance(val, float) and pd.isna(val)):
+    if val is None:
         return "-"
-    if hasattr(val, "strftime"):
+    if isinstance(val, (datetime.datetime, datetime.date)):
         return val.strftime("%d/%m/%Y")
     s = str(val).strip()
     if not s or s.lower() in ("nan", "nat", "none"):
@@ -104,76 +106,71 @@ def extrair_cnpj_e_empresa(texto):
 
 
 # ==============================================================================
-# EXTRAÇÃO DE LIVRO FISCAL (PDF)
+# EXTRAÇÃO DE LIVRO FISCAL (PDF) USANDO PYPDF
 # ==============================================================================
 def processar_pdf_livro(file_bytes, modo_operacao="notas"):
     registros = []
     texto_cabecalho = ""
 
-    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-        for idx, page in enumerate(pdf.pages):
-            txt = page.extract_text() or ""
-            if idx < 2:
-                texto_cabecalho += txt + "\n"
+    reader = PdfReader(io.BytesIO(file_bytes))
+    for idx, page in enumerate(reader.pages):
+        txt = page.extract_text() or ""
+        if idx < 2:
+            texto_cabecalho += txt + "\n"
 
-            if modo_operacao == "resumo_cfop":
-                # Procura blocos de resumo por CFOP no PDF
-                for linha in txt.splitlines():
-                    l_clean = linha.strip()
-                    m_cfop = re.match(r"^([123567][.\-]?\d{3})\b(.*)$", l_clean)
-                    if m_cfop:
-                        cfop = limpar_cfop(m_cfop.group(1))
-                        valores = re.findall(r"\d{1,3}(?:\.\d{3})*,\d{2}", m_cfop.group(2))
-                        if valores:
-                            val_contabil = parse_valor_br(valores[0])
-                            if val_contabil > 0:
-                                registros.append({
-                                    "data": "-",
-                                    "data_emissao": "-",
-                                    "nota": "RESUMO",
-                                    "cfop": cfop,
-                                    "valor": val_contabil
-                                })
-            else:
-                # Extração nota a nota linha a linha
-                data_atual = "-"
-                for linha in txt.splitlines():
-                    l_clean = linha.strip()
-                    if not l_clean:
-                        continue
-
-                    datas_linha = re.findall(r"\b(\d{2}/\d{2}/\d{4})\b", l_clean)
-                    if datas_linha:
-                        data_atual = datas_linha[0]
-
-                    m_cfop = re.search(r"\b([123][.\-]?\d{3})\b", l_clean)
-                    valores_linha = re.findall(r"\b\d{1,3}(?:\.\d{3})*,\d{2}\b", l_clean)
-
-                    if m_cfop and valores_linha:
-                        cfop = limpar_cfop(m_cfop.group(1))
-                        # Ignora linhas de totalizador de CFOP ou página
-                        l_up = normalizar_texto(l_clean)
-                        if any(p in l_up for p in ["TOTAL", "SUBTOTAL", "TRANSPORTE", "RESUMO"]):
-                            continue
-
-                        # Extrai número da nota (antes do CFOP ou após espécie NF/NFE/55)
-                        antes_cfop = l_clean[:m_cfop.start()]
-                        antes_sem_datas = re.sub(r"\d{2}/\d{2}/\d{4}", " ", antes_cfop)
-                        nums_candidatos = re.findall(r"\b0*(\d{1,9})\b", antes_sem_datas)
-                        # Filtra modelos fiscais comuns (55, 1, 01) quando há número maior
-                        nums_filtrados = [n for n in nums_candidatos if n not in ("55", "1", "01", "0")]
-                        nota = (nums_filtrados[-1] if nums_filtrados else (nums_candidatos[-1] if nums_candidatos else "")).lstrip("0")
-
-                        if nota and len(nota) <= 9:
-                            val_contabil = parse_valor_br(valores_linha[0])
-                            data_emissao = datas_linha[1] if len(datas_linha) > 1 else data_atual
+        if modo_operacao == "resumo_cfop":
+            for linha in txt.splitlines():
+                l_clean = linha.strip()
+                m_cfop = re.match(r"^([123567][.\-]?\d{3})\b(.*)$", l_clean)
+                if m_cfop:
+                    cfop = limpar_cfop(m_cfop.group(1))
+                    valores = re.findall(r"\d{1,3}(?:\.\d{3})*,\d{2}", m_cfop.group(2))
+                    if valores:
+                        val_contabil = parse_valor_br(valores[0])
+                        if val_contabil > 0:
                             registros.append({
-                                "data": data_atual,
-                                "data_emissao": data_emissao,
-                                "nota": nota,
+                                "data": "-",
+                                "data_emissao": "-",
+                                "nota": "RESUMO",
                                 "cfop": cfop,
                                 "valor": val_contabil
                             })
+        else:
+            data_atual = "-"
+            for linha in txt.splitlines():
+                l_clean = linha.strip()
+                if not l_clean:
+                    continue
+
+                datas_linha = re.findall(r"\b(\d{2}/\d{2}/\d{4})\b", l_clean)
+                if datas_linha:
+                    data_atual = datas_linha[0]
+
+                m_cfop = re.search(r"\b([123][.\-]?\d{3})\b", l_clean)
+                valores_linha = re.findall(r"\b\d{1,3}(?:\.\d{3})*,\d{2}\b", l_clean)
+
+                if m_cfop and valores_linha:
+                    cfop = limpar_cfop(m_cfop.group(1))
+                    l_up = normalizar_texto(l_clean)
+                    if any(p in l_up for p in ["TOTAL", "SUBTOTAL", "TRANSPORTE", "RESUMO"]):
+                        continue
+
+                    antes_cfop = l_clean[:m_cfop.start()]
+                    antes_sem_datas = re.sub(r"\d{2}/\d{2}/\d{4}", " ", antes_cfop)
+                    nums_candidatos = re.findall(r"\b0*(\d{1,9})\b", antes_sem_datas)
+                    nums_filtrados = [n for n in nums_candidatos if n not in ("55", "1", "01", "0")]
+                    nota = (nums_filtrados[-1] if nums_filtrados else (nums_candidatos[-1] if nums_candidatos else "")).lstrip("0")
+
+                    if nota and len(nota) <= 9:
+                        val_contabil = parse_valor_br(valores_linha[0])
+                        data_emissao = datas_linha[1] if len(datas_linha) > 1 else data_atual
+                        registros.append({
+                            "data": data_atual,
+                            "data_emissao": data_emissao,
+                            "nota": nota,
+                            "cfop": cfop,
+                            "valor": val_contabil
+                        })
 
     cnpj_limpo, cnpj_fmt, empresa_det = extrair_cnpj_e_empresa(texto_cabecalho)
     return {
@@ -187,16 +184,16 @@ def processar_pdf_livro(file_bytes, modo_operacao="notas"):
 
 
 # ==============================================================================
-# EXTRAÇÃO DE PLANILHA (.XLSX, .XLS, .CSV, .ODS)
+# EXTRAÇÃO DE PLANILHA (.XLSX, .CSV, .ODS) SEM PANDAS (OPENPYXL PURO)
 # ==============================================================================
-def encontrar_cabecalho_df(df_raw):
+def encontrar_cabecalho_linhas(linhas):
     palavras_chave = ["NOTA", "NF", "NUMERO", "DOCUMENTO", "CFOP", "VALOR", "TOTAL", "CONTABIL", "DATA", "ENTRADA", "EMISSAO"]
     melhor_idx = 0
     melhor_score = -1
 
-    for idx in range(min(25, len(df_raw))):
-        linha_vals = [normalizar_texto(v) for v in df_raw.iloc[idx].tolist()]
-        score = sum(1 for v in linha_vals if any(k in v for k in palavras_chave))
+    for idx in range(min(25, len(linhas))):
+        vals = [normalizar_texto(v) for v in linhas[idx]]
+        score = sum(1 for v in vals if any(k in v for k in palavras_chave))
         if score > melhor_score:
             melhor_score = score
             melhor_idx = idx
@@ -204,101 +201,124 @@ def encontrar_cabecalho_df(df_raw):
     return melhor_idx if melhor_score >= 2 else 0
 
 
-def mapear_colunas(colunas):
-    col_nota = None
-    col_cfop = None
-    col_valor = None
-    col_data = None
-    col_emissao = None
+def mapear_indices_colunas(headers):
+    idx_nota = None
+    idx_cfop = None
+    idx_valor = None
+    idx_data = None
+    idx_emissao = None
 
-    for c in colunas:
+    for i, c in enumerate(headers):
         cn = normalizar_texto(c)
-        if not cn or cn.startswith("UNNAMED"):
+        if not cn:
             continue
 
-        if col_nota is None and any(k in cn for k in ["NOTA", "NFE", "NF-E", "NUM DOC", "NUMERO", "N. DOC", "DOCUMENTO", "DOC."]):
+        if idx_nota is None and any(k in cn for k in ["NOTA", "NFE", "NF-E", "NUM DOC", "NUMERO", "N. DOC", "DOCUMENTO", "DOC."]):
             if "CHAVE" not in cn and "SERIE" not in cn and "DATA" not in cn:
-                col_nota = c
+                idx_nota = i
 
-        if col_cfop is None and "CFOP" in cn:
-            col_cfop = c
+        if idx_cfop is None and "CFOP" in cn:
+            idx_cfop = i
 
-        if col_valor is None and any(k in cn for k in ["VALOR CONTABIL", "VLR CONTABIL", "VALOR TOTAL", "VLR TOTAL", "TOTAL NF", "VALOR NF", "VALOR DOCUMENTO", "VALOR"]):
+        if idx_valor is None and any(k in cn for k in ["VALOR CONTABIL", "VLR CONTABIL", "VALOR TOTAL", "VLR TOTAL", "TOTAL NF", "VALOR NF", "VALOR DOCUMENTO", "VALOR"]):
             if not any(x in cn for x in ["ICMS", "IPI", "PIS", "COFINS", "BASE", "DESCONTO", "FRETE", "UNIT"]):
-                col_valor = c
+                idx_valor = i
 
-        if col_data is None and any(k in cn for k in ["DATA ENTRADA", "DT ENTRADA", "ENTRADA", "LANCAMENTO", "DATA"]):
+        if idx_data is None and any(k in cn for k in ["DATA ENTRADA", "DT ENTRADA", "ENTRADA", "LANCAMENTO", "DATA"]):
             if "EMISSAO" not in cn:
-                col_data = c
+                idx_data = i
 
-        if col_emissao is None and "EMISSAO" in cn:
-            col_emissao = c
+        if idx_emissao is None and "EMISSAO" in cn:
+            idx_emissao = i
 
-    # Fallback para coluna de valor caso tenha ficado mais genérica
-    if col_valor is None:
-        for c in colunas:
+    if idx_valor is None:
+        for i, c in enumerate(headers):
             cn = normalizar_texto(c)
             if "VALOR" in cn or "TOTAL" in cn:
-                col_valor = c
+                idx_valor = i
                 break
 
-    if col_data is None and col_emissao is not None:
-        col_data = col_emissao
+    if idx_data is None and idx_emissao is not None:
+        idx_data = idx_emissao
 
-    return col_nota, col_cfop, col_valor, col_data, col_emissao
+    return idx_nota, idx_cfop, idx_valor, idx_data, idx_emissao
+
+
+def ler_todas_abas_linhas(file_bytes, filename):
+    ext = os.path.splitext(filename.lower())[1]
+    abas = {}
+
+    if ext == ".csv":
+        texto = file_bytes.decode("utf-8", errors="replace")
+        sep = ";" if texto.count(";") >= texto.count(",") else ","
+        reader = csv.reader(io.StringIO(texto), delimiter=sep)
+        abas["CSV"] = [list(row) for row in reader]
+    elif ext == ".ods":
+        from odf.opendocument import load as load_ods
+        from odf.table import Table, TableRow, TableCell
+        from odf.text import P
+        doc = load_ods(io.BytesIO(file_bytes))
+        for table in doc.spreadsheet.getElementsByType(Table):
+            sheet_name = table.getAttribute("name") or "ODS"
+            linhas = []
+            for tr in table.getElementsByType(TableRow):
+                row_vals = []
+                for tc in tr.getElementsByType(TableCell):
+                    rep = int(tc.getAttribute("numbercolumnsrepeated") or 1)
+                    val = tc.getAttribute("value")
+                    if val is None:
+                        ps = tc.getElementsByType(P)
+                        val = " ".join(str(p) for p in ps).strip()
+                    for _ in range(min(rep, 50)):
+                        row_vals.append(val)
+                if any(v not in (None, "") for v in row_vals):
+                    linhas.append(row_vals)
+            abas[sheet_name] = linhas
+    else:
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True, read_only=True)
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            abas[sheet_name] = [list(row) for row in ws.iter_rows(values_only=True)]
+        wb.close()
+
+    return abas
 
 
 def processar_planilha_bytes(file_bytes, filename, modo_operacao="notas"):
-    ext = os.path.splitext(filename.lower())[1]
-    todas_abas = {}
-
-    if ext == ".csv":
-        for sep in [";", ",", "\t"]:
-            try:
-                df_try = pd.read_csv(io.BytesIO(file_bytes), sep=sep, header=None, dtype=str, encoding="utf-8", errors="replace")
-                if df_try.shape[1] > 1:
-                    todas_abas["CSV"] = df_try
-                    break
-            except Exception:
-                continue
-        if not todas_abas:
-            todas_abas["CSV"] = pd.read_csv(io.BytesIO(file_bytes), header=None, dtype=str, encoding="latin1")
-    else:
-        engine = "odf" if ext == ".ods" else None
-        xls = pd.ExcelFile(io.BytesIO(file_bytes), engine=engine)
-        for sheet_name in xls.sheet_names:
-            todas_abas[sheet_name] = xls.parse(sheet_name, header=None, dtype=object)
-
+    abas = ler_todas_abas_linhas(file_bytes, filename)
     registros = []
     texto_cab = ""
 
-    for sheet_name, df_raw in todas_abas.items():
-        if df_raw is None or df_raw.empty:
+    for sheet_name, linhas in abas.items():
+        if not linhas:
             continue
 
-        idx_cab = encontrar_cabecalho_df(df_raw)
+        idx_cab = encontrar_cabecalho_linhas(linhas)
         for r in range(idx_cab):
-            linha_txt = " ".join(str(x) for x in df_raw.iloc[r].tolist() if pd.notna(x)).strip()
+            linha_txt = " ".join(str(x) for x in linhas[r] if x is not None).strip()
             if linha_txt:
                 texto_cab += linha_txt + "\n"
 
-        headers = [str(x).strip() if pd.notna(x) else f"COL_{i}" for i, x in enumerate(df_raw.iloc[idx_cab].tolist())]
-        df = df_raw.iloc[idx_cab + 1:].copy()
-        df.columns = headers
+        headers = [str(x).strip() if x is not None else f"COL_{i}" for i, x in enumerate(linhas[idx_cab])]
+        idx_nota, idx_cfop, idx_valor, idx_data, idx_emissao = mapear_indices_colunas(headers)
 
-        col_nota, col_cfop, col_valor, col_data, col_emissao = mapear_colunas(headers)
-        if col_valor is None or (col_nota is None and col_cfop is None):
+        if idx_valor is None or (idx_nota is None and idx_cfop is None):
             continue
 
-        for _, row in df.iterrows():
-            val_num = parse_valor_br(row.get(col_valor))
-            cfop_str = limpar_cfop(row.get(col_cfop)) if col_cfop else ""
-            nota_str = limpar_numero_nota(row.get(col_nota)) if col_nota else "RESUMO"
-            data_str = formatar_data_str(row.get(col_data)) if col_data else "-"
-            emissao_str = formatar_data_str(row.get(col_emissao)) if col_emissao else data_str
+        for row in linhas[idx_cab + 1:]:
+            if not row:
+                continue
 
-            # Ignora linhas vazias ou totalizadoras
-            linha_concat = " ".join(normalizar_texto(v) for v in row.tolist() if pd.notna(v))
+            def pegar(idx):
+                return row[idx] if (idx is not None and idx < len(row)) else None
+
+            val_num = parse_valor_br(pegar(idx_valor))
+            cfop_str = limpar_cfop(pegar(idx_cfop)) if idx_cfop is not None else ""
+            nota_str = limpar_numero_nota(pegar(idx_nota)) if idx_nota is not None else "RESUMO"
+            data_str = formatar_data_str(pegar(idx_data)) if idx_data is not None else "-"
+            emissao_str = formatar_data_str(pegar(idx_emissao)) if idx_emissao is not None else data_str
+
+            linha_concat = " ".join(normalizar_texto(v) for v in row if v is not None)
             if any(t in linha_concat for t in ["TOTAL GERAL", "SUBTOTAL", "TOTAIS"]):
                 continue
 
@@ -313,8 +333,6 @@ def processar_planilha_bytes(file_bytes, filename, modo_operacao="notas"):
                     "valor": val_num
                 })
             else:
-                if (not nota_str or nota_str == "0") and val_num == 0:
-                    continue
                 if not nota_str or nota_str == "0":
                     continue
                 registros.append({
@@ -358,7 +376,7 @@ def api_extrair():
         file_bytes = arquivo.read()
         if ext == ".pdf":
             resultado = processar_pdf_livro(file_bytes, modo)
-        elif ext in (".xlsx", ".xls", ".csv", ".ods"):
+        elif ext in (".xlsx", ".xlsm", ".csv", ".ods"):
             resultado = processar_planilha_bytes(file_bytes, nome, modo)
         else:
             return jsonify({"sucesso": False, "erro": f"Formato não suportado: {ext}"}), 400
@@ -370,7 +388,7 @@ def api_extrair():
 
 def _chamar_apps_script(payload_dict, timeout=45):
     if not DRIVE_APPS_SCRIPT_URL or "COLE_A_NOVA_URL_AQUI" in DRIVE_APPS_SCRIPT_URL:
-        raise RuntimeError("Configure a nova URL do Google Apps Script na variável DRIVE_APPS_SCRIPT_URL do app.py.")
+        raise RuntimeError("Configure a URL do Google Apps Script na variável DRIVE_APPS_SCRIPT_URL do app.py.")
 
     ctx = ssl._create_unverified_context()
     payload_dict["token"] = DRIVE_TOKEN.strip()
@@ -425,7 +443,7 @@ def api_drive_extrair_planilha():
 
         raw_bytes = base64.b64decode(dados["base64"])
         ext = dados.get("ext", ".xlsx")
-        nome_final = nome if nome.lower().endswith((".xlsx", ".xls", ".csv", ".ods")) else (nome + ext)
+        nome_final = nome if nome.lower().endswith((".xlsx", ".xlsm", ".csv", ".ods")) else (nome + ext)
 
         resultado = processar_planilha_bytes(raw_bytes, nome_final, modo)
         return jsonify(resultado)
