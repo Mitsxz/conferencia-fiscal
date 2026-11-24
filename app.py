@@ -15,7 +15,7 @@ from pypdf import PdfReader
 app = Flask(__name__)
 
 
-DRIVE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw5Bx8L6KwsRLP0_ci-UVHpEKeKaQyy42V7-EWr7oCSfa4KPUwCq3NSzjUjOFGd747B/exec"
+DRIVE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxannlE00ind3R4pjqSfkAonVfo38D2jSmK_7q3RScaYGNxbgVh3vB34ikp9dbm2_hy/exec"
 DRIVE_TOKEN = "fiscal2026"
 
 
