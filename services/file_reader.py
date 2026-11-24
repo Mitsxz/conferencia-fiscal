@@ -187,7 +187,7 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
                     r'([123567][\.\-]\d{3})\s+'                   # 4. CFOP
                     r'[123]\s+'                                   # Código tributação (1, 2 ou 3)
                     r'\d{1,3}(?:\.\d{3})*,\d{2}\s*'               # 1º valor tributado (logo antes da nota)
-                    r'(\d{1,9})'                                  # 5. Número da Nota grudado logo após os centavos
+                    r'(\d{1,20})'                                  # 5. Número da Nota grudado logo após os centavos
                     r'(?=\s|$)'
                 )
 
@@ -198,6 +198,7 @@ def ler_arquivo_tabular(caminho_arquivo: str, modo_operacao: str = 'resumo_cfop'
 
                     registros.append({
                         "data": data_ent,
+                        "data_emissao": data_emi,
                         "nota": nota_limpa,
                         "cfop": cfop_limpo,
                         "valor": valor_str
