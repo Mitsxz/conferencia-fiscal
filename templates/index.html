@@ -787,26 +787,72 @@ table td:nth-child(4) {
     }
     async function carregarMapaDrive(forcarAtualizacao = false) {
         const lbl = document.getElementById('status-drive-sync');
-        driveDisponivel = false;
-        indiceDrivePorNota.clear();
-        if (lbl) lbl.textContent = 'Sincronizando Drive...';
-        try {
-            const resp = await fetch(`/api/drive-notas?refresh=${forcarAtualizacao ? '1' : '0'}`);
-            const json = await resp.json();
-            if (!resp.ok || !json.sucesso || !Array.isArray(json.arquivos)) throw new Error(json.erro || 'Resposta inválida');
-            for (const arq of json.arquivos) {
-                for (const numero of new Set(arq.numeros || [])) {
-                    const n = String(numero).replace(/^0+/, '') || '0';
-                    if (!indiceDrivePorNota.has(n)) indiceDrivePorNota.set(n, []);
-                    indiceDrivePorNota.get(n).push(arq);
-                }
-            }
-            driveDisponivel = true;
-            if (lbl) lbl.textContent = `Drive: ${json.arquivos.length} arquivos (NFS, NFSE e recibos)`;
-        } catch (e) {
-            if (lbl) lbl.textContent = 'Drive indisponível: ' + e.message;
+
+        // Coleta todas as notas únicas escaneadas das planilhas e livros
+        const notasUnicas = Array.from(new Set(
+            dadosExtraidos
+                .map(d => String(d.nota || '').replace(/\D/g, '').replace(/^0+/, ''))
+                .filter(n => n && n !== '0')
+        ));
+
+        if (notasUnicas.length === 0) {
+            if (lbl) lbl.textContent = 'Drive: aguardando leitura de notas';
+            return;
         }
-        if (document.getElementById('painel-resultados').style.display === 'block') renderizarTabela();
+
+        if (lbl) lbl.textContent = `Buscando ${notasUnicas.length} notas no Drive...`;
+
+        try {
+            const resp = await fetch('/api/drive-notas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notas: notasUnicas, refresh: forcarAtualizacao })
+            });
+            const json = await resp.json();
+            indiceDrivePorNota.clear();
+
+            if (json.sucesso && Array.isArray(json.arquivos)) {
+                json.arquivos.forEach(arq => {
+                    const urlFinal = `https://drive.google.com/file/d/${arq.id}/view`;
+                    const empArq = compactarSemEspacos(arq.empresa || '');
+                    const listaNums = (arq.numeros && arq.numeros.length)
+                        ? arq.numeros
+                        : (arq.numeroPrincipal ? [arq.numeroPrincipal] : []);
+
+                    listaNums.forEach(numRaw => {
+                        const notaLimpa = String(numRaw).replace(/\D/g, '').replace(/^0+/, '') || '0';
+                        if (!notaLimpa || notaLimpa === '0') return;
+
+                        if (!indiceDrivePorNota.has(notaLimpa)) {
+                            indiceDrivePorNota.set(notaLimpa, []);
+                        }
+                        indiceDrivePorNota.get(notaLimpa).push({
+                            nomeCompleto: arq.nome,
+                            tipo: '',
+                            empCompacta: empArq,
+                            empPastaCompacta: '',
+                            url: urlFinal,
+                            ehPrincipal: notaLimpa === arq.numeroPrincipal
+                        });
+                    });
+                });
+
+                // Prioriza arquivos onde o número bate exatamente após o _D_
+                indiceDrivePorNota.forEach(lista => {
+                    lista.sort((a, b) => (b.ehPrincipal ? 1 : 0) - (a.ehPrincipal ? 1 : 0));
+                });
+
+                if (lbl) lbl.textContent = `Drive: ${json.arquivos.length} arquivo(s) localizado(s) para ${notasUnicas.length} notas`;
+            } else {
+                if (lbl) lbl.textContent = `Drive erro: ${json.erro || 'indisponível'}`;
+            }
+        } catch (e) {
+            if (lbl) lbl.textContent = 'Erro ao buscar notas no Drive';
+        }
+
+        if (document.getElementById('painel-resultados').style.display === 'block') {
+            renderizarTabela();
+        }
     }
     function buscarNotaNoDrive(nota, empresa, data, emissao, cnpj) {
         if (!driveDisponivel || !nota || nota === 'RESUMO') return null;
