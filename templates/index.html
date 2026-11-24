@@ -764,7 +764,7 @@
     function normalizarTexto(txt) {
         return (txt || '')
             .normalize('NFD')
-            .replace(/[\\u0300-\\u036f]/g, '')
+            .replace(/[\u0300-\u036f]/g, '')
             .toUpperCase();
     }
 
@@ -774,9 +774,9 @@
 
     function periodoDrive(data) {
         const t = String(data || '');
-        let m = t.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})/);
+        let m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
         if (m) return [m[3], Number(m[2])];
-        m = t.match(/^(\\d{4})-(\\d{2})-/);
+        m = t.match(/^(\d{4})-(\d{2})-/);
         return m ? [m[1], Number(m[2])] : null;
     }
 
@@ -852,11 +852,11 @@
 
     function buscarNotaNoDrive(nota, empresaBeneficiada, data, emissao) {
         if (!nota || nota === 'RESUMO') return null;
-        const notaLimpa = String(nota).replace(/\\D/g, '').replace(/^0+/, '') || '0';
+        const notaLimpa = String(nota).replace(/\D/g, '').replace(/^0+/, '') || '0';
         if (!notaLimpa || notaLimpa === '0') return null;
 
         const numsBusca = [notaLimpa];
-        if (/^20\\d{2}\\d{2,}$/.test(notaLimpa)) {
+        if (/^20\d{2}\d{2,}$/.test(notaLimpa)) {
             const semAno = notaLimpa.slice(4).replace(/^0+/, '') || '0';
             if (semAno.length >= 2) numsBusca.push(semAno);
         }
@@ -908,13 +908,13 @@
     }
 
     function extrairTokensLimpos(nomeArquivo) {
-        let base = String(nomeArquivo || '').replace(/\\.[^/.]+$/, '');
+        let base = String(nomeArquivo || '').replace(/\.[^/.]+$/, '');
         base = normalizarTexto(base);
         const partes = base.split(/[^A-Z0-9]+/).filter(Boolean);
         return partes.filter(p => {
             if (STOPWORDS.has(p)) return false;
-            if (/^\\d+$/.test(p)) return false;
-            if (/^[A-Z]{1,3}\\d{5,}$/.test(p)) return false;
+            if (/^\d+$/.test(p)) return false;
+            if (/^[A-Z]{1,3}\d{5,}$/.test(p)) return false;
             return true;
         });
     }
@@ -941,7 +941,7 @@
             if (!liv.manual) {
                 liv.empresa = liv.tokens.length
                     ? liv.tokens.join(' ')
-                    : liv.file.name.replace(/\\.[^/.]+$/, '').toUpperCase();
+                    : liv.file.name.replace(/\.[^/.]+$/, '').toUpperCase();
             }
             liv.pareado = false;
         });
@@ -971,7 +971,7 @@
             if (livros.length === 0) {
                 pla.empresa = pla.tokens.length
                     ? pla.tokens.join(' ')
-                    : pla.file.name.replace(/\\.[^/.]+$/, '').toUpperCase();
+                    : pla.file.name.replace(/\.[^/.]+$/, '').toUpperCase();
                 pla.livroUidVinculado = '';
                 pla.pareado = false;
                 return;
@@ -1253,7 +1253,7 @@
                 nomeBase = liv.empresaDetectada.split(' ').slice(0, 3).join(' ');
             }
             if (!nomeBase) {
-                nomeBase = liv.nomeArquivo.replace(/\\.[^/.]+$/, '').toUpperCase();
+                nomeBase = liv.nomeArquivo.replace(/\.[^/.]+$/, '').toUpperCase();
             }
 
             if (liv.cnpj && cnpjParaEmpresa.has(liv.cnpj)) {
@@ -1585,7 +1585,7 @@
     }
 
     function formatarCFOP(cfop) {
-        const codigo = String(cfop ?? '').replace(/\\D/g, '');
+        const codigo = String(cfop ?? '').replace(/\D/g, '');
         if (codigo.length === 4) {
             return codigo.slice(0, 1) + '-' + codigo.slice(1);
         }
@@ -1756,7 +1756,7 @@
             ].join(';'));
         });
 
-        const blob = new Blob(['\\uFEFF' + csvLinhas.join('\\n')], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob(['\uFEFF' + csvLinhas.join('\n')], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -1769,3 +1769,5 @@
 
 </body>
 </html>
+
+print("Linhas:", len(html_raw.splitlines()))
