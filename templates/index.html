@@ -780,82 +780,77 @@
         return m ? [m[1], Number(m[2])] : null;
     }
 
+    let indiceDrivePorPasta = new Map(); // chave: "EMPCOMPACTA|ANO|MES" -> array de arquivos daquela pasta
+
     async function carregarMapaDrive(forcarAtualizacao = false) {
         const lbl = document.getElementById('status-drive-sync');
 
-        const notasUnicas = Array.from(new Set(
-            dadosExtraidos
-                .map(d => String(d.nota || '').replace(/\D/g, '').replace(/^0+/, ''))
-                .filter(n => n && n !== '0')
-        ));
+        // Monta os pares únicos (Empresa + Ano + Mês) a partir das notas lidas das planilhas e livros
+        const consultasMap = new Map();
+        dadosExtraidos.forEach(d => {
+            if (!d.nota || d.nota === 'RESUMO') return;
+            if (!d.empresa || d.empresa.startsWith('SEM VÍNCULO')) return;
 
-        if (notasUnicas.length === 0) {
-            if (lbl) lbl.textContent = 'Drive: aguardando leitura de notas';
+            const p1 = periodoDrive(d.data);
+            const p2 = periodoDrive(d.data_emissao);
+            [p1, p2].filter(Boolean).forEach(([ano, mes]) => {
+                const chave = `${compactarSemEspacos(d.empresa)}|${ano}|${mes}`;
+                if (!consultasMap.has(chave)) {
+                    consultasMap.set(chave, { empresa: d.empresa, ano: String(ano), mes: Number(mes) });
+                }
+            });
+        });
+
+        const consultas = Array.from(consultasMap.values());
+        if (consultas.length === 0) {
+            if (lbl) lbl.textContent = 'Drive: aguardando leitura de empresa/data';
             return;
         }
 
-        if (lbl) lbl.textContent = `Buscando ${notasUnicas.length} notas no Drive...`;
+        if (lbl) lbl.textContent = `Varrendo ${consultas.length} pasta(s) mensal(is) no Drive...`;
 
         try {
             const resp = await fetch('/api/drive-notas', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ notas: notasUnicas, refresh: forcarAtualizacao })
+                body: JSON.stringify({ consultas, refresh: forcarAtualizacao })
             });
             const json = await resp.json();
-            indiceDrivePorNota.clear();
+            indiceDrivePorPasta.clear();
 
             if (json.sucesso && Array.isArray(json.arquivos)) {
                 driveDisponivel = true;
                 json.arquivos.forEach(arq => {
-                    const notaLimpa = String(arq.numeroPrincipal || '').replace(/\D/g, '').replace(/^0+/, '') || '0';
-                    if (!notaLimpa || notaLimpa === '0') return;
-
-                    if (!indiceDrivePorNota.has(notaLimpa)) {
-                        indiceDrivePorNota.set(notaLimpa, []);
+                    const chavePasta = `${compactarSemEspacos(arq.empresaPasta)}|${arq.ano}|${arq.mes}`;
+                    if (!indiceDrivePorPasta.has(chavePasta)) {
+                        indiceDrivePorPasta.set(chavePasta, []);
                     }
-                    indiceDrivePorNota.get(notaLimpa).push({
+                    indiceDrivePorPasta.get(chavePasta).push({
                         id: arq.id,
                         nomeCompleto: arq.nome,
-                        empresaRaw: arq.empresa || '',
-                        empresaPastaRaw: arq.empresaPasta || '',
-                        empCompacta: compactarSemEspacos(arq.empresa || ''),
-                        empPastaCompacta: compactarSemEspacos(arq.empresaPasta || ''),
-                        ano: String(arq.ano || ''),
-                        mes: Number(arq.mes || 0),
+                        tipoPasta: arq.tipoPasta || '',
+                        empresaPasta: arq.empresaPasta || '',
+                        empresaBenef: arq.empresaBenef || '',
+                        empBenefCompacta: compactarSemEspacos(arq.empresaBenef || ''),
+                        numeroPrincipal: String(arq.numeroPrincipal || ''),
+                        numeros: Array.isArray(arq.numeros) ? arq.numeros : [],
                         url: `https://drive.google.com/file/d/${encodeURIComponent(arq.id)}/view`
                     });
                 });
 
-                if (lbl) lbl.textContent = `Drive: ${json.arquivos.length} documento(s) fiscal(is) localizado(s)`;
+                if (lbl) lbl.textContent = `Drive: ${json.arquivos.length} arquivo(s) lido(s) nas pastas do período`;
             } else {
                 driveDisponivel = false;
                 if (lbl) lbl.textContent = `Drive erro: ${json.erro || 'indisponível'}`;
             }
         } catch (e) {
             driveDisponivel = false;
-            if (lbl) lbl.textContent = 'Erro ao buscar notas no Drive';
+            if (lbl) lbl.textContent = 'Erro ao acessar pastas do Drive';
         }
 
         if (document.getElementById('painel-resultados').style.display === 'block') {
             renderizarTabela();
         }
-    }
-
-    function empresaBateDrive(cand, empresaBeneficiada) {
-        const empComp = compactarSemEspacos(empresaBeneficiada);
-        const tokensEmp = extrairTokensLimpos(empresaBeneficiada);
-        if (empComp.length < 2) return true;
-
-        const fontes = [cand.empCompacta, cand.empPastaCompacta].filter(Boolean);
-        for (const f of fontes) {
-            if (f === empComp || f.includes(empComp) || empComp.includes(f)) return true;
-        }
-
-        const tokensCand = extrairTokensLimpos((cand.empresaRaw || '') + ' ' + (cand.empresaPastaRaw || ''));
-        if (tokensEmp.length > 0 && tokensEmp.every(t => tokensCand.includes(t))) return true;
-
-        return false;
     }
 
     function selecionarMelhorCandidatoDrive(candidatos, empresaBeneficiada, periodos) {
@@ -895,47 +890,57 @@
         const notaLimpa = String(nota).replace(/\D/g, '').replace(/^0+/, '') || '0';
         if (!notaLimpa || notaLimpa === '0') return null;
 
+        const numsBusca = [notaLimpa];
+        if (/^20\d{2}\d{2,}$/.test(notaLimpa)) {
+            const semAno = notaLimpa.slice(4).replace(/^0+/, '') || '0';
+            if (semAno.length >= 2) numsBusca.push(semAno);
+        }
+
+        const empComp = compactarSemEspacos(empresaBeneficiada);
         const periodos = [periodoDrive(data), periodoDrive(emissao)].filter(Boolean);
 
-        // 1. Busca número exato após _D_ (ex: 343)
-        let candidatos = indiceDrivePorNota.get(notaLimpa);
-        let encontrado = selecionarMelhorCandidatoDrive(candidatos, empresaBeneficiada, periodos);
-        if (encontrado) return encontrado;
+        const candidatosPasta = [];
+        const idsAdicionados = new Set();
 
-        // 2. Fallback para NFS-e/Recibos com ano na frente na planilha (ex: 202637654 -> 37654)
-        if (/^20\d{2}\d{2,}$/.test(notaLimpa)) {
-            const semAno = notaLimpa.slice(4).replace(/^0+/, '') || '0';
-            if (semAno.length >= 2) {
-                candidatos = indiceDrivePorNota.get(semAno);
-                encontrado = selecionarMelhorCandidatoDrive(candidatos, empresaBeneficiada, periodos);
-                if (encontrado) return encontrado;
-            }
-        }
-        return null;
-    }
+        for (const [ano, mes] of periodos) {
+            for (const [chave, listaArqs] of indiceDrivePorPasta.entries()) {
+                const [empPastaComp, pAno, pMes] = chave.split('|');
+                if (pAno !== String(ano) || Number(pMes) !== Number(mes)) continue;
+                if (empComp && empPastaComp && !empPastaComp.includes(empComp) && !empComp.includes(empPastaComp)) continue;
 
-    function buscarNotaNoDrive(nota, empresaBeneficiada, data, emissao) {
-        if (!nota || nota === 'RESUMO') return null;
-        const notaLimpa = String(nota).replace(/\D/g, '').replace(/^0+/, '') || '0';
-        if (!notaLimpa || notaLimpa === '0') return null;
-
-        // 1. Busca número exato (ex: 37654)
-        let candidatos = indiceDrivePorNota.get(notaLimpa);
-        if (candidatos && candidatos.length > 0) {
-            return selecionarMelhorCandidatoDrive(candidatos, empresaBeneficiada);
-        }
-
-        // 2. Fallback para NFS-e/Recibos com ano na frente na planilha (ex: 202637654 -> 37654)
-        if (/^20\d{2}\d{2,}$/.test(notaLimpa)) {
-            const semAno = notaLimpa.slice(4).replace(/^0+/, '') || '0';
-            if (semAno.length >= 2) {
-                candidatos = indiceDrivePorNota.get(semAno);
-                if (candidatos && candidatos.length > 0) {
-                    return selecionarMelhorCandidatoDrive(candidatos, empresaBeneficiada);
+                for (const arq of listaArqs) {
+                    if (!idsAdicionados.has(arq.id)) {
+                        idsAdicionados.add(arq.id);
+                        candidatosPasta.push(arq);
+                    }
                 }
             }
         }
-        return null;
+
+        if (candidatosPasta.length === 0) return null;
+
+        const matches = [];
+        for (const arq of candidatosPasta) {
+            const batePrincipal = numsBusca.includes(arq.numeroPrincipal);
+            const bateQualquerNum = arq.numeros.some(n => numsBusca.includes(n));
+
+            if (!batePrincipal && !bateQualquerNum) continue;
+
+            let score = 0;
+            if (batePrincipal) score += 10;
+            else if (bateQualquerNum) score += 5;
+
+            if (arq.empBenefCompacta && empComp && (arq.empBenefCompacta.includes(empComp) || empComp.includes(arq.empBenefCompacta))) {
+                score += 4;
+            }
+
+            matches.push({ ...arq, score });
+        }
+
+        if (matches.length === 0) return null;
+        matches.sort((a, b) => b.score - a.score);
+        return matches[0];
+    }
     }
 
     function extrairTokensLimpos(nomeArquivo) {
