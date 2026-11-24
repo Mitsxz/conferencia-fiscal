@@ -840,6 +840,10 @@
                 } else {
                     if (lbl) lbl.textContent = `Drive: ${json.arquivos.length} arquivo(s) lido(s) nas pastas do período`;
                 }
+            } else {
+                driveDisponivel = false;
+                if (lbl) lbl.textContent = `Drive erro: ${json.erro || 'indisponível'}`;
+            }
         } catch (e) {
             driveDisponivel = false;
             if (lbl) lbl.textContent = 'Erro ao acessar pastas do Drive';
