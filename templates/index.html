@@ -724,7 +724,7 @@
     let filtroStatusAtual = 'TODOS';
     let linhasAtuaisTabela = [];
     let painelVinculosAberto = true;
-    let indiceDrivePorNota = new Map();
+    let indiceDrivePorPasta = new Map();
     let driveDisponivel = false;
 
     const STOPWORDS = new Set([
@@ -750,10 +750,10 @@
 
     function escapeHtml(str) {
         return String(str == null ? '' : str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
+            .replace(/&/g, '&')
+            .replace(/</g, '<')
+            .replace(/>/g, '>')
+            .replace(/"/g, '"');
     }
 
     function aoSelecionarInput(inputEl, origem) {
@@ -764,7 +764,7 @@
     function normalizarTexto(txt) {
         return (txt || '')
             .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[\\u0300-\\u036f]/g, '')
             .toUpperCase();
     }
 
@@ -774,18 +774,15 @@
 
     function periodoDrive(data) {
         const t = String(data || '');
-        let m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+        let m = t.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})/);
         if (m) return [m[3], Number(m[2])];
-        m = t.match(/^(\d{4})-(\d{2})-/);
+        m = t.match(/^(\\d{4})-(\\d{2})-/);
         return m ? [m[1], Number(m[2])] : null;
     }
-
-    let indiceDrivePorPasta = new Map(); // chave: "EMPCOMPACTA|ANO|MES" -> array de arquivos daquela pasta
 
     async function carregarMapaDrive(forcarAtualizacao = false) {
         const lbl = document.getElementById('status-drive-sync');
 
-        // Monta os pares únicos (Empresa + Ano + Mês) a partir das notas lidas das planilhas e livros
         const consultasMap = new Map();
         dadosExtraidos.forEach(d => {
             if (!d.nota || d.nota === 'RESUMO') return;
@@ -853,45 +850,13 @@
         }
     }
 
-    function selecionarMelhorCandidatoDrive(candidatos, empresaBeneficiada, periodos) {
-        if (!candidatos || candidatos.length === 0) return null;
-
-        const validos = candidatos.filter(c => {
-            // 1. Exige que a empresa do ficheiro/pasta bata com a empresa da linha
-            if (!empresaBateDrive(c, empresaBeneficiada)) return false;
-
-            // 2. Se sabemos o ano/mês do lançamento e da pasta do Drive, exige que batam
-            if (periodos.length > 0 && c.ano) {
-                const mesmoAno = periodos.some(p => p[0] === c.ano);
-                if (!mesmoAno) return false;
-                if (c.mes > 0) {
-                    const mesmoMes = periodos.some(p => p[0] === c.ano && p[1] === c.mes);
-                    if (!mesmoMes) return false;
-                }
-            }
-            return true;
-        });
-
-        if (validos.length === 0) return null;
-
-        // Prioriza quando o nome após _D_ também bate diretamente com a empresa beneficiada
-        validos.sort((a, b) => {
-            const empComp = compactarSemEspacos(empresaBeneficiada);
-            const aMatchNome = a.empCompacta && (a.empCompacta.includes(empComp) || empComp.includes(a.empCompacta)) ? 1 : 0;
-            const bMatchNome = b.empCompacta && (b.empCompacta.includes(empComp) || empComp.includes(b.empCompacta)) ? 1 : 0;
-            return bMatchNome - aMatchNome;
-        });
-
-        return validos[0];
-    }
-
     function buscarNotaNoDrive(nota, empresaBeneficiada, data, emissao) {
         if (!nota || nota === 'RESUMO') return null;
-        const notaLimpa = String(nota).replace(/\D/g, '').replace(/^0+/, '') || '0';
+        const notaLimpa = String(nota).replace(/\\D/g, '').replace(/^0+/, '') || '0';
         if (!notaLimpa || notaLimpa === '0') return null;
 
         const numsBusca = [notaLimpa];
-        if (/^20\d{2}\d{2,}$/.test(notaLimpa)) {
+        if (/^20\\d{2}\\d{2,}$/.test(notaLimpa)) {
             const semAno = notaLimpa.slice(4).replace(/^0+/, '') || '0';
             if (semAno.length >= 2) numsBusca.push(semAno);
         }
@@ -941,16 +906,15 @@
         matches.sort((a, b) => b.score - a.score);
         return matches[0];
     }
-    }
 
     function extrairTokensLimpos(nomeArquivo) {
-        let base = String(nomeArquivo || '').replace(/\.[^/.]+$/, '');
+        let base = String(nomeArquivo || '').replace(/\\.[^/.]+$/, '');
         base = normalizarTexto(base);
         const partes = base.split(/[^A-Z0-9]+/).filter(Boolean);
         return partes.filter(p => {
             if (STOPWORDS.has(p)) return false;
-            if (/^\d+$/.test(p)) return false;
-            if (/^[A-Z]{1,3}\d{5,}$/.test(p)) return false;
+            if (/^\\d+$/.test(p)) return false;
+            if (/^[A-Z]{1,3}\\d{5,}$/.test(p)) return false;
             return true;
         });
     }
@@ -977,7 +941,7 @@
             if (!liv.manual) {
                 liv.empresa = liv.tokens.length
                     ? liv.tokens.join(' ')
-                    : liv.file.name.replace(/\.[^/.]+$/, '').toUpperCase();
+                    : liv.file.name.replace(/\\.[^/.]+$/, '').toUpperCase();
             }
             liv.pareado = false;
         });
@@ -1007,7 +971,7 @@
             if (livros.length === 0) {
                 pla.empresa = pla.tokens.length
                     ? pla.tokens.join(' ')
-                    : pla.file.name.replace(/\.[^/.]+$/, '').toUpperCase();
+                    : pla.file.name.replace(/\\.[^/.]+$/, '').toUpperCase();
                 pla.livroUidVinculado = '';
                 pla.pareado = false;
                 return;
@@ -1274,7 +1238,6 @@
         document.getElementById('painel-resultados').style.display = 'block';
         renderizarTabela();
 
-        // Busca exatamente as notas extraídas no Google Drive
         carregarMapaDrive(false);
     }
 
@@ -1290,7 +1253,7 @@
                 nomeBase = liv.empresaDetectada.split(' ').slice(0, 3).join(' ');
             }
             if (!nomeBase) {
-                nomeBase = liv.nomeArquivo.replace(/\.[^/.]+$/, '').toUpperCase();
+                nomeBase = liv.nomeArquivo.replace(/\\.[^/.]+$/, '').toUpperCase();
             }
 
             if (liv.cnpj && cnpjParaEmpresa.has(liv.cnpj)) {
@@ -1438,6 +1401,7 @@
         montarSeletorEmpresas();
         renderizarTabela();
         mostrarToastVinculo(`✓ Empresa renomeada para "${nomeLimpo}" e tabela atualizada.`);
+        carregarMapaDrive(false);
     }
 
     function vincularPorLivroUid(uidPlanilha, uidLivro) {
@@ -1464,6 +1428,7 @@
         renderizarPainelVinculos();
         montarSeletorEmpresas();
         renderizarTabela();
+        carregarMapaDrive(false);
     }
 
     function renderizarPainelVinculos() {
@@ -1620,7 +1585,7 @@
     }
 
     function formatarCFOP(cfop) {
-        const codigo = String(cfop ?? '').replace(/\D/g, '');
+        const codigo = String(cfop ?? '').replace(/\\D/g, '');
         if (codigo.length === 4) {
             return codigo.slice(0, 1) + '-' + codigo.slice(1);
         }
@@ -1751,7 +1716,7 @@
                            Abrir Nota ↗
                        </a>
                    </div>`
-                : `<span class="status-pill st-drive-no">${l.nota === 'RESUMO' ? 'Não se aplica' : (!driveDisponivel && indiceDrivePorNota.size === 0 ? 'Sincronizando...' : 'Não está no Drive')}</span>`;
+                : `<span class="status-pill st-drive-no">${l.nota === 'RESUMO' ? 'Não se aplica' : (!driveDisponivel && indiceDrivePorPasta.size === 0 ? 'Sincronizando...' : 'Não está no Drive')}</span>`;
 
             return `
                 <tr>
@@ -1791,7 +1756,7 @@
             ].join(';'));
         });
 
-        const blob = new Blob(['\uFEFF' + csvLinhas.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob(['\\uFEFF' + csvLinhas.join('\\n')], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
