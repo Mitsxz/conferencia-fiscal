@@ -823,7 +823,7 @@
             }
             candidatos.push({
                 ...arq,
-                url: `https://drive.google.com/file/d/${encodeURIComponent(arq.id)}/view`,
+                url: arq.url || `https://drive.google.com/file/d/${encodeURIComponent(arq.id)}/view`,
                 score
             });
         }
