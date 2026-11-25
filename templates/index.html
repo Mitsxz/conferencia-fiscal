@@ -416,7 +416,7 @@
         <!-- Seleção da Planilha encontrada no Drive (pasta ENTRADAS > ANO) -->
         <div class="drive-planilha-box">
             <div class="drive-planilha-info">
-                <h4>Planilha Consolidada no Google Drive (ENTRADAS &gt; ANO)</h4>
+                <h4>Planilha Consolidada no Google Drive (ENTRADAS > ANO)</h4>
                 <p id="status-drive-busca">Carregando planilhas e notas NF-e do Google Drive...</p>
             </div>
             <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
@@ -500,11 +500,11 @@
             <div class="filtros-tabela">
                 <div class="filter-pills" id="status-pills">
                     <button type="button" class="f-pill active" data-st="TODOS" onclick="mudarFiltroStatus('TODOS', this)">Todos</button>
+                    <button type="button" class="f-pill" data-st="OK" onclick="mudarFiltroStatus('OK', this)">OK</button>
                     <button type="button" class="f-pill" data-st="PROBLEMAS" onclick="mudarFiltroStatus('PROBLEMAS', this)">Somente Divergências/Ausentes</button>
                     <button type="button" class="f-pill" data-st="DIVERGENCIA_VALOR" onclick="mudarFiltroStatus('DIVERGENCIA_VALOR', this)">Divergência Valor</button>
                     <button type="button" class="f-pill" data-st="AUSENTE_LIVRO" onclick="mudarFiltroStatus('AUSENTE_LIVRO', this)">Ausente Livro</button>
                     <button type="button" class="f-pill" data-st="AUSENTE_PLANILHA" onclick="mudarFiltroStatus('AUSENTE_PLANILHA', this)">Ausente Planilha</button>
-                    <button type="button" class="f-pill" data-st="OK" onclick="mudarFiltroStatus('OK', this)">OK</button>
                 </div>
                 <input type="text" class="search-input" id="busca-tabela" placeholder="Buscar Nota ou CFOP..." oninput="renderizarTabela()">
             </div>
@@ -565,10 +565,10 @@
 
     function escapeHtml(str) {
         return String(str == null ? '' : str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
+            .replace(/&/g, '&')
+            .replace(/</g, '<')
+            .replace(/>/g, '>')
+            .replace(/"/g, '"');
     }
 
     function normalizarTexto(txt) {
@@ -584,10 +584,16 @@
 
     function extrairMesAnoData(dataStr) {
         const t = String(dataStr || '').trim();
-        let m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-        if (m) return { mes: Number(m[2]), ano: m[3] };
-        m = t.match(/^(\d{4})-(\d{2})-/);
+        if (!t || t === '-') return null;
+        let m = t.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
+        if (m) {
+            const ano = m[3].length === 2 ? '20' + m[3] : m[3];
+            return { mes: Number(m[2]), ano: ano };
+        }
+        m = t.match(/^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})/);
         if (m) return { mes: Number(m[2]), ano: m[1] };
+        m = t.match(/^(\d{1,2})\/(\d{4})$/);
+        if (m) return { mes: Number(m[1]), ano: m[2] };
         return null;
     }
 
@@ -743,7 +749,6 @@
                     const todosRegs = json.registros || [];
                     totalBrutoPlanilha = todosRegs.length;
 
-                    // Verifica se a planilha possui datas para filtrar pelo mês/ano selecionado
                     const regsComData = todosRegs.filter(r => extrairMesAnoData(r.data) !== null);
                     if (regsComData.length > 0 && modo !== 'resumo_cfop') {
                         todosRegs.forEach(reg => {
@@ -770,6 +775,11 @@
                         });
                     }
                     totalFiltradoMes = registrosPlanilha.length;
+
+                    if (totalBrutoPlanilha > 0 && totalFiltradoMes === 0) {
+                        const exemploDatas = [...new Set(todosRegs.slice(0, 10).map(r => r.data).filter(Boolean))].join(', ');
+                        erros.push(`• <strong>${escapeHtml(planilhaEscolhida.nome)}</strong>: Extraídas ${totalBrutoPlanilha} linha(s), mas 0 bateram com ${String(mes).padStart(2, '0')}/${ano} (datas encontradas: ${escapeHtml(exemploDatas || 'nenhuma')}).`);
+                    }
                 }
             } catch (e) {
                 erros.push(`• <strong>${escapeHtml(planilhaEscolhida.nome)}</strong>: Falha de rede (${escapeHtml(e.message)})`);
