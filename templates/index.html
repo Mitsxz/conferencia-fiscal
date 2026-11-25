@@ -3,1559 +3,954 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Controle e Conferência Fiscal de Notas</title>
-  <!-- Fonte Inter para alta legibilidade em operação fiscal -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <!-- Tailwind CSS via CDN -->
+  <title>Controle Fiscal & Conferência com Livro Fiscal</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- PDF.js via CDN para leitura nativa de livros fiscais em PDF no navegador -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-          },
-          colors: {
-            brand: {
-              50: '#eff6ff',
-              100: '#dbeafe',
-              500: '#3b82f6',
-              600: '#2563eb',
-              700: '#1d4ed8',
-            }
-          }
-        }
-      }
-    };
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
   </script>
   <style>
     body {
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: #f8fafc;
       color: #0f172a;
     }
-    /* Scrollbar discreta para tabelas largas de operação fiscal */
-    .table-scroll::-webkit-scrollbar {
-      height: 8px;
-      width: 8px;
+    .table-wrap {
+      max-height: 580px;
+      overflow: auto;
     }
-    .table-scroll::-webkit-scrollbar-track {
-      background: #f1f5f9;
-      border-radius: 9999px;
-    }
-    .table-scroll::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 9999px;
-    }
-    .table-scroll::-webkit-scrollbar-thumb:hover {
-      background: #94a3b8;
-    }
-    .mono-chave {
-      font-variant-numeric: tabular-nums;
-      letter-spacing: 0.02em;
+    .table-wrap thead th {
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
   </style>
 </head>
-<body class="min-h-screen flex flex-col bg-slate-50 text-slate-900">
+<body class="min-h-screen flex flex-col">
+  <!-- URL padrão fixa do Apps Script Web App -->
+  <script>
+    const FIXED_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxFae1FnWxiULCK0LKvXN61W__D1ImiDGOfTHFUmO7sujfkgPkapsrcIDtcM_LrLJAYeg/exec";
+    const STORAGE_KEY_URL = "controle_fiscal_webapp_url_v3";
+    const STORAGE_KEY_MODE = "controle_fiscal_mode_v3";
+  </script>
 
-  <!-- Cabeçalho Superior Fixo -->
-  <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between py-3.5 gap-3">
-        <!-- Identidade do Sistema com Logo static/logo.png e Fallback -->
-        <div class="flex items-center gap-3">
-          <div class="h-11 w-11 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm shrink-0 overflow-hidden border border-slate-200/80 relative">
-            <img
-              id="logoHeaderImg"
-              src="static/logo.png"
-              alt="Logo Controle e Conferência Fiscal"
-              class="w-full h-full object-contain bg-white p-0.5"
-              onerror="tratarErroLogo(this, 'logoHeaderFallback')"
-            />
-            <span id="logoHeaderFallback" class="hidden w-full h-full items-center justify-center bg-blue-600 text-white">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </span>
-          </div>
-          <div>
-            <div class="flex items-center gap-2 flex-wrap">
-              <h1 class="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
-                Controle &amp; Conferência Fiscal
-              </h1>
-              <span id="badgeFonteAtiva" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                Demonstração (Planilha)
-              </span>
-            </div>
-            <p class="text-xs text-slate-500">
-              Abas de empresas, DEPARA e REGISTRO_NOTAS integrados ao Google Drive • Suporte a PDF, CSV e JSON
-            </p>
-          </div>
+  <!-- Cabeçalho -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+          <img
+            src="static/logo.png"
+            alt="Logo"
+            class="w-full h-full object-contain p-1"
+            onerror="this.style.display='none'; document.getElementById('headerLogoFallback').style.display='flex';"
+          />
+          <span id="headerLogoFallback" style="display:none;" class="w-full h-full items-center justify-center text-white font-bold text-sm tracking-wide">
+            CF
+          </span>
         </div>
-
-        <!-- Ações de Fonte de Dados -->
-        <div class="flex items-center gap-2 flex-wrap">
-          <button
-            id="btnRecarregarDados"
-            type="button"
-            onclick="recarregarFonteDados()"
-            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer"
-          >
-            <svg id="iconeRecarregar" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Atualizar Base
-          </button>
-
-          <button
-            type="button"
-            onclick="abrirModalFonteDados()"
-            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition cursor-pointer"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
-            Fonte de Dados / Apps Script
-          </button>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+            Controle Fiscal &amp; Conferência com Livro Fiscal
+          </h1>
+          <p id="statusConexaoTexto" class="text-xs text-slate-500">
+            Link da planilha configurado por padrão • Conectando...
+          </p>
         </div>
       </div>
 
-      <!-- Navegação entre as 2 Abas Principais -->
-      <nav class="flex gap-2 -mb-px overflow-x-auto" aria-label="Abas principais">
+      <div class="flex items-center gap-2">
+        <button
+          id="btnAtualizarDados"
+          type="button"
+          class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer"
+        >
+          Atualizar Planilha
+        </button>
+        <button
+          id="btnAbrirFonteDados"
+          type="button"
+          class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg bg-slate-900 hover:bg-slate-800 text-white transition cursor-pointer"
+        >
+          Fonte de Dados / Apps Script
+        </button>
+      </div>
+    </div>
+
+    <!-- Navegação de Abas -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6">
+      <nav class="flex gap-6 border-t border-slate-100" aria-label="Abas principais">
         <button
           id="tabBtnNotas"
           type="button"
           onclick="trocarAba('notas')"
-          class="group inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 border-blue-600 text-blue-600 whitespace-nowrap transition cursor-pointer"
+          class="py-3 text-sm font-semibold border-b-2 border-blue-600 text-blue-600 transition cursor-pointer"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-          </svg>
           1. Notas da Planilha
-          <span id="contadorAbaNotas" class="ml-1 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700 font-semibold">0</span>
         </button>
-
         <button
           id="tabBtnConferencia"
           type="button"
           onclick="trocarAba('conferencia')"
-          class="group inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300 whitespace-nowrap transition cursor-pointer"
+          class="py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition cursor-pointer"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-          </svg>
           2. Conferência com Livro Fiscal
-          <span id="contadorAbaConferencia" class="hidden ml-1 px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-700 font-semibold">0</span>
         </button>
       </nav>
     </div>
   </header>
 
-  <!-- Banner de Notificação / Mensagens (substitui alert/confirm) -->
-  <div id="bannerFeedback" class="hidden max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-    <div id="bannerFeedbackInterno" class="rounded-xl px-4 py-3 text-sm font-medium flex items-center justify-between gap-3 border">
-      <div class="flex items-center gap-2.5">
-        <span id="bannerFeedbackIcone"></span>
-        <span id="bannerFeedbackTexto"></span>
-      </div>
-      <button type="button" onclick="ocultarBanner()" class="text-xs opacity-75 hover:opacity-100 font-semibold cursor-pointer">
-        Fechar
-      </button>
-    </div>
-  </div>
-
   <!-- Conteúdo Principal -->
-  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+    <!-- Banner de aviso -->
+    <div id="bannerAlerta" class="hidden rounded-xl border px-4 py-3 text-sm"></div>
 
-    <!-- ===================================================================== -->
-    <!-- ABA 1: NOTAS DA PLANILHA                                              -->
-    <!-- ===================================================================== -->
-    <section id="abaNotas" class="space-y-6">
-      <!-- Cards de Resumo da Base Consolidada -->
+    <!-- ABA 1: NOTAS DA PLANILHA -->
+    <section id="abaNotas" class="space-y-5">
+      <!-- Cards de Resumo -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-          <p class="text-xs font-medium text-slate-500">Total na Planilha</p>
-          <p id="statTotalNotas" class="mt-1 text-2xl font-bold text-slate-900">0</p>
-          <p class="mt-1 text-xs text-slate-400">Abas de empresas + REGISTRO_NOTAS</p>
+        <div class="bg-white rounded-xl border border-slate-200 p-4">
+          <div class="text-xs font-medium text-slate-500">Total de Notas na Planilha</div>
+          <div id="metricTotalNotas" class="text-2xl font-bold text-slate-900 mt-1">0</div>
         </div>
-
-        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-          <p class="text-xs font-medium text-slate-500">Com Link no Drive</p>
-          <p id="statComDrive" class="mt-1 text-2xl font-bold text-emerald-600">0</p>
-          <p class="mt-1 text-xs text-slate-400">Arquivo ou pasta disponível</p>
+        <div class="bg-white rounded-xl border border-slate-200 p-4">
+          <div class="text-xs font-medium text-slate-500">Com Link no Drive</div>
+          <div id="metricComDrive" class="text-2xl font-bold text-emerald-600 mt-1">0</div>
         </div>
-
-        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-          <p class="text-xs font-medium text-slate-500">Sem Link no Drive</p>
-          <p id="statSemDrive" class="mt-1 text-2xl font-bold text-amber-600">0</p>
-          <p class="mt-1 text-xs text-slate-400">Pendentes de localização/arquivo</p>
+        <div class="bg-white rounded-xl border border-slate-200 p-4">
+          <div class="text-xs font-medium text-slate-500">Sem Link no Drive</div>
+          <div id="metricSemDrive" class="text-2xl font-bold text-amber-600 mt-1">0</div>
         </div>
-
-        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-          <p class="text-xs font-medium text-slate-500">Desconsideradas / Regra</p>
-          <p id="statDesconsideradas" class="mt-1 text-2xl font-bold text-rose-600">0</p>
-          <p class="mt-1 text-xs text-slate-400">Marcadas na coluna de status</p>
+        <div class="bg-white rounded-xl border border-slate-200 p-4">
+          <div class="text-xs font-medium text-slate-500">Valor Total Filtrado</div>
+          <div id="metricValorNotas" class="text-2xl font-bold text-slate-900 mt-1">R$ 0,00</div>
         </div>
       </div>
 
-      <!-- Barra de Filtros da Aba 1 -->
-      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500">
-            Filtros da Planilha
-          </h2>
-          <button
-            type="button"
-            onclick="limparFiltrosAba1()"
-            class="self-start sm:self-auto text-xs font-semibold text-blue-600 hover:text-blue-800 cursor-pointer"
-          >
-            Limpar todos os filtros
-          </button>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <!-- Busca por Texto -->
-          <div>
-            <label for="filtroBuscaAba1" class="block text-xs font-medium text-slate-700 mb-1">
-              Buscar (Número, Chave, Parceiro, ID)
+      <!-- Filtros da Aba 1 -->
+      <div class="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div class="md:col-span-2">
+            <label for="filtroBuscaNotas" class="block text-xs font-semibold text-slate-600 mb-1">
+              Buscar por Número, Chave de Acesso (44 dígitos), Parceiro ou ID
             </label>
-            <div class="relative">
-              <input
-                id="filtroBuscaAba1"
-                type="text"
-                oninput="renderizarTabelaNotas()"
-                placeholder="Ex: 001482, 352611..., ALPINE..."
-                class="w-full rounded-xl border border-slate-300 bg-slate-50 focus:bg-white px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
+            <input
+              id="filtroBuscaNotas"
+              type="text"
+              placeholder="Ex.: 000123, 3526..., fornecedor, ALPINE..."
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
-
-          <!-- Filtro por Empresa -->
           <div>
-            <label for="filtroEmpresaAba1" class="block text-xs font-medium text-slate-700 mb-1">
+            <label for="filtroEmpresaNotas" class="block text-xs font-semibold text-slate-600 mb-1">
               Empresa
             </label>
             <select
-              id="filtroEmpresaAba1"
-              onchange="renderizarTabelaNotas()"
-              class="w-full rounded-xl border border-slate-300 bg-slate-50 focus:bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              id="filtroEmpresaNotas"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="TODAS">Todas as empresas</option>
+              <option value="">Todas as empresas</option>
             </select>
           </div>
-
-          <!-- Filtro por Mês/Ano (DEPARA) -->
           <div>
-            <label for="filtroPeriodoAba1" class="block text-xs font-medium text-slate-700 mb-1">
-              Período (Mês / Ano - DEPARA)
+            <label for="filtroDriveNotas" class="block text-xs font-semibold text-slate-600 mb-1">
+              Status no Drive
             </label>
             <select
-              id="filtroPeriodoAba1"
-              onchange="renderizarTabelaNotas()"
-              class="w-full rounded-xl border border-slate-300 bg-slate-50 focus:bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              id="filtroDriveNotas"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="TODOS">Todos os períodos</option>
-            </select>
-          </div>
-
-          <!-- Filtro Drive -->
-          <div>
-            <label for="filtroDriveAba1" class="block text-xs font-medium text-slate-700 mb-1">
-              Disponibilidade no Drive
-            </label>
-            <select
-              id="filtroDriveAba1"
-              onchange="renderizarTabelaNotas()"
-              class="w-full rounded-xl border border-slate-300 bg-slate-50 focus:bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="TODAS">Todas as notas</option>
+              <option value="TODAS">Todas</option>
               <option value="COM_LINK">Com link no Drive</option>
               <option value="SEM_LINK">Sem link no Drive</option>
             </select>
           </div>
         </div>
 
-        <!-- Opção de incluir/ocultar desconsideradas -->
-        <div class="flex items-center justify-between pt-1 border-t border-slate-100 flex-wrap gap-2">
-          <label class="inline-flex items-center gap-2 text-xs sm:text-sm text-slate-600 cursor-pointer select-none">
-            <input
-              id="filtroOcultarDesconsideradas"
-              type="checkbox"
-              onchange="renderizarTabelaNotas()"
-              class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-            />
-            Ocultar notas com status "Desconsiderada (Regra de Nome)"
-          </label>
-          <span id="contadorResultadosAba1" class="text-xs font-medium text-slate-500">
-            Exibindo 0 notas
-          </span>
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <label for="filtroMesNotas" class="text-xs font-semibold text-slate-600">Mês (DEPARA):</label>
+            <select
+              id="filtroMesNotas"
+              class="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white"
+            >
+              <option value="">Todos os meses</option>
+              <option value="01">01 - JAN</option>
+              <option value="02">02 - FEV</option>
+              <option value="03">03 - MAR</option>
+              <option value="04">04 - ABR</option>
+              <option value="05">05 - MAI</option>
+              <option value="06">06 - JUN</option>
+              <option value="07">07 - JUL</option>
+              <option value="08">08 - AGO</option>
+              <option value="09">09 - SET</option>
+              <option value="10">10 - OUT</option>
+              <option value="11">11 - NOV</option>
+              <option value="12">12 - DEZ</option>
+            </select>
+            <label class="inline-flex items-center gap-1.5 text-xs text-slate-600 ml-2 cursor-pointer">
+              <input id="ocultarDesconsideradasNotas" type="checkbox" checked class="rounded border-slate-300" />
+              Ocultar desconsideradas
+            </label>
+          </div>
+          <button
+            id="btnLimparFiltrosNotas"
+            type="button"
+            class="text-xs font-medium text-blue-600 hover:underline cursor-pointer"
+          >
+            Limpar filtros
+          </button>
         </div>
       </div>
 
-      <!-- Tabela Consolidada da Aba 1 -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div class="table-scroll overflow-x-auto">
-          <table class="min-w-full divide-y divide-slate-200 text-left">
-            <thead class="bg-slate-50 text-slate-600 text-xs font-semibold uppercase tracking-wider">
+      <!-- Tabela de Notas da Planilha -->
+      <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <span id="contadorResultadosNotas" class="text-xs font-semibold text-slate-600">
+            Exibindo 0 notas
+          </span>
+          <span class="text-xs text-slate-400">
+            Links diretos puxados da planilha / REGISTRO_NOTAS
+          </span>
+        </div>
+        <div class="table-wrap">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50 text-xs uppercase text-slate-500 font-semibold">
               <tr>
-                <th class="px-4 py-3.5">Empresa</th>
-                <th class="px-4 py-3.5">Período</th>
-                <th class="px-4 py-3.5">Número / Chave / ID</th>
-                <th class="px-4 py-3.5">Fornecedor / Cliente</th>
-                <th class="px-4 py-3.5 text-right">Valor</th>
-                <th class="px-4 py-3.5">Status Fiscal</th>
-                <th class="px-4 py-3.5 text-center">Google Drive</th>
+                <th class="px-4 py-3 text-left">Empresa</th>
+                <th class="px-4 py-3 text-left">Número / Série</th>
+                <th class="px-4 py-3 text-left">Chave de Acesso</th>
+                <th class="px-4 py-3 text-left">Data</th>
+                <th class="px-4 py-3 text-left">Parceiro</th>
+                <th class="px-4 py-3 text-right">Valor</th>
+                <th class="px-4 py-3 text-left">Status Fiscal</th>
+                <th class="px-4 py-3 text-center">Drive</th>
               </tr>
             </thead>
-            <tbody id="corpoTabelaNotas" class="divide-y divide-slate-100 text-sm">
-              <!-- Linhas renderizadas via JS -->
-            </tbody>
+            <tbody id="tbodyNotasPlanilha" class="divide-y divide-slate-100"></tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <!-- ===================================================================== -->
-    <!-- ABA 2: CONFERÊNCIA COM LIVRO FISCAL                                   -->
-    <!-- ===================================================================== -->
-    <section id="abaConferencia" class="hidden space-y-6">
-      <!-- Passo 1 & 2: Seleção Múltipla de Empresas + Meses/Ano -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <!-- Seleção de Múltiplas Empresas (7 cols) -->
-        <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+    <!-- ABA 2: CONFERÊNCIA COM LIVRO FISCAL -->
+    <section id="abaConferencia" class="hidden space-y-5">
+      <!-- Seleção Múltipla de Empresas e Meses -->
+      <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-5">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Multi-seleção de Empresas -->
           <div>
-            <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
-              <div>
-                <h2 class="text-base font-bold text-slate-900">1. Selecione as Empresas</h2>
-                <p class="text-xs text-slate-500">Marque uma ou várias empresas para cruzar simultaneamente</p>
-              </div>
-              <div class="flex items-center gap-2">
-                <button
-                  type="button"
-                  onclick="selecionarTodasEmpresas(true)"
-                  class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition cursor-pointer"
-                >
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                1. Empresas para Conferência (Múltipla Escolha)
+              </label>
+              <div class="flex gap-2 text-xs">
+                <button type="button" onclick="selecionarTodasEmpresas(true)" class="text-blue-600 hover:underline cursor-pointer">
                   Selecionar todas
                 </button>
-                <button
-                  type="button"
-                  onclick="selecionarTodasEmpresas(false)"
-                  class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition cursor-pointer"
-                >
+                <span class="text-slate-300">|</span>
+                <button type="button" onclick="selecionarTodasEmpresas(false)" class="text-slate-500 hover:underline cursor-pointer">
                   Limpar
                 </button>
               </div>
             </div>
-
-            <div id="containerChipsEmpresas" class="flex flex-wrap gap-2 pt-1">
-              <!-- Chips de empresas gerados via JS -->
-            </div>
+            <div id="containerEmpresasConferencia" class="flex flex-wrap gap-2 p-3 rounded-xl border border-slate-200 bg-slate-50 min-h-[58px]"></div>
           </div>
 
-          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span>Empresas selecionadas:</span>
-            <strong id="resumoEmpresasSelecionadas" class="text-slate-800">Nenhuma</strong>
-          </div>
-        </div>
-
-        <!-- Seleção de Múltiplos Meses / Ano (5 cols) -->
-        <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+          <!-- Multi-seleção de Meses -->
           <div>
-            <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
-              <div>
-                <h2 class="text-base font-bold text-slate-900">2. Período (DEPARA)</h2>
-                <p class="text-xs text-slate-500">Escolha um ou mais meses do ano fiscal</p>
-              </div>
-              <div class="flex items-center gap-2">
-                <select
-                  id="selectAnoConferencia"
-                  onchange="renderizarChipsMeses()"
-                  class="rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="2026" selected>2026</option>
-                  <option value="2025">2025</option>
-                  <option value="TODOS_ANOS">Todos os anos</option>
-                </select>
-                <button
-                  type="button"
-                  onclick="selecionarTodosMeses(true)"
-                  class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition cursor-pointer"
-                >
-                  Todos
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                2. Meses do Período (Múltipla Escolha)
+              </label>
+              <div class="flex gap-2 text-xs">
+                <button type="button" onclick="selecionarTodosMeses(true)" class="text-blue-600 hover:underline cursor-pointer">
+                  Todos os meses
                 </button>
-                <button
-                  type="button"
-                  onclick="selecionarTodosMeses(false)"
-                  class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition cursor-pointer"
-                >
+                <span class="text-slate-300">|</span>
+                <button type="button" onclick="selecionarTodosMeses(false)" class="text-slate-500 hover:underline cursor-pointer">
                   Limpar
                 </button>
               </div>
             </div>
+            <div id="containerMesesConferencia" class="grid grid-cols-4 sm:grid-cols-6 gap-2 p-3 rounded-xl border border-slate-200 bg-slate-50"></div>
+          </div>
+        </div>
 
-            <div id="containerChipsMeses" class="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-4 gap-2 pt-1">
-              <!-- Meses JAN..DEZ gerados via JS -->
+        <!-- Upload de Arquivo (PDF, CSV, TXT, JSON) ou Texto Colado -->
+        <div class="border-t border-slate-200 pt-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+              3. Livro Fiscal (PDF, CSV, TXT ou Texto Colado)
+            </label>
+            <div class="flex flex-wrap items-center gap-2">
+              <label class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer">
+                Importar PDF / CSV / TXT
+                <input
+                  id="inputArquivoLivro"
+                  type="file"
+                  accept=".pdf,.csv,.tsv,.txt,.json"
+                  class="hidden"
+                />
+              </label>
+              <button
+                id="btnCarregarExemploLivro"
+                type="button"
+                class="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 cursor-pointer"
+              >
+                Carregar Exemplo de Livro
+              </button>
             </div>
           </div>
 
-          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span>Meses ativos:</span>
-            <strong id="resumoMesesSelecionados" class="text-slate-800">Todos os meses</strong>
+          <!-- Status de leitura de PDF / Arquivo -->
+          <div id="progressoArquivoLivro" class="hidden rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-800">
+            Processando arquivo...
+          </div>
+
+          <textarea
+            id="textoLivroFiscal"
+            rows="6"
+            placeholder="Cole aqui o conteúdo do livro fiscal (linhas com chave de 44 dígitos, número da nota, empresa, data, valor, CSV/TSV ou texto extraído de PDF)..."
+            class="w-full rounded-xl border border-slate-300 p-3 text-xs sm:text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+          ></textarea>
+
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <span id="resumoTextoLivro" class="text-xs text-slate-500">
+              0 linhas carregadas no livro fiscal
+            </span>
+            <div class="flex items-center gap-2">
+              <button
+                id="btnLimparLivro"
+                type="button"
+                class="px-3 py-2 text-xs font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer"
+              >
+                Limpar Livro
+              </button>
+              <button
+                id="btnExecutarConferencia"
+                type="button"
+                class="px-5 py-2 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition cursor-pointer"
+              >
+                Conferir Notas Agora
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Passo 3: Entrada do Livro Fiscal (PDF, CSV, TXT, TSV, JSON ou Texto Colado) -->
-      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <h2 class="text-base font-bold text-slate-900">3. Livro Fiscal (PDF, CSV, TXT, Colar Linhas ou JSON)</h2>
-            <p class="text-xs text-slate-500">
-              Extrai automaticamente chaves de acesso de 44 dígitos, números de nota, datas, valores e empresas em PDFs com texto selecionável ou planilhas/textos colados.
-            </p>
-          </div>
-
-          <div class="flex items-center gap-2 flex-wrap">
-            <label class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
-              Enviar PDF / CSV / TXT
-              <input
-                id="inputArquivoLivro"
-                type="file"
-                accept=".pdf,.csv,.tsv,.txt,.json"
-                onchange="lerArquivoLivroFiscal(event)"
-                class="hidden"
-              />
-            </label>
-
-            <button
-              type="button"
-              onclick="carregarLivroExemplo()"
-              class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-              </svg>
-              Carregar Livro de Exemplo
-            </button>
-
-            <button
-              type="button"
-              onclick="limparTextoLivro()"
-              class="px-3 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer"
-            >
-              Limpar
-            </button>
-          </div>
+      <!-- Métricas do Resultado Unificado -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl border border-slate-200 p-4">
+          <div class="text-xs font-medium text-slate-500">Total Conferido</div>
+          <div id="confMetricTotal" class="text-2xl font-bold text-slate-900 mt-1">0</div>
         </div>
-
-        <!-- Barra de Progresso de Extração de PDF -->
-        <div id="barraProgressoPdf" class="hidden rounded-xl bg-blue-50 border border-blue-200 p-3 space-y-2">
-          <div class="flex items-center justify-between text-xs font-semibold text-blue-800">
-            <span id="textoProgressoPdf">Extraindo texto do PDF...</span>
-            <span id="percentualProgressoPdf">0%</span>
-          </div>
-          <div class="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
-            <div id="fillProgressoPdf" class="h-full bg-blue-600 transition-all duration-200" style="width: 0%"></div>
-          </div>
+        <div class="bg-white rounded-xl border border-slate-200 p-4">
+          <div class="text-xs font-medium text-slate-500">Localizadas com Link no Drive</div>
+          <div id="confMetricNoDrive" class="text-2xl font-bold text-emerald-600 mt-1">0</div>
         </div>
-
-        <textarea
-          id="textareaLivroFiscal"
-          rows="7"
-          placeholder="Cole aqui as linhas do livro fiscal (CSV, ponto-e-vírgula, tabulação, JSON ou texto extraído de PDF). Ex:&#10;empresa;numero;chave;data;valor;fornecedor&#10;ALPINE;1482;35261101234567000190550010000014821123456789;10/11/2026;4850.00;MEDHOSPITALAR LTDA"
-          class="w-full rounded-xl border border-slate-300 bg-slate-50 focus:bg-white p-3.5 text-xs sm:text-sm font-mono text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        ></textarea>
-
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
-          <div class="flex items-center gap-3 flex-wrap">
-            <label class="inline-flex items-center gap-2 text-xs sm:text-sm text-slate-700 cursor-pointer select-none">
-              <input
-                id="chkIncluirSomentePlanilha"
-                type="checkbox"
-                checked
-                class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              Incluir também notas da planilha que não constaram no livro (no período selecionado)
-            </label>
-          </div>
-
-          <button
-            id="btnConferirNotas"
-            type="button"
-            onclick="executarConferencia()"
-            class="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition cursor-pointer"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            Conferir Notas
-          </button>
+        <div class="bg-white rounded-xl border border-slate-200 p-4">
+          <div class="text-xs font-medium text-slate-500">Na Planilha sem Link / Faltando</div>
+          <div id="confMetricFaltando" class="text-2xl font-bold text-rose-600 mt-1">0</div>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 p-4">
+          <div class="text-xs font-medium text-slate-500">Só na Planilha (Não no Livro)</div>
+          <div id="confMetricApenasPlanilha" class="text-2xl font-bold text-amber-600 mt-1">0</div>
         </div>
       </div>
 
-      <!-- Painel Consolidado de Resultado da Conferência -->
-      <div id="painelResultadoConferencia" class="hidden space-y-5">
-        <!-- Métricas Consolidadas -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-            <p class="text-xs font-medium text-slate-500">Total Conferido</p>
-            <p id="confTotal" class="mt-1 text-2xl font-bold text-slate-900">0</p>
-          </div>
-          <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-            <p class="text-xs font-medium text-slate-500">No Drive / Localizadas</p>
-            <p id="confNoDrive" class="mt-1 text-2xl font-bold text-emerald-600">0</p>
-          </div>
-          <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-            <p class="text-xs font-medium text-slate-500">Na Planilha (Sem Link)</p>
-            <p id="confSemLink" class="mt-1 text-2xl font-bold text-amber-600">0</p>
-          </div>
-          <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-            <p class="text-xs font-medium text-slate-500">Só no Livro Fiscal</p>
-            <p id="confSoLivro" class="mt-1 text-2xl font-bold text-rose-600">0</p>
-          </div>
-          <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs col-span-2 sm:col-span-1">
-            <p class="text-xs font-medium text-slate-500">Só na Planilha (Período)</p>
-            <p id="confSoPlanilha" class="mt-1 text-2xl font-bold text-blue-600">0</p>
-          </div>
-        </div>
-
-        <!-- Barra de Filtros do Resultado e Exportação CSV -->
-        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <!-- Tabela Unificada de Resultado -->
+      <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div class="flex flex-wrap items-center gap-2">
-            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 mr-1">Filtrar resultado:</span>
-            <button
-              type="button"
-              data-filtro-conf="TODOS"
-              onclick="setFiltroResultadoConferencia('TODOS')"
-              class="btn-filtro-conf px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white cursor-pointer"
+            <label for="filtroStatusConferencia" class="text-xs font-semibold text-slate-600">
+              Filtrar resultado:
+            </label>
+            <select
+              id="filtroStatusConferencia"
+              class="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white"
             >
-              Todos
-            </button>
-            <button
-              type="button"
-              data-filtro-conf="NO_DRIVE"
-              onclick="setFiltroResultadoConferencia('NO_DRIVE')"
-              class="btn-filtro-conf px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer"
-            >
-              No Drive
-            </button>
-            <button
-              type="button"
-              data-filtro-conf="PENDENTES"
-              onclick="setFiltroResultadoConferencia('PENDENTES')"
-              class="btn-filtro-conf px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer"
-            >
-              Pendências (Sem link / Só livro)
-            </button>
-            <button
-              type="button"
-              data-filtro-conf="SO_LIVRO"
-              onclick="setFiltroResultadoConferencia('SO_LIVRO')"
-              class="btn-filtro-conf px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer"
-            >
-              Só no Livro
-            </button>
-            <button
-              type="button"
-              data-filtro-conf="SO_PLANILHA"
-              onclick="setFiltroResultadoConferencia('SO_PLANILHA')"
-              class="btn-filtro-conf px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer"
-            >
-              Só na Planilha
-            </button>
+              <option value="TODOS">Todos os itens</option>
+              <option value="NO_DRIVE">Localizada no Drive (Com Link)</option>
+              <option value="SEM_LINK_DRIVE">Na Planilha / Sem Link no Drive</option>
+              <option value="FALTANDO_PLANILHA">No Livro Fiscal / Não Localizada na Planilha</option>
+              <option value="APENAS_PLANILHA">Na Planilha / Ausente no Livro Fiscal</option>
+            </select>
+            <input
+              id="filtroBuscaConferencia"
+              type="text"
+              placeholder="Filtrar resultado por número, chave ou empresa..."
+              class="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs w-60"
+            />
           </div>
 
           <button
+            id="btnExportarCsvConferencia"
             type="button"
-            onclick="exportarResultadoCSV()"
-            class="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition cursor-pointer"
+            class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
             Exportar Resultado (CSV)
           </button>
         </div>
 
-        <!-- Tabela Consolidada do Resultado -->
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div class="table-scroll overflow-x-auto">
-            <table class="min-w-full divide-y divide-slate-200 text-left">
-              <thead class="bg-slate-50 text-slate-600 text-xs font-semibold uppercase tracking-wider">
-                <tr>
-                  <th class="px-4 py-3.5">Status Conferência</th>
-                  <th class="px-4 py-3.5">Empresa</th>
-                  <th class="px-4 py-3.5">Período</th>
-                  <th class="px-4 py-3.5">Número / Chave</th>
-                  <th class="px-4 py-3.5">Parceiro</th>
-                  <th class="px-4 py-3.5 text-right">Valor Livro</th>
-                  <th class="px-4 py-3.5 text-right">Valor Planilha</th>
-                  <th class="px-4 py-3.5 text-center">Drive</th>
-                </tr>
-              </thead>
-              <tbody id="corpoTabelaConferencia" class="divide-y divide-slate-100 text-sm">
-                <!-- Linhas geradas via JS -->
-              </tbody>
-            </table>
-          </div>
+        <div class="table-wrap">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50 text-xs uppercase text-slate-500 font-semibold">
+              <tr>
+                <th class="px-4 py-3 text-left">Status Conferência</th>
+                <th class="px-4 py-3 text-left">Empresa</th>
+                <th class="px-4 py-3 text-left">Número</th>
+                <th class="px-4 py-3 text-left">Chave de Acesso</th>
+                <th class="px-4 py-3 text-left">Data</th>
+                <th class="px-4 py-3 text-right">Valor</th>
+                <th class="px-4 py-3 text-center">Link Drive</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyResultadoConferencia" class="divide-y divide-slate-100">
+              <tr>
+                <td colspan="7" class="px-4 py-10 text-center text-slate-400 text-sm">
+                  Selecione as empresas e meses, informe o livro fiscal e clique em <strong>Conferir Notas Agora</strong>.
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Rodapé -->
-  <footer class="bg-white border-t border-slate-200 py-4 mt-8">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
-      <span>Operação Fiscal • Cruzamento de abas de empresas, DEPARA e REGISTRO_NOTAS</span>
-      <span id="rodapeResumoConexao">Modo: Demonstração embutida</span>
-    </div>
-  </footer>
-
-  <!-- ===================================================================== -->
-  <!-- MODAL: FONTE DE DADOS (APPS SCRIPT / PLANILHA)                        -->
-  <!-- ===================================================================== -->
-  <div id="modalFonteDados" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
-      <!-- Cabeçalho do Modal com Logo static/logo.png e Fallback -->
-      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="h-10 w-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0 overflow-hidden border border-slate-200 relative">
+  <!-- Modal Fonte de Dados / Apps Script -->
+  <div id="modalFonteDados" class="hidden fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-5 shadow-xl">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-slate-900 flex items-center justify-center overflow-hidden shrink-0">
             <img
-              id="logoModalImg"
               src="static/logo.png"
-              alt="Logo Fonte de Dados"
-              class="w-full h-full object-contain bg-white p-0.5"
-              onerror="tratarErroLogo(this, 'logoModalFallback')"
+              alt="Logo"
+              class="w-full h-full object-contain p-1"
+              onerror="this.style.display='none'; document.getElementById('modalLogoFallback').style.display='flex';"
             />
-            <span id="logoModalFallback" class="hidden w-full h-full items-center justify-center bg-blue-600 text-white">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-              </svg>
+            <span id="modalLogoFallback" style="display:none;" class="w-full h-full items-center justify-center text-white font-bold text-xs">
+              CF
             </span>
           </div>
-          <div class="min-w-0">
-            <h3 class="text-base sm:text-lg font-bold text-slate-900 truncate">
-              Fonte de Dados (Planilha &amp; Google Apps Script)
-            </h3>
-            <p class="text-xs text-slate-500 truncate">
-              Use dados de demonstração, conecte a um Web App do Apps Script ou rode via <code class="bg-slate-100 px-1 rounded">google.script.run</code>
+          <div>
+            <h2 class="text-base font-bold text-slate-900">Fonte de Dados da Planilha &amp; Apps Script</h2>
+            <p class="text-xs text-slate-500">
+              A URL do Web App já vem configurada por padrão no código.
             </p>
           </div>
         </div>
-        <button type="button" onclick="fecharModalFonteDados()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+        <button
+          id="btnFecharModal"
+          type="button"
+          class="text-slate-400 hover:text-slate-700 text-lg font-bold px-2 cursor-pointer"
+        >
+          ✕
         </button>
       </div>
 
-      <!-- Corpo do Modal -->
-      <div class="p-5 overflow-y-auto space-y-5 text-sm">
-        <!-- Seleção de Modo -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label class="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 hover:border-blue-400 cursor-pointer transition">
-            <input type="radio" name="modoFonte" value="DEMO" checked onchange="alternarCamposUrlFonte()" class="mt-1 text-blue-600 focus:ring-blue-500" />
-            <div>
-              <span class="font-semibold text-slate-900 block">Dados de Demonstração</span>
-              <span class="text-xs text-slate-500">Base simulada com ALPINE, MEDIC, NEOSURGICAL, SALVADOR, DEPARA e REGISTRO_NOTAS.</span>
-            </div>
-          </label>
-
-          <label class="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 hover:border-blue-400 cursor-pointer transition">
-            <input type="radio" name="modoFonte" value="WEBAPP" onchange="alternarCamposUrlFonte()" class="mt-1 text-blue-600 focus:ring-blue-500" />
-            <div>
-              <span class="font-semibold text-slate-900 block">Web App / Apps Script</span>
-              <span class="text-xs text-slate-500">Conecta à URL publicada do Apps Script (JSON) ou usa automaticamente <code class="bg-slate-100 px-1 rounded">google.script.run</code>.</span>
-            </div>
-          </label>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Modo de Conexão</label>
+          <select id="selectModoFonte" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
+            <option value="webapp">Web App do Google Apps Script (URL /exec)</option>
+            <option value="demo">Dados de Demonstração (Offline / Teste)</option>
+          </select>
         </div>
 
-        <!-- Campo de URL do Web App -->
-        <div id="blocoUrlWebApp" class="hidden space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
-          <label for="inputUrlWebApp" class="block text-xs font-semibold text-slate-700">
-            URL do Web App do Google Apps Script (opcional se estiver dentro do HTML Service)
-          </label>
-          <input
-            id="inputUrlWebApp"
-            type="url"
-            placeholder="https://script.google.com/macros/s/AKfycb.../exec"
-            class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <p class="text-[11px] text-slate-500">
-            Se o site rodar dentro do Google Apps Script (<code class="bg-slate-200/70 px-1 rounded">google.script.run</code>), ele chamará <code class="bg-slate-200/70 px-1 rounded">obterDadosConsolidadosPlanilha()</code> diretamente mesmo sem URL.
-          </p>
-        </div>
-
-        <!-- Código Pronto do Google Apps Script (Code.gs) -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-xs font-bold uppercase tracking-wider text-slate-600">
-              Código pronto para o Apps Script (Code.gs)
-            </span>
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label for="inputWebAppUrl" class="block text-xs font-semibold text-slate-700">
+              URL do Web App (/exec)
+            </label>
             <button
+              id="btnRestaurarUrlPadrao"
               type="button"
-              onclick="copiarCodigoAppsScript()"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-900 text-white transition cursor-pointer"
+              class="text-xs text-blue-600 hover:underline cursor-pointer"
             >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              Copiar Code.gs
+              Restaurar link padrão fixo
             </button>
           </div>
-          <pre id="codigoAppsScriptPre" class="bg-slate-900 text-slate-100 rounded-xl p-3.5 text-[11px] leading-relaxed overflow-x-auto max-h-64 font-mono"></pre>
+          <input
+            id="inputWebAppUrl"
+            type="url"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs sm:text-sm font-mono"
+          />
         </div>
       </div>
 
-      <!-- Rodapé do Modal -->
-      <div class="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
-        <button type="button" onclick="fecharModalFonteDados()" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-600 hover:bg-slate-200/70 transition cursor-pointer">
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-700">
+            Código Code.gs para o Apps Script da Planilha
+          </span>
+          <button
+            id="btnCopiarCodeGs"
+            type="button"
+            class="px-2.5 py-1 text-xs font-semibold rounded-md bg-slate-100 hover:bg-slate-200 text-slate-800 cursor-pointer"
+          >
+            Copiar Code.gs
+          </button>
+        </div>
+        <pre id="preCodeGs" class="rounded-xl bg-slate-900 text-slate-100 p-3 text-xs overflow-x-auto max-h-60"></pre>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+        <button
+          id="btnCancelarModal"
+          type="button"
+          class="px-4 py-2 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer"
+        >
           Cancelar
         </button>
-        <button type="button" onclick="aplicarConfiguracaoFonte()" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition cursor-pointer">
-          Aplicar e Carregar
+        <button
+          id="btnSalvarFonteDados"
+          type="button"
+          class="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+        >
+          Salvar e Carregar Planilha
         </button>
       </div>
     </div>
   </div>
 
-  <!-- ===================================================================== -->
-  <!-- LÓGICA JAVASCRIPT COMPLETA                                            -->
-  <!-- ===================================================================== -->
   <script>
-    // -----------------------------------------------------------------------
-    // 0. CONFIGURAÇÃO DO PDF.JS WORKER E FALLBACK DE LOGO (static/logo.png)
-    // -----------------------------------------------------------------------
-    if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    }
-
-    // Fallback caso static/logo.png não exista ou falhe ao carregar no ambiente atual
-    function tratarErroLogo(imgEl, fallbackId) {
-      if (imgEl) {
-        imgEl.classList.add('hidden');
-      }
-      const fallbackEl = document.getElementById(fallbackId);
-      if (fallbackEl) {
-        fallbackEl.classList.remove('hidden');
-        fallbackEl.classList.add('flex');
-      }
-    }
-
-    // -----------------------------------------------------------------------
-    // 1. CONSTANTES DE DEPARA E CONFIGURAÇÃO DE ESTADO
-    // -----------------------------------------------------------------------
-    const MESES_DEPARA = [
-      { num: 1, sigla: 'JAN', nome: 'Janeiro' },
-      { num: 2, sigla: 'FEV', nome: 'Fevereiro' },
-      { num: 3, sigla: 'MAR', nome: 'Março' },
-      { num: 4, sigla: 'ABR', nome: 'Abril' },
-      { num: 5, sigla: 'MAI', nome: 'Maio' },
-      { num: 6, sigla: 'JUN', nome: 'Junho' },
-      { num: 7, sigla: 'JUL', nome: 'Julho' },
-      { num: 8, sigla: 'AGO', nome: 'Agosto' },
-      { num: 9, sigla: 'SET', nome: 'Setembro' },
-      { num: 10, sigla: 'OUT', nome: 'Outubro' },
-      { num: 11, sigla: 'NOV', nome: 'Novembro' },
-      { num: 12, sigla: 'DEZ', nome: 'Dezembro' }
-    ];
-
-    // Código Code.gs pronto para o usuário colar no projeto do Google Apps Script
-    const CODIGO_APPS_SCRIPT = `/**
- * Code.gs - Consolida abas de empresas, DEPARA e REGISTRO_NOTAS
- * para o aplicativo web de controle e conferência fiscal.
- */
-function doGet(e) {
+    const CODE_GS_TEMPLATE = `function doGet(e) {
   try {
-    const payload = obterDadosConsolidadosPlanilha();
-    return ContentService
-      .createTextOutput(JSON.stringify({ ok: true, data: payload }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ ok: false, error: err.message }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const registroSheet = ss.getSheetByName('REGISTRO_NOTAS');
+    const deparaSheet = ss.getSheetByName('DEPARA');
 
-function obterDadosConsolidadosPlanilha() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const abasIgnoradas = ['DEPARA', 'REGISTRO_NOTAS', 'CONFIG', 'PARAMETROS'];
+    const ignorarAbas = new Set([
+      'DEPARA',
+      'REGISTRO_NOTAS',
+      'PARAMETROS',
+      'CONFIG',
+      'LOG',
+      'RESUMO'
+    ]);
 
-  // 1. Lê ano de referência na DEPARA (padrão 2026)
-  let anoReferencia = 2026;
-  const abaDepara = ss.getSheetByName('DEPARA');
-  if (abaDepara) {
-    const valsDepara = abaDepara.getDataRange().getValues();
-    for (let r = 0; r < valsDepara.length; r++) {
-      for (let c = 0; c < valsDepara[r].length; c++) {
-        const cellStr = String(valsDepara[r][c] || '').trim();
-        if (/^20\\d{2}$/.test(cellStr)) {
-          anoReferencia = parseInt(cellStr, 10);
-          break;
+    const registroMap = new Map();
+    const empresasDetectadas = new Set();
+
+    if (registroSheet) {
+      const regData = registroSheet.getDataRange().getValues();
+      if (regData.length > 1) {
+        const headers = regData[0].map(h => String(h || '').trim().toUpperCase());
+        const idxId = headers.indexOf('ID');
+        const idxEmp = headers.indexOf('EMPRESA');
+        const idxArq = headers.indexOf('URL ARQUIVO');
+        const idxPasta = headers.indexOf('URL PASTA');
+        const idxData = headers.findIndex(h => h.includes('DATA'));
+
+        for (let i = 1; i < regData.length; i++) {
+          const row = regData[i];
+          const idRaw = limparErro(row[idxId]);
+          if (!idRaw) continue;
+
+          const emp = idxEmp >= 0 ? String(row[idxEmp] || '').trim().toUpperCase() : '';
+          if (emp) empresasDetectadas.add(emp);
+
+          const urlArquivo = idxArq >= 0 ? String(row[idxArq] || '').trim() : '';
+          const urlPasta = idxPasta >= 0 ? String(row[idxPasta] || '').trim() : '';
+          const dataHora = idxData >= 0 ? formatarData(row[idxData]) : '';
+
+          const entry = {
+            empresa: emp,
+            urlArquivo: urlArquivo,
+            urlPasta: urlPasta,
+            dataHora: dataHora
+          };
+
+          indexarChave(registroMap, idRaw, emp, entry);
         }
       }
     }
-  }
 
-  // 2. Indexa REGISTRO_NOTAS por múltiplos identificadores
-  const mapaRegistro = new Map();
-  const abaRegistro = ss.getSheetByName('REGISTRO_NOTAS');
-  if (abaRegistro) {
-    const dadosReg = abaRegistro.getDataRange().getValues();
-    if (dadosReg.length > 1) {
-      const cabReg = dadosReg[0].map(h => String(h || '').trim().toUpperCase());
-      const idxId = cabReg.indexOf('ID');
-      const idxEmp = cabReg.indexOf('EMPRESA');
-      const idxArq = cabReg.indexOf('URL ARQUIVO');
-      const idxPasta = cabReg.indexOf('URL PASTA');
+    const notas = [];
 
-      for (let i = 1; i < dadosReg.length; i++) {
-        const idRaw = limparErro(dadosReg[i][idxId]);
-        if (!idRaw) continue;
-        const emp = idxEmp >= 0 ? String(dadosReg[i][idxEmp] || '').trim().toUpperCase() : '';
-        const urlArquivo = idxArq >= 0 ? limparUrl(dadosReg[i][idxArq]) : '';
-        const urlPasta = idxPasta >= 0 ? limparUrl(dadosReg[i][idxPasta]) : '';
-        const info = { urlArquivo, urlPasta, empresa: emp };
+    ss.getSheets().forEach(sheet => {
+      const nomeAba = String(sheet.getName() || '').trim();
+      const nomeUpper = nomeAba.toUpperCase();
+      if (ignorarAbas.has(nomeUpper)) return;
 
-        const norm = idRaw.toUpperCase();
-        const dig = norm.replace(/\\D/g, '');
-        [norm, dig].filter(Boolean).forEach(k => {
-          if (emp) mapaRegistro.set(emp + '::' + k, info);
-          if (!mapaRegistro.has(k)) mapaRegistro.set(k, info);
+      const data = sheet.getDataRange().getValues();
+      if (!data || data.length < 2) return;
+
+      const headers = data[0].map(h => String(h || '').trim().toUpperCase());
+      const colChave = acharColuna(headers, ['CHAVE DE ACESSO', 'CHAVE', 'CHAVE NFE', 'CHAVE NF-E']);
+      const colNumero = acharColuna(headers, ['NUMERO', 'NÚMERO', 'NF', 'NUMERO NF', 'NÚMERO NF', 'N. NF']);
+      const colSerie = acharColuna(headers, ['SERIE', 'SÉRIE']);
+      const colData = acharColuna(headers, ['DATA EMISSAO', 'DATA EMISSÃO', 'EMISSAO', 'EMISSÃO', 'DATA ENTRADA', 'DATA']);
+      const colParceiro = acharColuna(headers, ['FORNECEDOR', 'CLIENTE', 'PARCEIRO', 'NOME', 'RAZAO SOCIAL', 'RAZÃO SOCIAL']);
+      const colValor = acharColuna(headers, ['VALOR CONTABIL', 'VALOR CONTÁBIL', 'VALOR TOTAL', 'VALOR MERCADORIA', 'VALOR']);
+      const colStatus = acharColuna(headers, ['STATUS FISCAL', 'STATUS', 'SITUACAO', 'SITUAÇÃO']);
+      const colUrlArq = acharColuna(headers, ['URL ARQUIVO', 'LINK ARQUIVO', 'LINK DRIVE', 'LINK']);
+      const colUrlPasta = acharColuna(headers, ['URL PASTA', 'LINK PASTA']);
+
+      const temCaraDeLancamento = colChave >= 0 || colNumero >= 0 || colValor >= 0 || colStatus >= 0;
+      if (!temCaraDeLancamento) return;
+
+      empresasDetectadas.add(nomeUpper);
+
+      for (let r = 1; r < data.length; r++) {
+        const row = data[r];
+        const chave = colChave >= 0 ? limparErro(row[colChave]) : '';
+        const numero = colNumero >= 0 ? limparErro(row[colNumero]) : '';
+        const serie = colSerie >= 0 ? limparErro(row[colSerie]) : '';
+        const dataStr = colData >= 0 ? formatarData(row[colData]) : '';
+        const parceiro = colParceiro >= 0 ? limparErro(row[colParceiro]) : '';
+        const valor = colValor >= 0 ? parseValor(row[colValor]) : 0;
+        const statusFiscal = colStatus >= 0 ? limparErro(row[colStatus]) : '';
+
+        if (!chave && !numero && !parceiro && !valor) continue;
+
+        const matchReg = buscarNoRegistro(registroMap, nomeUpper, chave, numero);
+        const urlArquivo = (colUrlArq >= 0 ? String(row[colUrlArq] || '').trim() : '') || (matchReg ? matchReg.urlArquivo : '');
+        const urlPasta = (colUrlPasta >= 0 ? String(row[colUrlPasta] || '').trim() : '') || (matchReg ? matchReg.urlPasta : '');
+
+        notas.push({
+          id: chave || (nomeUpper + '_' + numero + '_' + r),
+          empresa: nomeUpper,
+          numero: numero,
+          serie: serie,
+          chave: chave.replace(/\D/g, ''),
+          data: dataStr,
+          parceiro: parceiro,
+          valor: valor,
+          statusFiscal: statusFiscal,
+          urlArquivo: urlArquivo,
+          urlPasta: urlPasta
         });
       }
-    }
+    });
+
+    const payload = {
+      ok: true,
+      atualizadoEm: new Date().toISOString(),
+      empresas: Array.from(empresasDetectadas).sort(),
+      notas: notas
+    };
+
+    return ContentService
+      .createTextOutput(JSON.stringify(payload))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: String(err) }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
-
-  // 3. Percorre abas de empresas
-  const empresasSet = new Set(['ALPINE', 'MEDIC', 'NEOSURGICAL', 'SALVADOR']);
-  const notas = [];
-
-  ss.getSheets().forEach(sheet => {
-    const nomeAba = String(sheet.getName() || '').trim();
-    const upperAba = nomeAba.toUpperCase();
-    if (abasIgnoradas.includes(upperAba)) return;
-
-    const dados = sheet.getDataRange().getValues();
-    if (dados.length < 2) return;
-
-    const cab = dados[0].map(h => String(h || '').trim().toUpperCase());
-    const colChave = acharColuna(cab, ['CHAVE DE ACESSO', 'CHAVE']);
-    const colNumero = acharColuna(cab, ['NUMERO', 'NÚMERO', 'NF', 'NUMERO NF']);
-    const colData = acharColuna(cab, ['DATA EMISSAO', 'DATA EMISSÃO', 'DATA ENTRADA', 'DATA']);
-    const colParceiro = acharColuna(cab, ['FORNECEDOR', 'CLIENTE', 'NOME / RAZAO SOCIAL', 'PARCEIRO']);
-    const colValor = acharColuna(cab, ['VALOR CONTABIL', 'VALOR CONTÁBIL', 'VALOR TOTAL', 'VALOR']);
-    const colStatus = acharColuna(cab, ['STATUS FISCAL', 'STATUS']);
-    const colUrlArq = acharColuna(cab, ['URL ARQUIVO', 'LINK ARQUIVO']);
-    const colUrlPasta = acharColuna(cab, ['URL PASTA', 'LINK PASTA', 'LINK DRIVE']);
-
-    empresasSet.add(upperAba);
-
-    for (let r = 1; r < dados.length; r++) {
-      const row = dados[r];
-      const chave = colChave >= 0 ? limparErro(row[colChave]).replace(/\\D/g, '') : '';
-      const numero = colNumero >= 0 ? limparErro(row[colNumero]) : '';
-      const parceiro = colParceiro >= 0 ? limparErro(row[colParceiro]) : '';
-      const statusFiscal = colStatus >= 0 ? limparErro(row[colStatus]) : '';
-      const valor = colValor >= 0 ? parseNumero(row[colValor]) : 0;
-
-      if (!chave && !numero && !parceiro) continue;
-
-      const dataInfo = parseDataSheet(colData >= 0 ? row[colData] : '', anoReferencia);
-      const regMatch = buscarNoRegistro(mapaRegistro, upperAba, chave, numero);
-
-      let urlArquivo = colUrlArq >= 0 ? limparUrl(row[colUrlArq]) : '';
-      let urlPasta = colUrlPasta >= 0 ? limparUrl(row[colUrlPasta]) : '';
-      if (regMatch) {
-        urlArquivo = urlArquivo || regMatch.urlArquivo || '';
-        urlPasta = urlPasta || regMatch.urlPasta || '';
-      }
-
-      notas.push({
-        id: upperAba + '_' + (r + 1),
-        empresa: upperAba,
-        numero: numero,
-        chave: chave,
-        parceiro: parceiro || 'Não informado',
-        valor: valor,
-        mes: dataInfo.mes,
-        ano: dataInfo.ano,
-        dataFormatada: dataInfo.dataFormatada,
-        statusFiscal: statusFiscal || (urlArquivo || urlPasta ? 'Localizada no Drive' : 'Sem registro'),
-        urlArquivo: urlArquivo,
-        urlPasta: urlPasta
-      });
-    }
-  });
-
-  return {
-    anoReferencia: anoReferencia,
-    empresas: Array.from(empresasSet).sort(),
-    notas: notas
-  };
 }
 
-function acharColuna(cab, candidatos) {
-  for (const c of candidatos) {
-    const idx = cab.indexOf(c.toUpperCase());
+function limparErro(val) {
+  if (val === null || val === undefined) return '';
+  const s = String(val).trim();
+  if (!s || s.startsWith('#') || s.toUpperCase().startsWith('ERR:')) return '';
+  return s;
+}
+
+function formatarData(val) {
+  if (!val) return '';
+  if (Object.prototype.toString.call(val) === '[object Date]' && !isNaN(val.getTime())) {
+    const dd = String(val.getDate()).padStart(2, '0');
+    const mm = String(val.getMonth() + 1).padStart(2, '0');
+    const yyyy = val.getFullYear();
+    return dd + '/' + mm + '/' + yyyy;
+  }
+  const s = String(val).trim();
+  if (s.startsWith('#') || s.toUpperCase().startsWith('ERR:')) return '';
+  return s;
+}
+
+function parseValor(val) {
+  if (typeof val === 'number') return isFinite(val) ? val : 0;
+  const s = limparErro(val);
+  if (!s) return 0;
+  const limpo = s.replace(/[^0-9,.-]/g, '').replace(/\.(?=.*,)/g, '').replace(',', '.');
+  const num = parseFloat(limpo);
+  return isNaN(num) ? 0 : num;
+}
+
+function acharColuna(headers, candidatos) {
+  for (let i = 0; i < candidatos.length; i++) {
+    const idx = headers.indexOf(candidatos[i]);
     if (idx !== -1) return idx;
   }
   return -1;
 }
 
-function limparErro(v) {
-  if (v === null || v === undefined) return '';
-  const s = String(v).trim();
-  if (s.startsWith('#') || s.startsWith('Err:')) return '';
-  return s;
+function indexarChave(map, idRaw, emp, entry) {
+  const norm = String(idRaw).trim().toUpperCase();
+  const dig = norm.replace(/\D/g, '');
+  const chaves = [norm];
+  if (dig.length >= 6) chaves.push(dig);
+  chaves.forEach(k => {
+    if (emp) map.set(emp + '::' + k, entry);
+    if (!map.has(k)) map.set(k, entry);
+  });
 }
 
-function limparUrl(v) {
-  const s = limparErro(v);
-  return /^https?:\\/\\//i.test(s) ? s : '';
-}
-
-function parseNumero(v) {
-  if (typeof v === 'number') return isNaN(v) ? 0 : v;
-  const limpo = limparErro(v).replace(/[^0-9,.-]/g, '').replace(',', '.');
-  const n = parseFloat(limpo);
-  return isNaN(n) ? 0 : n;
-}
-
-function parseDataSheet(v, anoPadrao) {
-  if (v instanceof Date && !isNaN(v.getTime())) {
-    const m = v.getMonth() + 1;
-    const a = v.getFullYear();
-    return {
-      mes: m,
-      ano: a,
-      dataFormatada: String(v.getDate()).padStart(2, '0') + '/' + String(m).padStart(2, '0') + '/' + a
-    };
+function buscarNoRegistro(map, emp, chave, numero) {
+  const candidatos = [];
+  if (chave) {
+    const cNorm = chave.trim().toUpperCase();
+    const cDig = cNorm.replace(/\D/g, '');
+    candidatos.push(emp + '::' + cNorm, emp + '::' + cDig, cNorm, cDig);
   }
-  const s = limparErro(v);
-  const matchBr = s.match(/(\\d{1,2})[\\/\\-](\\d{1,2})(?:[\\/\\-](\\d{2,4}))?/);
-  if (matchBr) {
-    const d = matchBr[1].padStart(2, '0');
-    const m = parseInt(matchBr[2], 10);
-    let a = matchBr[3] ? parseInt(matchBr[3], 10) : anoPadrao;
-    if (a < 100) a += 2000;
-    return { mes: m, ano: a, dataFormatada: d + '/' + String(m).padStart(2, '0') + '/' + a };
+  if (numero) {
+    const nNorm = numero.trim().toUpperCase();
+    const nDig = nNorm.replace(/\D/g, '');
+    candidatos.push(emp + '::NUM_' + nDig, emp + '::' + nNorm, emp + '::' + nDig, 'NUM_' + nDig, nNorm, nDig);
   }
-  return { mes: 11, ano: anoPadrao, dataFormatada: s || '-' };
-}
-
-function buscarNoRegistro(mapa, empresa, chave, numero) {
-  const digNum = String(numero || '').replace(/\\D/g, '');
-  const chaves = [
-    empresa + '::' + chave,
-    empresa + '::NUM_' + digNum,
-    empresa + '::' + digNum,
-    chave,
-    'NUM_' + digNum,
-    digNum
-  ].filter(Boolean);
-  for (const k of chaves) {
-    if (mapa.has(k)) return mapa.get(k);
+  for (let i = 0; i < candidatos.length; i++) {
+    if (candidatos[i] && map.has(candidatos[i])) return map.get(candidatos[i]);
   }
   return null;
 }`;
 
-    // Base de demonstração rica baseada na estrutura da planilha do usuário
-    const BASE_DEMO = {
-      anoReferencia: 2026,
-      empresas: ['ALPINE', 'MEDIC', 'NEOSURGICAL', 'SALVADOR', 'RENOVA', 'SURGILOG'],
-      notas: [
-        {
-          id: 'ALP_01',
-          empresa: 'ALPINE',
-          numero: '001482',
-          chave: '35261101234567000190550010000014821123456789',
-          parceiro: 'MEDHOSPITALAR PRODUTOS SA',
-          valor: 4850.00,
-          mes: 11,
-          ano: 2026,
-          dataFormatada: '10/11/2026',
-          statusFiscal: '🟢 Localizada no Drive',
-          urlArquivo: 'https://drive.google.com/file/d/1ALPINE_001482_DEMO/view',
-          urlPasta: 'https://drive.google.com/drive/folders/1PASTA_ALPINE_2026_11'
-        },
-        {
-          id: 'ALP_02',
-          empresa: 'ALPINE',
-          numero: '001495',
-          chave: '35261101234567000190550010000014951987654321',
-          parceiro: 'ORTHO DISTRIBUIDORA LTDA',
-          valor: 12390.50,
-          mes: 11,
-          ano: 2026,
-          dataFormatada: '18/11/2026',
-          statusFiscal: '🟢 Baixada do Gmail',
-          urlArquivo: '',
-          urlPasta: 'https://drive.google.com/drive/folders/1PASTA_ALPINE_2026_11'
-        },
-        {
-          id: 'ALP_03',
-          empresa: 'ALPINE',
-          numero: '001310',
-          chave: '35261001234567000190550010000013101554433221',
-          parceiro: 'FORNECEDOR DESCONSIDERADO TESTE',
-          valor: 920.00,
-          mes: 10,
-          ano: 2026,
-          dataFormatada: '22/10/2026',
-          statusFiscal: '🔴 Desconsiderada (Regra de Nome)',
-          urlArquivo: '',
-          urlPasta: ''
-        },
-        {
-          id: 'MED_01',
-          empresa: 'MEDIC',
-          numero: '008821',
-          chave: '35261198765432000110550010000088211112233445',
-          parceiro: 'CIRURGICA BRASIL COMERCIO',
-          valor: 7640.25,
-          mes: 11,
-          ano: 2026,
-          dataFormatada: '05/11/2026',
-          statusFiscal: '🟢 Localizada (já salva)',
-          urlArquivo: 'https://drive.google.com/file/d/1MEDIC_008821_DEMO/view',
-          urlPasta: 'https://drive.google.com/drive/folders/1PASTA_MEDIC_2026_11'
-        },
-        {
-          id: 'MED_02',
-          empresa: 'MEDIC',
-          numero: '008904',
-          chave: '35261198765432000110550010000089041667788990',
-          parceiro: 'BIOVITA INSUMOS HOSPITALARES',
-          valor: 3180.00,
-          mes: 11,
-          ano: 2026,
-          dataFormatada: '24/11/2026',
-          statusFiscal: 'Pendente anexar PDF',
-          urlArquivo: '',
-          urlPasta: ''
-        },
-        {
-          id: 'NEO_01',
-          empresa: 'NEOSURGICAL',
-          numero: '004120',
-          chave: '35261144556677000188550010000041201778899001',
-          parceiro: 'STRYKER DO BRASIL LTDA',
-          valor: 28900.00,
-          mes: 11,
-          ano: 2026,
-          dataFormatada: '12/11/2026',
-          statusFiscal: '🟢 Localizada no Drive',
-          urlArquivo: 'https://drive.google.com/file/d/1NEOSURG_004120_DEMO/view',
-          urlPasta: 'https://drive.google.com/drive/folders/1PASTA_NEO_2026_11'
-        },
-        {
-          id: 'NEO_02',
-          empresa: 'NEOSURGICAL',
-          numero: '003998',
-          chave: '35261044556677000188550010000039981223344556',
-          parceiro: 'ZIMMER BIOMET BRASIL',
-          valor: 15420.80,
-          mes: 10,
-          ano: 2026,
-          dataFormatada: '29/10/2026',
-          statusFiscal: '🟢 Localizada no Drive',
-          urlArquivo: 'https://drive.google.com/file/d/1NEOSURG_003998_DEMO/view',
-          urlPasta: 'https://drive.google.com/drive/folders/1PASTA_NEO_2026_10'
-        },
-        {
-          id: 'SAL_01',
-          empresa: 'SALVADOR',
-          numero: '002215',
-          chave: '29261111223344000155550010000022151334455667',
-          parceiro: 'NORDESTE HOSPITALAR SA',
-          valor: 6410.00,
-          mes: 11,
-          ano: 2026,
-          dataFormatada: '14/11/2026',
-          statusFiscal: '🟢 Baixada do Gmail',
-          urlArquivo: 'https://drive.google.com/file/d/1SALVADOR_002215_DEMO/view',
-          urlPasta: 'https://drive.google.com/drive/folders/1PASTA_SALV_2026_11'
-        },
-        {
-          id: 'SAL_02',
-          empresa: 'SALVADOR',
-          numero: '002240',
-          chave: '29261111223344000155550010000022401889900112',
-          parceiro: 'BAHIA MED DISTRIBUIDORA',
-          valor: 2150.40,
-          mes: 11,
-          ano: 2026,
-          dataFormatada: '20/11/2026',
-          statusFiscal: 'Sem vínculo no Drive',
-          urlArquivo: '',
-          urlPasta: ''
-        },
-        {
-          id: 'REN_01',
-          empresa: 'RENOVA',
-          numero: '000774',
-          chave: '35261177889900000122550010000007741990011223',
-          parceiro: 'PHARMA LOGISTICA LTDA',
-          valor: 9320.00,
-          mes: 11,
-          ano: 2026,
-          dataFormatada: '08/11/2026',
-          statusFiscal: '🟢 Localizada no Drive',
-          urlArquivo: 'https://drive.google.com/file/d/1RENOVA_000774_DEMO/view',
-          urlPasta: ''
-        },
-        {
-          id: 'SUR_01',
-          empresa: 'SURGILOG',
-          numero: '005501',
-          chave: '35261155443322000199550010000055011445566778',
-          parceiro: 'MEDTRONIC COMERCIAL LTDA',
-          valor: 18750.00,
-          mes: 11,
-          ano: 2026,
-          dataFormatada: '16/11/2026',
-          statusFiscal: '🟢 Localizada (já salva)',
-          urlArquivo: '',
-          urlPasta: 'https://drive.google.com/drive/folders/1PASTA_SURGILOG_2026_11'
-        }
-      ]
-    };
+    const DADOS_DEMO = [
+      {
+        id: "35260112345678000199550010000010211000010210",
+        empresa: "ALPINE",
+        numero: "1021",
+        serie: "1",
+        chave: "35260112345678000199550010000010211000010210",
+        data: "12/01/2026",
+        parceiro: "Hospital Santa Clara LTDA",
+        valor: 14850.00,
+        statusFiscal: "🟢 Localizada no Drive",
+        urlArquivo: "https://drive.google.com/file/d/exemplo-alpine-1021/view",
+        urlPasta: "https://drive.google.com/drive/folders/exemplo-pasta-alpine"
+      },
+      {
+        id: "35260198765432000111550010000010221000010225",
+        empresa: "MEDIC",
+        numero: "1022",
+        serie: "1",
+        chave: "35260198765432000111550010000010221000010225",
+        data: "18/01/2026",
+        parceiro: "Cirúrgica Paulista SA",
+        valor: 8320.50,
+        statusFiscal: "🟢 Baixada do Gmail",
+        urlArquivo: "",
+        urlPasta: "https://drive.google.com/drive/folders/exemplo-pasta-medic"
+      },
+      {
+        id: "NUM_1023_NEO",
+        empresa: "NEOSURGICAL",
+        numero: "1023",
+        serie: "2",
+        chave: "",
+        data: "05/02/2026",
+        parceiro: "MedSupply Brasil",
+        valor: 22400.00,
+        statusFiscal: "Pendente",
+        urlArquivo: "",
+        urlPasta: ""
+      },
+      {
+        id: "35260244556677000188550010000010241000010249",
+        empresa: "SALVADOR",
+        numero: "1024",
+        serie: "1",
+        chave: "35260244556677000188550010000010241000010249",
+        data: "21/02/2026",
+        parceiro: "Clínica São Lucas",
+        valor: 5690.00,
+        statusFiscal: "🔴 Desconsiderada (Regra de Nome)",
+        urlArquivo: "https://drive.google.com/file/d/exemplo-salvador-1024/view",
+        urlPasta: ""
+      }
+    ];
 
-    // Estado reativo da aplicação
-    const estado = {
-      abaAtiva: 'notas',
-      modoFonte: 'DEMO',
-      urlWebApp: '',
-      empresas: [],
+    const MESES = [
+      { code: "01", label: "JAN" },
+      { code: "02", label: "FEV" },
+      { code: "03", label: "MAR" },
+      { code: "04", label: "ABR" },
+      { code: "05", label: "MAI" },
+      { code: "06", label: "JUN" },
+      { code: "07", label: "JUL" },
+      { code: "08", label: "AGO" },
+      { code: "09", label: "SET" },
+      { code: "10", label: "OUT" },
+      { code: "11", label: "NOV" },
+      { code: "12", label: "DEZ" }
+    ];
+
+    let estado = {
       notas: [],
-      empresasSelecionadas: new Set(['ALPINE', 'MEDIC', 'NEOSURGICAL', 'SALVADOR']),
-      mesesSelecionados: new Set([11]), // Novembro por padrão
+      empresas: [],
+      empresasSelecionadas: new Set(),
+      mesesSelecionados: new Set(["01", "02"]),
       resultadosConferencia: [],
-      filtroResultadoConf: 'TODOS',
-      extraindoPdf: false
+      modo: localStorage.getItem(STORAGE_KEY_MODE) || "webapp",
+      webappUrl: localStorage.getItem(STORAGE_KEY_URL) || FIXED_WEBAPP_URL
     };
 
-    // -----------------------------------------------------------------------
-    // 2. INICIALIZAÇÃO
-    // -----------------------------------------------------------------------
-    window.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('codigoAppsScriptPre').textContent = CODIGO_APPS_SCRIPT;
-      carregarDadosIniciais();
-    });
+    document.getElementById("preCodeGs").textContent = CODE_GS_TEMPLATE;
 
-    function carregarDadosIniciais() {
-      aplicarBaseDados(BASE_DEMO, 'Demonstração (Planilha)');
-    }
-
-    function aplicarBaseDados(base, rotuloFonte) {
-      const notasLimpa = Array.isArray(base.notas) ? base.notas.map((n, idx) => sanitizarNota(n, idx)) : [];
-      const setEmpresas = new Set(['ALPINE', 'MEDIC', 'NEOSURGICAL', 'SALVADOR']);
-
-      if (Array.isArray(base.empresas)) {
-        base.empresas.forEach(e => {
-          const limpo = limparErroCelula(e).toUpperCase();
-          if (limpo) setEmpresas.add(limpo);
-        });
-      }
-      notasLimpa.forEach(n => {
-        if (n.empresa) setEmpresas.add(n.empresa);
-      });
-
-      estado.empresas = Array.from(setEmpresas).sort();
-      estado.notas = notasLimpa;
-
-      const validas = new Set([...estado.empresasSelecionadas].filter(e => setEmpresas.has(e)));
-      if (validas.size === 0 && estado.empresas.length > 0) {
-        estado.empresas.slice(0, Math.min(4, estado.empresas.length)).forEach(e => validas.add(e));
-      }
-      estado.empresasSelecionadas = validas;
-
-      atualizarIndicadoresFonte(rotuloFonte);
-      popularFiltrosAba1();
-      atualizarEstatisticasAba1();
-      renderizarTabelaNotas();
-      renderizarChipsEmpresas();
-      renderizarChipsMeses();
-    }
-
-    // Sanitiza campos para evitar #NAME?, Err:509 ou valores malformados
-    function sanitizarNota(raw, idx) {
-      const empresa = limparErroCelula(raw.empresa).toUpperCase() || 'OUTRA';
-      const numero = limparErroCelula(raw.numero);
-      const chave = limparErroCelula(raw.chave).replace(/\D/g, '');
-      const parceiro = limparErroCelula(raw.parceiro) || 'Não informado';
-      const statusFiscal = limparErroCelula(raw.statusFiscal) || 'Sem status';
-      const urlArquivo = validarUrlDrive(raw.urlArquivo);
-      const urlPasta = validarUrlDrive(raw.urlPasta);
-      const valorNum = typeof raw.valor === 'number'
-        ? (isNaN(raw.valor) ? 0 : raw.valor)
-        : (parseFloat(limparErroCelula(raw.valor).replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0);
-
-      let mes = parseInt(raw.mes, 10);
-      if (isNaN(mes) || mes < 1 || mes > 12) mes = 11;
-      let ano = parseInt(raw.ano, 10);
-      if (isNaN(ano) || ano < 2000) ano = 2026;
-
-      return {
-        id: limparErroCelula(raw.id) || `NOTA_${idx + 1}`,
-        empresa,
-        numero,
-        chave,
-        parceiro,
-        valor: valorNum,
-        mes,
-        ano,
-        dataFormatada: limparErroCelula(raw.dataFormatada) || `${String(mes).padStart(2, '0')}/${ano}`,
-        statusFiscal,
-        urlArquivo,
-        urlPasta
-      };
-    }
-
-    function limparErroCelula(val) {
-      if (val === null || val === undefined) return '';
-      const str = String(val).trim();
-      if (!str || str.startsWith('#') || str.startsWith('Err:')) return '';
-      return str;
-    }
-
-    function validarUrlDrive(url) {
-      const limpo = limparErroCelula(url);
-      return /^https?:\/\//i.test(limpo) ? limpo : '';
-    }
-
-    function formatarMoedaBRL(valor) {
-      return (Number(valor) || 0).toLocaleString('pt-BR', {
-        style: 'currency',
-        currency: 'BRL'
+    function formatarMoeda(valor) {
+      return Number(valor || 0).toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL"
       });
     }
 
-    function escaparHTML(str) {
-      return String(str || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+    function extrairMesDaData(dataStr) {
+      if (!dataStr) return "";
+      const s = String(dataStr).trim();
+      const brMatch = s.match(/^\d{1,2}\/(\d{2})\/\d{4}/);
+      if (brMatch) return brMatch[1];
+      const isoMatch = s.match(/^\d{4}-(\d{2})-\d{2}/);
+      if (isoMatch) return isoMatch[1];
+      return "";
     }
 
-    // -----------------------------------------------------------------------
-    // 3. NAVEGAÇÃO ENTRE ABAS E FEEDBACK VISUAL
-    // -----------------------------------------------------------------------
-    function trocarAba(aba) {
-      estado.abaAtiva = aba;
-      const btnNotas = document.getElementById('tabBtnNotas');
-      const btnConf = document.getElementById('tabBtnConferencia');
-      const secNotas = document.getElementById('abaNotas');
-      const secConf = document.getElementById('abaConferencia');
-
-      if (aba === 'notas') {
-        btnNotas.className = 'group inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 border-blue-600 text-blue-600 whitespace-nowrap transition cursor-pointer';
-        btnConf.className = 'group inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300 whitespace-nowrap transition cursor-pointer';
-        secNotas.classList.remove('hidden');
-        secConf.classList.add('hidden');
-      } else {
-        btnConf.className = 'group inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 border-blue-600 text-blue-600 whitespace-nowrap transition cursor-pointer';
-        btnNotas.className = 'group inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300 whitespace-nowrap transition cursor-pointer';
-        secConf.classList.remove('hidden');
-        secNotas.classList.add('hidden');
+    function mostrarAlerta(msg, tipo = "info") {
+      const el = document.getElementById("bannerAlerta");
+      if (!msg) {
+        el.className = "hidden";
+        el.textContent = "";
+        return;
       }
-    }
-
-    function mostrarBanner(mensagem, tipo = 'info') {
-      const container = document.getElementById('bannerFeedback');
-      const interno = document.getElementById('bannerFeedbackInterno');
-      const icone = document.getElementById('bannerFeedbackIcone');
-      const texto = document.getElementById('bannerFeedbackTexto');
-
       const estilos = {
-        sucesso: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-        alerta: 'bg-amber-50 text-amber-800 border-amber-200',
-        erro: 'bg-rose-50 text-rose-800 border-rose-200',
-        info: 'bg-blue-50 text-blue-800 border-blue-200'
+        info: "bg-blue-50 border-blue-200 text-blue-800",
+        success: "bg-emerald-50 border-emerald-200 text-emerald-800",
+        warn: "bg-amber-50 border-amber-200 text-amber-800",
+        error: "bg-rose-50 border-rose-200 text-rose-800"
       };
-      const icones = {
-        sucesso: '✅',
-        alerta: '⚠️',
-        erro: '❌',
-        info: 'ℹ️'
-      };
-
-      interno.className = `rounded-xl px-4 py-3 text-sm font-medium flex items-center justify-between gap-3 border ${estilos[tipo] || estilos.info}`;
-      icone.textContent = icones[tipo] || icones.info;
-      texto.textContent = mensagem;
-      container.classList.remove('hidden');
+      el.className = `rounded-xl border px-4 py-3 text-sm ${estilos[tipo] || estilos.info}`;
+      el.textContent = msg;
     }
 
-    function ocultarBanner() {
-      document.getElementById('bannerFeedback').classList.add('hidden');
-    }
+    function trocarAba(aba) {
+      const isNotas = aba === "notas";
+      document.getElementById("abaNotas").classList.toggle("hidden", !isNotas);
+      document.getElementById("abaConferencia").classList.toggle("hidden", isNotas);
 
-    function copiarTextoSeguro(texto, mensagemSucesso) {
-      if (!texto) return;
-      const textareaTemp = document.createElement('textarea');
-      textareaTemp.value = texto;
-      textareaTemp.setAttribute('readonly', '');
-      textareaTemp.style.position = 'fixed';
-      textareaTemp.style.left = '-9999px';
-      document.body.appendChild(textareaTemp);
-      textareaTemp.select();
-      try {
-        document.execCommand('copy');
-        mostrarBanner(mensagemSucesso || 'Copiado para a área de transferência.', 'sucesso');
-      } catch (err) {
-        mostrarBanner('Não foi possível copiar automaticamente.', 'alerta');
-      } finally {
-        document.body.removeChild(textareaTemp);
+      const btnNotas = document.getElementById("tabBtnNotas");
+      const btnConf = document.getElementById("tabBtnConferencia");
+
+      if (isNotas) {
+        btnNotas.className = "py-3 text-sm font-semibold border-b-2 border-blue-600 text-blue-600 transition cursor-pointer";
+        btnConf.className = "py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition cursor-pointer";
+      } else {
+        btnConf.className = "py-3 text-sm font-semibold border-b-2 border-blue-600 text-blue-600 transition cursor-pointer";
+        btnNotas.className = "py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition cursor-pointer";
       }
     }
 
-    // -----------------------------------------------------------------------
-    // 4. ABA 1: NOTAS DA PLANILHA
-    // -----------------------------------------------------------------------
-    function popularFiltrosAba1() {
-      const selectEmp = document.getElementById('filtroEmpresaAba1');
-      const valorAtualEmp = selectEmp.value || 'TODAS';
-      selectEmp.innerHTML = '<option value="TODAS">Todas as empresas</option>';
-      estado.empresas.forEach(emp => {
-        const opt = document.createElement('option');
-        opt.value = emp;
-        opt.textContent = emp;
-        selectEmp.appendChild(opt);
-      });
-      if ([...selectEmp.options].some(o => o.value === valorAtualEmp)) {
-        selectEmp.value = valorAtualEmp;
-      }
+    async function carregarDadosPlanilha() {
+      const statusEl = document.getElementById("statusConexaoTexto");
+      const urlAtiva = (estado.webappUrl || FIXED_WEBAPP_URL || "").trim();
 
-      const selectPer = document.getElementById('filtroPeriodoAba1');
-      const valorAtualPer = selectPer.value || 'TODOS';
-      selectPer.innerHTML = '<option value="TODOS">Todos os períodos</option>';
-      const periodosSet = new Set();
-      estado.notas.forEach(n => {
-        const mesObj = MESES_DEPARA.find(m => m.num === n.mes);
-        const sigla = mesObj ? mesObj.sigla : String(n.mes).padStart(2, '0');
-        periodosSet.add(`${n.ano}-${String(n.mes).padStart(2, '0')}|${sigla}/${n.ano}`);
-      });
-      Array.from(periodosSet).sort().reverse().forEach(item => {
-        const [chaveVal, rotulo] = item.split('|');
-        const opt = document.createElement('option');
-        opt.value = chaveVal;
-        opt.textContent = rotulo;
-        selectPer.appendChild(opt);
-      });
-      if ([...selectPer.options].some(o => o.value === valorAtualPer)) {
-        selectPer.value = valorAtualPer;
-      }
-    }
-
-    function atualizarEstatisticasAba1() {
-      const total = estado.notas.length;
-      const comDrive = estado.notas.filter(n => Boolean(n.urlArquivo || n.urlPasta)).length;
-      const semDrive = total - comDrive;
-      const descons = estado.notas.filter(n => n.statusFiscal.toLowerCase().includes('desconsiderada')).length;
-
-      document.getElementById('statTotalNotas').textContent = total;
-      document.getElementById('statComDrive').textContent = comDrive;
-      document.getElementById('statSemDrive').textContent = semDrive;
-      document.getElementById('statDesconsideradas').textContent = descons;
-      document.getElementById('contadorAbaNotas').textContent = total;
-    }
-
-    function limparFiltrosAba1() {
-      document.getElementById('filtroBuscaAba1').value = '';
-      document.getElementById('filtroEmpresaAba1').value = 'TODAS';
-      document.getElementById('filtroPeriodoAba1').value = 'TODOS';
-      document.getElementById('filtroDriveAba1').value = 'TODAS';
-      document.getElementById('filtroOcultarDesconsideradas').checked = false;
-      renderizarTabelaNotas();
-    }
-
-    function obterNotasFiltradasAba1() {
-      const busca = (document.getElementById('filtroBuscaAba1').value || '').trim().toLowerCase();
-      const buscaDigitos = busca.replace(/\D/g, '');
-      const empresaFiltro = document.getElementById('filtroEmpresaAba1').value;
-      const periodoFiltro = document.getElementById('filtroPeriodoAba1').value;
-      const driveFiltro = document.getElementById('filtroDriveAba1').value;
-      const ocultarDescons = document.getElementById('filtroOcultarDesconsideradas').checked;
-
-      return estado.notas.filter(nota => {
-        const isDescons = nota.statusFiscal.toLowerCase().includes('desconsiderada');
-        if (ocultarDescons && isDescons) return false;
-
-        if (empresaFiltro !== 'TODAS' && nota.empresa !== empresaFiltro) return false;
-
-        if (periodoFiltro !== 'TODOS') {
-          const chaveNotaPeriodo = `${nota.ano}-${String(nota.mes).padStart(2, '0')}`;
-          if (chaveNotaPeriodo !== periodoFiltro) return false;
+      if (estado.modo === "demo" || !urlAtiva) {
+        estado.notas = DADOS_DEMO;
+        estado.empresas = Array.from(new Set(DADOS_DEMO.map(n => n.empresa))).sort();
+        if (estado.empresasSelecionadas.size === 0) {
+          estado.empresas.forEach(e => estado.empresasSelecionadas.add(e));
         }
-
-        const temLink = Boolean(nota.urlArquivo || nota.urlPasta);
-        if (driveFiltro === 'COM_LINK' && !temLink) return false;
-        if (driveFiltro === 'SEM_LINK' && temLink) return false;
-
-        if (busca) {
-          const textoAlvo = `${nota.empresa} ${nota.numero} ${nota.chave} ${nota.parceiro} ${nota.id} ${nota.statusFiscal}`.toLowerCase();
-          const bateTexto = textoAlvo.includes(busca);
-          const bateDigitos = buscaDigitos.length >= 3 && (
-            (nota.chave && nota.chave.includes(buscaDigitos)) ||
-            (nota.numero && nota.numero.replace(/\D/g, '').includes(buscaDigitos))
-          );
-          if (!bateTexto && !bateDigitos) return false;
-        }
-
-        return true;
-      });
-    }
-
-    function renderizarBadgeStatusFiscal(status) {
-      const lower = (status || '').toLowerCase();
-      if (lower.includes('desconsiderada')) {
-        return `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">${escaparHTML(status)}</span>`;
-      }
-      if (lower.includes('localizada') || lower.includes('baixada') || status.includes('🟢')) {
-        return `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">${escaparHTML(status)}</span>`;
-      }
-      return `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">${escaparHTML(status)}</span>`;
-    }
-
-    function renderizarBotoesDrive(nota) {
-      const botoes = [];
-      if (nota.urlArquivo) {
-        botoes.push(`
-          <a href="${escaparHTML(nota.urlArquivo)}" target="_blank" rel="noopener noreferrer"
-             class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-            Abrir Arquivo
-          </a>
-        `);
-      }
-      if (nota.urlPasta) {
-        botoes.push(`
-          <a href="${escaparHTML(nota.urlPasta)}" target="_blank" rel="noopener noreferrer"
-             class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-            Abrir Pasta
-          </a>
-        `);
-      }
-      if (botoes.length === 0) {
-        const chaveCopiar = nota.chave || nota.numero || nota.id;
-        return `
-          <div class="inline-flex items-center gap-1.5">
-            <span class="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200">
-              Sem link
-            </span>
-            ${chaveCopiar ? `
-              <button type="button" onclick="copiarTextoSeguro('${escaparHTML(chaveCopiar)}', 'Identificador ${escaparHTML(chaveCopiar)} copiado.')"
-                      class="px-2 py-1 rounded-lg text-xs font-medium text-blue-600 hover:bg-blue-50 transition cursor-pointer" title="Copiar chave/número">
-                Copiar
-              </button>
-            ` : ''}
-          </div>
-        `;
-      }
-      return `<div class="inline-flex items-center justify-center gap-1.5 flex-wrap">${botoes.join('')}</div>`;
-    }
-
-    function renderizarTabelaNotas() {
-      const tbody = document.getElementById('corpoTabelaNotas');
-      const filtradas = obterNotasFiltradasAba1();
-      document.getElementById('contadorResultadosAba1').textContent =
-        `Exibindo ${filtradas.length} de ${estado.notas.length} notas`;
-
-      if (filtradas.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="7" class="px-4 py-10 text-center text-sm text-slate-500">
-              Nenhuma nota encontrada com os filtros atuais.
-            </td>
-          </tr>
-        `;
+        statusEl.textContent = "Modo Demonstração • Dados locais carregados";
+        mostrarAlerta("Exibindo dados de demonstração. Configure ou conecte o Web App para ler sua planilha real.", "info");
+        sincronizarControlesEmpresa();
+        renderizarNotasPlanilha();
         return;
       }
 
-      tbody.innerHTML = filtradas.map(nota => {
-        const mesObj = MESES_DEPARA.find(m => m.num === nota.mes);
-        const siglaMes = mesObj ? mesObj.sigla : String(nota.mes).padStart(2, '0');
-        const chaveResumida = nota.chave
-          ? `${nota.chave.slice(0, 8)}…${nota.chave.slice(-6)}`
-          : '-';
+      statusEl.textContent = "Conectando à planilha via Apps Script...";
+      mostrarAlerta("", "info");
 
-        return `
-          <tr class="hover:bg-slate-50/80 transition">
-            <td class="px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
-                ${escaparHTML(nota.empresa)}
-              </span>
-            </td>
-            <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
-              <div class="font-semibold text-slate-800">${siglaMes}/${nota.ano}</div>
-              <div class="text-slate-400">${escaparHTML(nota.dataFormatada)}</div>
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap">
-              <div class="font-semibold text-slate-900">NF ${escaparHTML(nota.numero || '-')}</div>
-              <div class="text-xs font-mono mono-chave text-slate-500" title="${escaparHTML(nota.chave)}">
-                ${escaparHTML(chaveResumida)}
-              </div>
-            </td>
-            <td class="px-4 py-3 text-slate-700 max-w-xs truncate" title="${escaparHTML(nota.parceiro)}">
-              ${escaparHTML(nota.parceiro)}
-            </td>
-            <td class="px-4 py-3 text-right font-semibold text-slate-900 whitespace-nowrap">
-              ${formatarMoedaBRL(nota.valor)}
-            </td>
-            <td class="px-4 py-3 whitespace-nowrap">
-              ${renderizarBadgeStatusFiscal(nota.statusFiscal)}
-            </td>
-            <td class="px-4 py-3 text-center whitespace-nowrap">
-              ${renderizarBotoesDrive(nota)}
-            </td>
-          </tr>
-        `;
-      }).join('');
+      try {
+        const resp = await fetch(urlAtiva, { method: "GET" });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+
+        if (!data || data.ok === false) {
+          throw new Error(data && data.error ? data.error : "Resposta inválida do Web App.");
+        }
+
+        estado.notas = Array.isArray(data.notas) ? data.notas : [];
+        const setEmp = new Set(Array.isArray(data.empresas) ? data.empresas : []);
+        estado.notas.forEach(n => {
+          if (n.empresa) setEmp.add(String(n.empresa).trim().toUpperCase());
+        });
+        estado.empresas = Array.from(setEmp).filter(Boolean).sort();
+
+        if (estado.empresasSelecionadas.size === 0) {
+          estado.empresas.forEach(e => estado.empresasSelecionadas.add(e));
+        }
+
+        statusEl.textContent = `Conectado à planilha • ${estado.notas.length} notas carregadas`;
+        mostrarAlerta(`Planilha sincronizada com sucesso (${estado.notas.length} notas em ${estado.empresas.length} empresas).`, "success");
+        sincronizarControlesEmpresa();
+        renderizarNotasPlanilha();
+      } catch (err) {
+        console.error(err);
+        estado.notas = DADOS_DEMO;
+        estado.empresas = Array.from(new Set(DADOS_DEMO.map(n => n.empresa))).sort();
+        if (estado.empresasSelecionadas.size === 0) {
+          estado.empresas.forEach(e => estado.empresasSelecionadas.add(e));
+        }
+        statusEl.textContent = "Falha na conexão com Web App • Exibindo exemplo";
+        mostrarAlerta(
+          `Não foi possível ler o Web App (${err.message}). Verifique se o Code.gs foi salvo e implantado como Aplicativo da Web ("Qualquer pessoa com o link").`,
+          "warn"
+        );
+        sincronizarControlesEmpresa();
+        renderizarNotasPlanilha();
+      }
     }
 
-    // -----------------------------------------------------------------------
-    // 5. ABA 2: CONFERÊNCIA COM LIVRO FISCAL (PDF + CSV + CRUZAMENTO)
-    // -----------------------------------------------------------------------
-    function renderizarChipsEmpresas() {
-      const container = document.getElementById('containerChipsEmpresas');
-      container.innerHTML = estado.empresas.map(emp => {
+    function sincronizarControlesEmpresa() {
+      const selectFiltro = document.getElementById("filtroEmpresaNotas");
+      const valorAtual = selectFiltro.value;
+      selectFiltro.innerHTML = `<option value="">Todas as empresas</option>` +
+        estado.empresas.map(emp => `<option value="${emp}">${emp}</option>`).join("");
+      if (estado.empresas.includes(valorAtual)) {
+        selectFiltro.value = valorAtual;
+      }
+
+      const containerEmp = document.getElementById("containerEmpresasConferencia");
+      containerEmp.innerHTML = estado.empresas.map(emp => {
         const ativa = estado.empresasSelecionadas.has(emp);
         return `
           <button
             type="button"
-            onclick="toggleEmpresaConferencia('${escaparHTML(emp)}')"
-            class="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition cursor-pointer ${
+            onclick="toggleEmpresaConferencia('${emp}')"
+            class="px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer ${
               ativa
-                ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                ? "bg-blue-600 text-white border-blue-600"
+                : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
             }"
           >
-            <span class="h-2 w-2 rounded-full ${ativa ? 'bg-white' : 'bg-slate-300'}"></span>
-            ${escaparHTML(emp)}
+            ${emp}
           </button>
         `;
-      }).join('');
+      }).join("");
 
-      const lista = Array.from(estado.empresasSelecionadas);
-      document.getElementById('resumoEmpresasSelecionadas').textContent =
-        lista.length > 0 ? lista.join(', ') : 'Nenhuma';
+      const containerMes = document.getElementById("containerMesesConferencia");
+      containerMes.innerHTML = MESES.map(m => {
+        const ativo = estado.mesesSelecionados.has(m.code);
+        return `
+          <button
+            type="button"
+            onclick="toggleMesConferencia('${m.code}')"
+            class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+              ativo
+                ? "bg-slate-900 text-white border-slate-900"
+                : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+            }"
+          >
+            ${m.code} - ${m.label}
+          </button>
+        `;
+      }).join("");
     }
 
     function toggleEmpresaConferencia(emp) {
@@ -1564,930 +959,485 @@ function buscarNoRegistro(mapa, empresa, chave, numero) {
       } else {
         estado.empresasSelecionadas.add(emp);
       }
-      renderizarChipsEmpresas();
+      sincronizarControlesEmpresa();
     }
 
     function selecionarTodasEmpresas(marcar) {
-      if (marcar) {
-        estado.empresas.forEach(e => estado.empresasSelecionadas.add(e));
-      } else {
-        estado.empresasSelecionadas.clear();
-      }
-      renderizarChipsEmpresas();
+      estado.empresasSelecionadas.clear();
+      if (marcar) estado.empresas.forEach(e => estado.empresasSelecionadas.add(e));
+      sincronizarControlesEmpresa();
     }
 
-    function renderizarChipsMeses() {
-      const container = document.getElementById('containerChipsMeses');
-      container.innerHTML = MESES_DEPARA.map(m => {
-        const ativo = estado.mesesSelecionados.has(m.num);
-        return `
-          <button
-            type="button"
-            onclick="toggleMesConferencia(${m.num})"
-            title="${m.nome}"
-            class="px-2.5 py-2 rounded-xl text-xs font-semibold border text-center transition cursor-pointer ${
-              ativo
-                ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-            }"
-          >
-            ${m.sigla}
-          </button>
-        `;
-      }).join('');
-
-      const labelResumo = document.getElementById('resumoMesesSelecionados');
-      if (estado.mesesSelecionados.size === 0) {
-        labelResumo.textContent = 'Todos os meses';
+    function toggleMesConferencia(code) {
+      if (estado.mesesSelecionados.has(code)) {
+        estado.mesesSelecionados.delete(code);
       } else {
-        const nomes = Array.from(estado.mesesSelecionados)
-          .sort((a, b) => a - b)
-          .map(num => {
-            const found = MESES_DEPARA.find(m => m.num === num);
-            return found ? found.sigla : num;
-          });
-        labelResumo.textContent = nomes.join(', ');
+        estado.mesesSelecionados.add(code);
       }
-    }
-
-    function toggleMesConferencia(numMes) {
-      if (estado.mesesSelecionados.has(numMes)) {
-        estado.mesesSelecionados.delete(numMes);
-      } else {
-        estado.mesesSelecionados.add(numMes);
-      }
-      renderizarChipsMeses();
+      sincronizarControlesEmpresa();
     }
 
     function selecionarTodosMeses(marcar) {
       estado.mesesSelecionados.clear();
-      if (marcar) {
-        MESES_DEPARA.forEach(m => estado.mesesSelecionados.add(m.num));
+      if (marcar) MESES.forEach(m => estado.mesesSelecionados.add(m.code));
+      sincronizarControlesEmpresa();
+    }
+
+    function renderizarBotoesDrive(nota) {
+      const arq = (nota.urlArquivo || "").trim();
+      const pasta = (nota.urlPasta || "").trim();
+      if (!arq && !pasta) {
+        return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">Sem link</span>`;
       }
-      renderizarChipsMeses();
-    }
-
-    function carregarLivroExemplo() {
-      const exemplo = [
-        'empresa;numero;chave;data;valor;parceiro',
-        'ALPINE;001482;35261101234567000190550010000014821123456789;10/11/2026;4850.00;MEDHOSPITALAR PRODUTOS SA',
-        'ALPINE;001495;35261101234567000190550010000014951987654321;18/11/2026;12390.50;ORTHO DISTRIBUIDORA LTDA',
-        'ALPINE;001599;35261101234567000190550010000015991111122222;25/11/2026;2790.00;FORNECEDOR SO NO LIVRO',
-        'MEDIC;008821;35261198765432000110550010000088211112233445;05/11/2026;7640.25;CIRURGICA BRASIL COMERCIO',
-        'MEDIC;008904;35261198765432000110550010000089041667788990;24/11/2026;3180.00;BIOVITA INSUMOS HOSPITALARES',
-        'NEOSURGICAL;004120;35261144556677000188550010000041201778899001;12/11/2026;28900.00;STRYKER DO BRASIL LTDA',
-        'SALVADOR;002215;29261111223344000155550010000022151334455667;14/11/2026;6410.00;NORDESTE HOSPITALAR SA'
-      ].join('\n');
-
-      document.getElementById('textareaLivroFiscal').value = exemplo;
-      mostrarBanner('Livro fiscal de exemplo carregado. Clique em "Conferir Notas" para ver o resultado.', 'info');
-    }
-
-    function limparTextoLivro() {
-      document.getElementById('textareaLivroFiscal').value = '';
-      document.getElementById('inputArquivoLivro').value = '';
-      atualizarProgressoPdf(false, 0, '');
-    }
-
-    function atualizarProgressoPdf(visivel, percentual, mensagem) {
-      const box = document.getElementById('barraProgressoPdf');
-      const fill = document.getElementById('fillProgressoPdf');
-      const txt = document.getElementById('textoProgressoPdf');
-      const pct = document.getElementById('percentualProgressoPdf');
-
-      if (!visivel) {
-        box.classList.add('hidden');
-        return;
+      const botoes = [];
+      if (arq) {
+        botoes.push(`<a href="${arq}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition">Abrir Arquivo</a>`);
       }
-      box.classList.remove('hidden');
-      const seguroPct = Math.max(0, Math.min(100, Math.round(percentual || 0)));
-      fill.style.width = `${seguroPct}%`;
-      pct.textContent = `${seguroPct}%`;
-      if (mensagem) txt.textContent = mensagem;
+      if (pasta) {
+        botoes.push(`<a href="${pasta}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-900 text-white transition">Abrir Pasta</a>`);
+      }
+      return `<div class="inline-flex flex-wrap items-center justify-center gap-1.5">${botoes.join("")}</div>`;
     }
 
-    async function lerArquivoLivroFiscal(event) {
-      const inputEl = event.target;
-      const file = inputEl && inputEl.files && inputEl.files[0];
-      if (!file) return;
+    function renderizarNotasPlanilha() {
+      const busca = (document.getElementById("filtroBuscaNotas").value || "").trim().toLowerCase();
+      const empresa = document.getElementById("filtroEmpresaNotas").value;
+      const driveFilter = document.getElementById("filtroDriveNotas").value;
+      const mesFilter = document.getElementById("filtroMesNotas").value;
+      const ocultarDesc = document.getElementById("ocultarDesconsideradasNotas").checked;
 
-      const nomeLower = (file.name || '').toLowerCase();
-      const isPdf = nomeLower.endsWith('.pdf') || file.type === 'application/pdf';
-
-      if (isPdf) {
-        await processarArquivoPdfLivroFiscal(file);
-        inputEl.value = '';
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        document.getElementById('textareaLivroFiscal').value = String(e.target.result || '');
-        mostrarBanner(`Arquivo "${file.name}" carregado com sucesso.`, 'sucesso');
-        inputEl.value = '';
-      };
-      reader.onerror = function() {
-        mostrarBanner('Erro ao ler o arquivo selecionado.', 'erro');
-        inputEl.value = '';
-      };
-      reader.readAsText(file, 'UTF-8');
-    }
-
-    // Extrai texto de todas as páginas de um PDF usando PDF.js e agrupa por linha visual (Y)
-    async function processarArquivoPdfLivroFiscal(file) {
-      if (!window.pdfjsLib || typeof window.pdfjsLib.getDocument !== 'function') {
-        mostrarBanner('Biblioteca PDF.js não carregada no navegador. Verifique a conexão ou use CSV/TXT.', 'erro');
-        return;
-      }
-
-      estado.extraindoPdf = true;
-      const btnConf = document.getElementById('btnConferirNotas');
-      if (btnConf) btnConf.disabled = true;
-
-      atualizarProgressoPdf(true, 5, `Abrindo "${file.name}"...`);
-
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
-        const pdfDoc = await loadingTask.promise;
-        const totalPaginas = pdfDoc.numPages || 1;
-        const linhasExtraidas = [];
-
-        for (let p = 1; p <= totalPaginas; p++) {
-          const pct = Math.round(((p - 1) / totalPaginas) * 90) + 5;
-          atualizarProgressoPdf(true, pct, `Extraindo página ${p} de ${totalPaginas}...`);
-
-          const page = await pdfDoc.getPage(p);
-          const textContent = await page.getTextContent();
-          const linhasPagina = reconstruirLinhasPorCoordenadaY(textContent.items || []);
-          if (linhasPagina.length > 0) {
-            linhasExtraidas.push(...linhasPagina);
-          }
+      const filtradas = estado.notas.filter(n => {
+        const statusStr = String(n.statusFiscal || "");
+        if (ocultarDesc && statusStr.toLowerCase().includes("desconsiderada")) return false;
+        if (empresa && String(n.empresa || "").toUpperCase() !== empresa) return false;
+        if (mesFilter) {
+          const mNota = extrairMesDaData(n.data);
+          if (mNota && mNota !== mesFilter) return false;
         }
+        const temLink = Boolean((n.urlArquivo && n.urlArquivo.trim()) || (n.urlPasta && n.urlPasta.trim()));
+        if (driveFilter === "COM_LINK" && !temLink) return false;
+        if (driveFilter === "SEM_LINK" && temLink) return false;
 
-        const textoFinal = linhasExtraidas.join('\n').trim();
-        atualizarProgressoPdf(true, 100, 'Concluído');
-
-        if (!textoFinal) {
-          mostrarBanner(
-            `O PDF "${file.name}" não possui texto selecionável (parece ser escaneado/imagem). Exporte o livro fiscal em CSV/TXT ou use OCR antes de importar.`,
-            'alerta'
-          );
-          setTimeout(() => atualizarProgressoPdf(false, 0, ''), 2500);
-          return;
+        if (busca) {
+          const alvo = [n.empresa, n.numero, n.chave, n.parceiro, n.id, n.statusFiscal].join(" ").toLowerCase();
+          if (!alvo.includes(busca)) return false;
         }
-
-        document.getElementById('textareaLivroFiscal').value = textoFinal;
-        mostrarBanner(
-          `PDF "${file.name}" lido (${totalPaginas} pág., ${linhasExtraidas.length} linhas extraídas). Clique em "Conferir Notas" para cruzar.`,
-          'sucesso'
-        );
-        setTimeout(() => atualizarProgressoPdf(false, 0, ''), 1800);
-      } catch (err) {
-        atualizarProgressoPdf(false, 0, '');
-        mostrarBanner(`Falha ao ler o PDF "${file.name}": ${err && err.message ? err.message : 'arquivo inválido ou protegido'}.`, 'erro');
-      } finally {
-        estado.extraindoPdf = false;
-        if (btnConf) btnConf.disabled = false;
-      }
-    }
-
-    // Reagrupa tokens de texto do PDF.js por posição vertical (Y) e ordena da esquerda para direita (X)
-    function reconstruirLinhasPorCoordenadaY(items) {
-      const tokens = [];
-      for (const item of items) {
-        if (!item || typeof item.str !== 'string') continue;
-        const str = item.str.trim();
-        if (!str) continue;
-        const tx = item.transform || [1, 0, 0, 1, 0, 0];
-        const x = Number(tx[4]) || 0;
-        const y = Number(tx[5]) || 0;
-        tokens.push({ str, x, y });
-      }
-
-      if (tokens.length === 0) return [];
-
-      // Ordena de cima para baixo (Y decrescente no sistema de coordenadas do PDF)
-      tokens.sort((a, b) => {
-        if (Math.abs(b.y - a.y) > 3.5) return b.y - a.y;
-        return a.x - b.x;
+        return true;
       });
 
-      const grupos = [];
-      for (const tok of tokens) {
-        const ultimoGrupo = grupos[grupos.length - 1];
-        if (ultimoGrupo && Math.abs(ultimoGrupo.y - tok.y) <= 3.5) {
-          ultimoGrupo.tokens.push(tok);
-        } else {
-          grupos.push({ y: tok.y, tokens: [tok] });
-        }
+      const comDrive = filtradas.filter(n => (n.urlArquivo && n.urlArquivo.trim()) || (n.urlPasta && n.urlPasta.trim())).length;
+      const somaValor = filtradas.reduce((acc, n) => acc + Number(n.valor || 0), 0);
+
+      document.getElementById("metricTotalNotas").textContent = filtradas.length;
+      document.getElementById("metricComDrive").textContent = comDrive;
+      document.getElementById("metricSemDrive").textContent = filtradas.length - comDrive;
+      document.getElementById("metricValorNotas").textContent = formatarMoeda(somaValor);
+      document.getElementById("contadorResultadosNotas").textContent = `Exibindo ${filtradas.length} de ${estado.notas.length} notas`;
+
+      const tbody = document.getElementById("tbodyNotasPlanilha");
+      if (filtradas.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-slate-400">Nenhuma nota encontrada com os filtros atuais.</td></tr>`;
+        return;
       }
 
-      return grupos
-        .map(g => {
-          g.tokens.sort((a, b) => a.x - b.x);
-          return g.tokens.map(t => t.str).join(' ').replace(/\s+/g, ' ').trim();
-        })
+      tbody.innerHTML = filtradas.map(n => {
+        const chaveCurta = n.chave ? `${n.chave.slice(0, 10)}...${n.chave.slice(-6)}` : "-";
+        return `
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">${n.empresa || "-"}</td>
+            <td class="px-4 py-3 whitespace-nowrap">${n.numero || "-"}${n.serie ? ` <span class="text-xs text-slate-400">/ ${n.serie}</span>` : ""}</td>
+            <td class="px-4 py-3 font-mono text-xs text-slate-600" title="${n.chave || ""}">${chaveCurta}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-slate-600">${n.data || "-"}</td>
+            <td class="px-4 py-3 text-slate-700 max-w-xs truncate" title="${n.parceiro || ""}">${n.parceiro || "-"}</td>
+            <td class="px-4 py-3 text-right font-medium whitespace-nowrap">${formatarMoeda(n.valor)}</td>
+            <td class="px-4 py-3 text-xs whitespace-nowrap">${n.statusFiscal || "-"}</td>
+            <td class="px-4 py-3 text-center whitespace-nowrap">${renderizarBotoesDrive(n)}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    async function extrairTextoPdf(file) {
+      if (!window.pdfjsLib) {
+        throw new Error("Biblioteca PDF.js não carregou no navegador.");
+      }
+      const progEl = document.getElementById("progressoArquivoLivro");
+      progEl.classList.remove("hidden");
+      progEl.textContent = `Lendo PDF "${file.name}"...`;
+
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const paginasTexto = [];
+
+      for (let p = 1; p <= pdf.numPages; p++) {
+        progEl.textContent = `Extraindo texto do PDF: página ${p} de ${pdf.numPages}...`;
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        const strings = content.items.map(item => item.str).filter(Boolean);
+        paginasTexto.push(strings.join(" "));
+      }
+
+      const textoFinal = paginasTexto.join("
+");
+      if (!textoFinal.trim()) {
+        progEl.className = "rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800";
+        progEl.textContent = "Atenção: este PDF parece ser escaneado/imagem e não contém texto selecionável. Se possível, exporte em CSV/TXT.";
+      } else {
+        progEl.className = "rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-800";
+        progEl.textContent = `PDF "${file.name}" extraído (${pdf.numPages} página(s)). Revise o texto abaixo e clique em Conferir Notas Agora.`;
+      }
+
+      return textoFinal;
+    }
+
+    function parsearLivroFiscal(texto) {
+      const linhas = String(texto || "")
+        .split(/
+?
+/)
+        .map(l => l.trim())
         .filter(Boolean);
-    }
 
-    // Parser flexível para CSV (; , \t), JSON ou texto livre/PDF do livro fiscal
-    function parsearLivroFiscal(textoBruto, anoPadrao) {
-      const texto = String(textoBruto || '').trim();
-      if (!texto) return [];
-
-      // 1. Suporte a JSON array
-      if (texto.startsWith('[')) {
-        try {
-          const arr = JSON.parse(texto);
-          if (Array.isArray(arr)) {
-            return arr.map((obj, i) => normalizarItemLivro(obj, i, anoPadrao)).filter(Boolean);
-          }
-        } catch (err) {
-          // Segue para parser delimitado ou texto livre
-        }
-      }
-
-      const linhas = texto.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      if (linhas.length === 0) return [];
-
-      // 2. Detecta estrutura tabular delimitada (; , \t)
-      const primeira = linhas[0];
-      const qtdPontoVirgula = (primeira.match(/;/g) || []).length;
-      const qtdVirgula = (primeira.match(/,/g) || []).length;
-      const qtdTab = (primeira.match(/\t/g) || []).length;
-
-      let delim = null;
-      if (qtdTab >= 1 && qtdTab >= qtdPontoVirgula && qtdTab >= qtdVirgula) delim = '\t';
-      else if (qtdPontoVirgula >= 1 && qtdPontoVirgula >= qtdVirgula) delim = ';';
-      else if (qtdVirgula >= 2) delim = ',';
-
-      if (delim) {
-        const splitLinha = (linha) => linha.split(delim).map(c => c.replace(/^["']|["']$/g, '').trim());
-        const colsPrimeira = splitLinha(primeira).map(c => c.toLowerCase());
-
-        const temCabecalho = colsPrimeira.some(c =>
-          ['empresa', 'chave', 'numero', 'número', 'nf', 'valor', 'data', 'mes', 'mês', 'fornecedor', 'cliente', 'parceiro'].includes(c)
-        );
-
-        let mapaIndices = {
-          empresa: 0,
-          numero: 1,
-          chave: 2,
-          data: 3,
-          valor: 4,
-          parceiro: 5
-        };
-        let inicioDados = 0;
-
-        if (temCabecalho) {
-          inicioDados = 1;
-          mapaIndices = {
-            empresa: acharIndiceColunaTexto(colsPrimeira, ['empresa', 'emp', 'filial']),
-            numero: acharIndiceColunaTexto(colsPrimeira, ['numero', 'número', 'nf', 'num_nf', 'nota']),
-            chave: acharIndiceColunaTexto(colsPrimeira, ['chave', 'chave_acesso', 'chave de acesso', 'nfe']),
-            data: acharIndiceColunaTexto(colsPrimeira, ['data', 'emissao', 'emissão', 'data_emissao', 'mes', 'mês', 'competencia']),
-            valor: acharIndiceColunaTexto(colsPrimeira, ['valor', 'vlr', 'total', 'valor_contabil']),
-            parceiro: acharIndiceColunaTexto(colsPrimeira, ['parceiro', 'fornecedor', 'cliente', 'nome', 'razao', 'razão'])
-          };
-        }
-
-        const itens = [];
-        for (let i = inicioDados; i < linhas.length; i++) {
-          const partes = splitLinha(linhas[i]);
-          if (partes.every(p => !p)) continue;
-
-          const registroObj = {
-            empresa: mapaIndices.empresa >= 0 ? partes[mapaIndices.empresa] : '',
-            numero: mapaIndices.numero >= 0 ? partes[mapaIndices.numero] : '',
-            chave: mapaIndices.chave >= 0 ? partes[mapaIndices.chave] : '',
-            data: mapaIndices.data >= 0 ? partes[mapaIndices.data] : '',
-            valor: mapaIndices.valor >= 0 ? partes[mapaIndices.valor] : '',
-            parceiro: mapaIndices.parceiro >= 0 ? partes[mapaIndices.parceiro] : ''
-          };
-
-          const norm = normalizarItemLivro(registroObj, i, anoPadrao);
-          if (norm) itens.push(norm);
-        }
-
-        if (itens.length > 0) return itens;
-      }
-
-      // 3. Parser de texto livre / extraído de PDF: extrai chaves de 44 dígitos, datas, valores, números de NF e empresas
-      return parsearTextoLivreOuPdf(linhas, anoPadrao);
-    }
-
-    function parsearTextoLivreOuPdf(linhas, anoPadrao) {
       const itens = [];
-      const empresasConhecidas = new Set(estado.empresas.map(e => e.toUpperCase()));
-
-      // Junta o texto completo para localizar chaves de 44 dígitos mesmo que quebrem de linha no PDF
-      const textoUnificado = linhas.join(' ');
-      const digitosUnificados = textoUnificado.replace(/\D/g, '');
-      const chaves44Encontradas = [];
-      for (let i = 0; i <= digitosUnificados.length - 44; i++) {
-        const candidato = digitosUnificados.slice(i, i + 44);
-        // Modelo fiscal 55 (NF-e) ou 65 (NFC-e) fica nas posições 20..21
-        const modelo = candidato.slice(20, 22);
-        if (modelo === '55' || modelo === '65' || modelo === '57' || /^\d{44}$/.test(candidato)) {
-          chaves44Encontradas.push(candidato);
-          i += 43;
-        }
-      }
-
-      const chavesJaAssociadas = new Set();
-
       linhas.forEach((linha, idx) => {
-        const upperLinha = linha.toUpperCase();
-        const digitosLinha = linha.replace(/\D/g, '');
+        const chaves44 = linha.match(/ \d{44} /g) || [];
+        const partes = linha.split(/[;|	,]/).map(s => s.trim());
 
-        // Busca chave de 44 dígitos na linha ou nas chaves extraídas
-        let chave = '';
-        const matchChaveLinha = digitosLinha.match(/\d{44}/);
-        if (matchChaveLinha) {
-          chave = matchChaveLinha[0];
-          chavesJaAssociadas.add(chave);
-        }
-
-        // Busca empresa conhecida na linha
-        let empresa = '';
-        for (const emp of empresasConhecidas) {
-          if (upperLinha.includes(emp)) {
-            empresa = emp;
+        let empresaDetectada = "";
+        for (const emp of estado.empresas) {
+          if (new RegExp(`\b${emp}\b`, "i").test(linha)) {
+            empresaDetectada = emp;
             break;
           }
         }
 
-        // Busca data (DD/MM/AAAA ou DD/MM/AA)
-        const matchData = linha.match(/\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/);
-        const dataStr = matchData ? matchData[1] : '';
+        const dataMatch = linha.match(/ (\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2}) /);
+        const dataStr = dataMatch ? dataMatch[1] : "";
 
-        // Busca valores monetários (ex: 4.850,00 ou 4850.00)
-        const matchesValores = [...linha.matchAll(/\b\d{1,3}(?:\.\d{3})*,\d{2}\b|\b\d+\.\d{2}\b/g)].map(m => m[0]);
-        const valorRaw = matchesValores.length > 0 ? matchesValores[matchesValores.length - 1] : '';
-
-        // Busca número de nota explícito (ex: NF 001482, N° 1482, NUM 1482) ou número extraído da chave (posições 25..34)
-        let numero = '';
-        const matchNumExplicito = linha.match(/(?:NF[-e]?|N[º°o]?|NUM(?:ERO)?|NOTA)\s*[:#\-]?\s*0*([1-9]\d{0,8})\b/i);
-        if (matchNumExplicito) {
-          numero = matchNumExplicito[1];
-        } else if (chave && chave.length === 44) {
-          const numDaChave = chave.slice(25, 34).replace(/^0+/, '');
-          if (numDaChave) numero = numDaChave;
+        let valorNum = 0;
+        const moedaMatch = linha.match(/R\$\s*([\d.]+,\d{2})|( \d{1,3}(?:\.\d{3})*,\d{2} )/);
+        if (moedaMatch) {
+          const bruto = (moedaMatch[1] || moedaMatch[2]).replace(/\./g, "").replace(",", ".");
+          valorNum = parseFloat(bruto) || 0;
         }
 
-        // Só cria item se houver chave de 44 dígitos, número explícito ou empresa + valor/data
-        if (chave || matchNumExplicito || (empresa && (dataStr || valorRaw))) {
-          const item = normalizarItemLivro({
-            empresa,
-            numero,
-            chave,
+        let numero = "";
+        const semChaves = linha.replace(/ \d{44} /g, " ");
+        const numMatch = semChaves.match(/(?:NF[-e]?|N[º°.]?|NUM(?:ERO)?)\s*[:#-]?\s*0*(\d{1,9}) /i);
+        if (numMatch) {
+          numero = numMatch[1];
+        } else if (partes.length > 1) {
+          const candParte = partes.find(p => /^\d{1,9}$/.test(p.replace(/^0+/, "") || p));
+          if (candParte) numero = candParte.replace(/^0+/, "") || candParte;
+        } else {
+          const tokensNum = semChaves.match(/ \d{2,8} /g) || [];
+          const candidato = tokensNum.find(t => !/^\d{8}$/.test(t));
+          if (candidato) numero = candidato.replace(/^0+/, "") || candidato;
+        }
+
+        if (chaves44.length > 0 || numero) {
+          itens.push({
+            linha: idx + 1,
+            raw: linha,
+            empresa: empresaDetectada,
+            numero: numero,
+            chave: chaves44[0] || "",
             data: dataStr,
-            valor: valorRaw,
-            parceiro: linha.slice(0, 80)
-          }, idx, anoPadrao);
-          if (item) itens.push(item);
+            valor: valorNum
+          });
         }
-      });
-
-      // Adiciona eventuais chaves de 44 dígitos encontradas que não entraram em linha isolada
-      chaves44Encontradas.forEach((ch, idx) => {
-        if (chavesJaAssociadas.has(ch)) return;
-        const numDaChave = ch.slice(25, 34).replace(/^0+/, '');
-        const item = normalizarItemLivro({
-          empresa: '',
-          numero: numDaChave,
-          chave: ch,
-          data: '',
-          valor: '',
-          parceiro: 'Extraída de PDF'
-        }, linhas.length + idx, anoPadrao);
-        if (item) itens.push(item);
       });
 
       return itens;
     }
 
-    function acharIndiceColunaTexto(cab, possiveis) {
-      for (const p of possiveis) {
-        const idx = cab.indexOf(p);
-        if (idx !== -1) return idx;
-      }
-      return -1;
-    }
-
-    function extrairMesAnoTexto(rawData, anoPadrao) {
-      const s = limparErroCelula(rawData).toUpperCase();
-      if (!s) return { mes: null, ano: anoPadrao };
-
-      const mesSigla = MESES_DEPARA.find(m => s === m.sigla || s.startsWith(m.sigla + '/') || s.startsWith(m.sigla + '-'));
-      if (mesSigla) {
-        const matchAno = s.match(/(20\d{2})/);
-        return { mes: mesSigla.num, ano: matchAno ? parseInt(matchAno[1], 10) : anoPadrao };
-      }
-
-      const br = s.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
-      if (br) {
-        const m = parseInt(br[2], 10);
-        let a = br[3] ? parseInt(br[3], 10) : anoPadrao;
-        if (a < 100) a += 2000;
-        if (m >= 1 && m <= 12) return { mes: m, ano: a };
-      }
-
-      const iso = s.match(/(20\d{2})[\/\-](\d{1,2})/);
-      if (iso) {
-        const a = parseInt(iso[1], 10);
-        const m = parseInt(iso[2], 10);
-        if (m >= 1 && m <= 12) return { mes: m, ano: a };
-      }
-
-      const numSimples = parseInt(s, 10);
-      if (!isNaN(numSimples) && numSimples >= 1 && numSimples <= 12) {
-        return { mes: numSimples, ano: anoPadrao };
-      }
-
-      return { mes: null, ano: anoPadrao };
-    }
-
-    function parseMoedaFlexivel(val) {
-      if (typeof val === 'number') return isNaN(val) ? 0 : val;
-      const limpo = limparErroCelula(val).replace(/[^0-9,.-]/g, '');
-      if (!limpo) return 0;
-      // Se tem vírgula e ponto, assume formato BR (1.234,56) ou remove separador de milhar
-      if (limpo.includes(',') && limpo.includes('.')) {
-        return parseFloat(limpo.replace(/\./g, '').replace(',', '.')) || 0;
-      }
-      if (limpo.includes(',')) {
-        return parseFloat(limpo.replace(',', '.')) || 0;
-      }
-      return parseFloat(limpo) || 0;
-    }
-
-    function normalizarItemLivro(raw, idx, anoPadrao) {
-      const empresa = limparErroCelula(raw.empresa).toUpperCase();
-      const numero = limparErroCelula(raw.numero);
-      const chave = limparErroCelula(raw.chave).replace(/\D/g, '');
-      const parceiro = limparErroCelula(raw.parceiro) || 'Não informado';
-      const valorNum = parseMoedaFlexivel(raw.valor);
-
-      const { mes, ano } = extrairMesAnoTexto(raw.data || raw.mes || '', anoPadrao);
-
-      if (!empresa && !numero && !chave) return null;
-
-      return {
-        idxLivro: idx,
-        empresa: empresa || (estado.empresasSelecionadas.size === 1 ? Array.from(estado.empresasSelecionadas)[0] : 'NAO_INFORMADA'),
-        numero,
-        chave,
-        parceiro,
-        valor: valorNum,
-        mes,
-        ano,
-        dataRaw: limparErroCelula(raw.data) || '-'
-      };
-    }
-
-    // Constrói índice de busca por múltiplos identificadores da planilha
-    function construirIndicePlanilha(notas) {
-      const mapa = new Map();
-      const registrar = (chaveBusca, nota) => {
-        if (!chaveBusca) return;
-        if (!mapa.has(chaveBusca)) {
-          mapa.set(chaveBusca, nota);
-        }
-      };
-
-      notas.forEach(nota => {
-        const emp = nota.empresa;
-        const ch = nota.chave;
-        const numDig = (nota.numero || '').replace(/\D/g, '').replace(/^0+/, '');
-        const numBrutoDig = (nota.numero || '').replace(/\D/g, '');
-        const numNorm = (nota.numero || '').trim().toUpperCase();
-
-        if (ch) {
-          registrar(`${emp}::CHAVE::${ch}`, nota);
-          registrar(`CHAVE::${ch}`, nota);
-        }
-        if (numDig) {
-          registrar(`${emp}::NUM::${numDig}`, nota);
-          registrar(`NUM::${numDig}`, nota);
-        }
-        if (numBrutoDig && numBrutoDig !== numDig) {
-          registrar(`${emp}::NUM::${numBrutoDig}`, nota);
-          registrar(`NUM::${numBrutoDig}`, nota);
-        }
-        if (numNorm && numNorm !== numDig) {
-          registrar(`${emp}::NUMSTR::${numNorm}`, nota);
-          registrar(`NUMSTR::${numNorm}`, nota);
-        }
-      });
-
-      return mapa;
-    }
-
-    function localizarNotaNaPlanilha(indice, itemLivro) {
-      const emp = itemLivro.empresa;
-      const ch = itemLivro.chave;
-      const numDig = (itemLivro.numero || '').replace(/\D/g, '').replace(/^0+/, '');
-      const numBrutoDig = (itemLivro.numero || '').replace(/\D/g, '');
-      const numNorm = (itemLivro.numero || '').trim().toUpperCase();
-
-      const candidatos = [
-        ch ? `${emp}::CHAVE::${ch}` : '',
-        numDig ? `${emp}::NUM::${numDig}` : '',
-        numBrutoDig ? `${emp}::NUM::${numBrutoDig}` : '',
-        numNorm ? `${emp}::NUMSTR::${numNorm}` : '',
-        ch ? `CHAVE::${ch}` : '',
-        numDig ? `NUM::${numDig}` : '',
-        numBrutoDig ? `NUM::${numBrutoDig}` : '',
-        numNorm ? `NUMSTR::${numNorm}` : ''
-      ].filter(Boolean);
-
-      for (const cand of candidatos) {
-        if (indice.has(cand)) {
-          return indice.get(cand);
-        }
-      }
-      return null;
-    }
-
-    // Executa conferência cruzando múltiplas empresas e meses selecionados
     function executarConferencia() {
-      if (estado.extraindoPdf) {
-        mostrarBanner('Aguarde a extração do PDF terminar antes de conferir.', 'alerta');
+      const empresasAlvo = estado.empresasSelecionadas;
+      const mesesAlvo = estado.mesesSelecionados;
+      const textoLivro = document.getElementById("textoLivroFiscal").value;
+
+      if (empresasAlvo.size === 0) {
+        mostrarAlerta("Selecione pelo menos uma empresa para a conferência.", "warn");
         return;
       }
 
-      if (estado.empresasSelecionadas.size === 0) {
-        mostrarBanner('Selecione pelo menos uma empresa antes de conferir.', 'alerta');
-        return;
-      }
-
-      const textoLivro = document.getElementById('textareaLivroFiscal').value;
-      const itensLivroBrutos = parsearLivroFiscal(textoLivro, BASE_DEMO.anoReferencia);
-
-      if (itensLivroBrutos.length === 0) {
-        mostrarBanner('Informe ou carregue as linhas do Livro Fiscal (PDF, CSV, TXT ou texto colado) antes de clicar em Conferir Notas.', 'alerta');
-        return;
-      }
-
-      const anoFiltro = document.getElementById('selectAnoConferencia').value;
-      const filtrarMeses = estado.mesesSelecionados.size > 0;
-      const incluirSoPlanilha = document.getElementById('chkIncluirSomentePlanilha').checked;
-
-      const itensLivroFiltrados = itensLivroBrutos.filter(item => {
-        const bateEmpresa = item.empresa === 'NAO_INFORMADA' || estado.empresasSelecionadas.has(item.empresa);
-        if (!bateEmpresa) return false;
-
-        if (anoFiltro !== 'TODOS_ANOS' && item.ano && String(item.ano) !== anoFiltro) {
-          return false;
-        }
-        if (filtrarMeses && item.mes && !estado.mesesSelecionados.has(item.mes)) {
-          return false;
+      const notasBase = estado.notas.filter(n => {
+        const emp = String(n.empresa || "").trim().toUpperCase();
+        if (!empresasAlvo.has(emp)) return false;
+        if (mesesAlvo.size > 0) {
+          const mesNota = extrairMesDaData(n.data);
+          if (mesNota && !mesesAlvo.has(mesNota)) return false;
         }
         return true;
       });
 
-      const indicePlanilha = construirIndicePlanilha(estado.notas);
-      const idsNotasPlanilhaCasadas = new Set();
+      const itensLivro = parsearLivroFiscal(textoLivro).filter(item => {
+        if (item.empresa && !empresasAlvo.has(item.empresa)) return false;
+        if (mesesAlvo.size > 0 && item.data) {
+          const mesItem = extrairMesDaData(item.data);
+          if (mesItem && !mesesAlvo.has(mesItem)) return false;
+        }
+        return true;
+      });
+
+      const mapaPorChave = new Map();
+      const mapaPorEmpNum = new Map();
+
+      notasBase.forEach(n => {
+        const emp = String(n.empresa || "").toUpperCase();
+        const ch = String(n.chave || "").replace(/\D/g, "");
+        const num = String(n.numero || "").replace(/^0+/, "");
+        if (ch) mapaPorChave.set(ch, n);
+        if (emp && num) mapaPorEmpNum.set(`${emp}::${num}`, n);
+      });
+
+      const usadasPlanilha = new Set();
       const resultados = [];
 
-      // 1. Cruza cada item do livro fiscal contra a planilha
-      itensLivroFiltrados.forEach((item, index) => {
-        const matchPlanilha = localizarNotaNaPlanilha(indicePlanilha, item);
-        const empresaFinal = matchPlanilha ? matchPlanilha.empresa : item.empresa;
+      itensLivro.forEach(item => {
+        const ch = String(item.chave || "").replace(/\D/g, "");
+        const num = String(item.numero || "").replace(/^0+/, "");
+        const emp = item.empresa || Array.from(empresasAlvo)[0] || "";
 
-        if (matchPlanilha) {
-          idsNotasPlanilhaCasadas.add(matchPlanilha.id);
-          const temLinkDrive = Boolean(matchPlanilha.urlArquivo || matchPlanilha.urlPasta);
+        let match = null;
+        if (ch && mapaPorChave.has(ch)) {
+          match = mapaPorChave.get(ch);
+        } else if (emp && num && mapaPorEmpNum.has(`${emp}::${num}`)) {
+          match = mapaPorEmpNum.get(`${emp}::${num}`);
+        } else if (num) {
+          match = notasBase.find(n => String(n.numero || "").replace(/^0+/, "") === num) || null;
+        }
+
+        if (match) {
+          usadasPlanilha.add(match);
+          const temLink = Boolean((match.urlArquivo && match.urlArquivo.trim()) || (match.urlPasta && match.urlPasta.trim()));
           resultados.push({
-            idLinha: `CONF_LIV_${index}`,
-            categoria: temLinkDrive ? 'NO_DRIVE' : 'SEM_LINK',
-            statusLabel: temLinkDrive ? '🟢 No Drive' : '🟡 Na Planilha (Sem link)',
-            empresa: empresaFinal,
-            mes: matchPlanilha.mes || item.mes || 11,
-            ano: matchPlanilha.ano || item.ano || 2026,
-            numero: matchPlanilha.numero || item.numero || '-',
-            chave: matchPlanilha.chave || item.chave || '',
-            parceiro: matchPlanilha.parceiro || item.parceiro,
-            valorLivro: item.valor,
-            valorPlanilha: matchPlanilha.valor,
-            urlArquivo: matchPlanilha.urlArquivo,
-            urlPasta: matchPlanilha.urlPasta
+            statusCode: temLink ? "NO_DRIVE" : "SEM_LINK_DRIVE",
+            statusLabel: temLink ? "🟢 Localizada no Drive" : "🟡 Na Planilha (Sem Link)",
+            empresa: match.empresa || emp,
+            numero: match.numero || item.numero || "-",
+            chave: match.chave || item.chave || "",
+            data: match.data || item.data || "-",
+            valor: Number(match.valor || item.valor || 0),
+            urlArquivo: match.urlArquivo || "",
+            urlPasta: match.urlPasta || ""
           });
         } else {
           resultados.push({
-            idLinha: `CONF_LIV_${index}`,
-            categoria: 'SO_LIVRO',
-            statusLabel: '🔴 Só no Livro Fiscal',
-            empresa: empresaFinal,
-            mes: item.mes || (filtrarMeses ? Array.from(estado.mesesSelecionados)[0] : 11),
-            ano: item.ano || (anoFiltro !== 'TODOS_ANOS' ? parseInt(anoFiltro, 10) : 2026),
-            numero: item.numero || '-',
-            chave: item.chave || '',
-            parceiro: item.parceiro,
-            valorLivro: item.valor,
-            valorPlanilha: null,
-            urlArquivo: '',
-            urlPasta: ''
+            statusCode: "FALTANDO_PLANILHA",
+            statusLabel: "🔴 Não Localizada na Planilha",
+            empresa: emp || "-",
+            numero: item.numero || "-",
+            chave: item.chave || "",
+            data: item.data || "-",
+            valor: Number(item.valor || 0),
+            urlArquivo: "",
+            urlPasta: ""
           });
         }
       });
 
-      // 2. Opcionalmente inclui notas da planilha do mesmo recorte que não vieram no livro
-      if (incluirSoPlanilha) {
-        estado.notas.forEach(nota => {
-          if (idsNotasPlanilhaCasadas.has(nota.id)) return;
-          if (!estado.empresasSelecionadas.has(nota.empresa)) return;
-          if (anoFiltro !== 'TODOS_ANOS' && String(nota.ano) !== anoFiltro) return;
-          if (filtrarMeses && !estado.mesesSelecionados.has(nota.mes)) return;
-
+      notasBase.forEach(n => {
+        if (!usadasPlanilha.has(n)) {
           resultados.push({
-            idLinha: `CONF_PLAN_${nota.id}`,
-            categoria: 'SO_PLANILHA',
-            statusLabel: '🔵 Só na Planilha',
-            empresa: nota.empresa,
-            mes: nota.mes,
-            ano: nota.ano,
-            numero: nota.numero || '-',
-            chave: nota.chave || '',
-            parceiro: nota.parceiro,
-            valorLivro: null,
-            valorPlanilha: nota.valor,
-            urlArquivo: nota.urlArquivo,
-            urlPasta: nota.urlPasta
+            statusCode: "APENAS_PLANILHA",
+            statusLabel: "🟠 Só na Planilha (Não no Livro)",
+            empresa: n.empresa || "-",
+            numero: n.numero || "-",
+            chave: n.chave || "",
+            data: n.data || "-",
+            valor: Number(n.valor || 0),
+            urlArquivo: n.urlArquivo || "",
+            urlPasta: n.urlPasta || ""
           });
-        });
-      }
+        }
+      });
 
       estado.resultadosConferencia = resultados;
-      estado.filtroResultadoConf = 'TODOS';
-
-      const badgeConf = document.getElementById('contadorAbaConferencia');
-      badgeConf.textContent = resultados.length;
-      badgeConf.classList.remove('hidden');
-
-      atualizarMetricasConferencia();
-      atualizarBotoesFiltroConferencia();
-      renderizarTabelaConferencia();
-
-      document.getElementById('painelResultadoConferencia').classList.remove('hidden');
-      mostrarBanner(`Conferência concluída: ${resultados.length} registro(s) consolidado(s).`, 'sucesso');
+      renderizarResultadoConferencia();
+      mostrarAlerta(`Conferência concluída: ${resultados.length} registro(s) consolidado(s).`, "success");
     }
 
-    function atualizarMetricasConferencia() {
+    function renderizarResultadoConferencia() {
       const todos = estado.resultadosConferencia;
-      const noDrive = todos.filter(r => r.categoria === 'NO_DRIVE').length;
-      const semLink = todos.filter(r => r.categoria === 'SEM_LINK').length;
-      const soLivro = todos.filter(r => r.categoria === 'SO_LIVRO').length;
-      const soPlanilha = todos.filter(r => r.categoria === 'SO_PLANILHA').length;
+      const noDrive = todos.filter(r => r.statusCode === "NO_DRIVE").length;
+      const semLinkOuFaltando = todos.filter(r => r.statusCode === "SEM_LINK_DRIVE" || r.statusCode === "FALTANDO_PLANILHA").length;
+      const apenasPlanilha = todos.filter(r => r.statusCode === "APENAS_PLANILHA").length;
 
-      document.getElementById('confTotal').textContent = todos.length;
-      document.getElementById('confNoDrive').textContent = noDrive;
-      document.getElementById('confSemLink').textContent = semLink;
-      document.getElementById('confSoLivro').textContent = soLivro;
-      document.getElementById('confSoPlanilha').textContent = soPlanilha;
-    }
+      document.getElementById("confMetricTotal").textContent = todos.length;
+      document.getElementById("confMetricNoDrive").textContent = noDrive;
+      document.getElementById("confMetricFaltando").textContent = semLinkOuFaltando;
+      document.getElementById("confMetricApenasPlanilha").textContent = apenasPlanilha;
 
-    function setFiltroResultadoConferencia(filtro) {
-      estado.filtroResultadoConf = filtro;
-      atualizarBotoesFiltroConferencia();
-      renderizarTabelaConferencia();
-    }
+      const filtroStatus = document.getElementById("filtroStatusConferencia").value;
+      const busca = (document.getElementById("filtroBuscaConferencia").value || "").trim().toLowerCase();
 
-    function atualizarBotoesFiltroConferencia() {
-      document.querySelectorAll('.btn-filtro-conf').forEach(btn => {
-        const ativo = btn.getAttribute('data-filtro-conf') === estado.filtroResultadoConf;
-        btn.className = ativo
-          ? 'btn-filtro-conf px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white cursor-pointer'
-          : 'btn-filtro-conf px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer';
-      });
-    }
-
-    function obterResultadosFiltradosConferencia() {
-      const f = estado.filtroResultadoConf;
-      return estado.resultadosConferencia.filter(r => {
-        if (f === 'TODOS') return true;
-        if (f === 'NO_DRIVE') return r.categoria === 'NO_DRIVE';
-        if (f === 'PENDENTES') return r.categoria === 'SEM_LINK' || r.categoria === 'SO_LIVRO';
-        if (f === 'SO_LIVRO') return r.categoria === 'SO_LIVRO';
-        if (f === 'SO_PLANILHA') return r.categoria === 'SO_PLANILHA';
+      const visiveis = todos.filter(r => {
+        if (filtroStatus !== "TODOS" && r.statusCode !== filtroStatus) return false;
+        if (busca) {
+          const alvo = [r.statusLabel, r.empresa, r.numero, r.chave, r.data].join(" ").toLowerCase();
+          if (!alvo.includes(busca)) return false;
+        }
         return true;
       });
-    }
 
-    function renderizarBadgeConferencia(item) {
-      const mapEstilos = {
-        NO_DRIVE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        SEM_LINK: 'bg-amber-50 text-amber-700 border-amber-200',
-        SO_LIVRO: 'bg-rose-50 text-rose-700 border-rose-200',
-        SO_PLANILHA: 'bg-blue-50 text-blue-700 border-blue-200'
-      };
-      const cls = mapEstilos[item.categoria] || 'bg-slate-100 text-slate-700 border-slate-200';
-      return `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${cls}">${escaparHTML(item.statusLabel)}</span>`;
-    }
-
-    function renderizarTabelaConferencia() {
-      const tbody = document.getElementById('corpoTabelaConferencia');
-      const linhas = obterResultadosFiltradosConferencia();
-
-      if (linhas.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="8" class="px-4 py-10 text-center text-sm text-slate-500">
-              Nenhum item corresponde ao filtro selecionado.
-            </td>
-          </tr>
-        `;
+      const tbody = document.getElementById("tbodyResultadoConferencia");
+      if (visiveis.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">Nenhum item corresponde ao filtro selecionado.</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = linhas.map(item => {
-        const mesObj = MESES_DEPARA.find(m => m.num === item.mes);
-        const sigla = mesObj ? mesObj.sigla : String(item.mes).padStart(2, '0');
-        const chaveCurta = item.chave ? `${item.chave.slice(0, 8)}…${item.chave.slice(-6)}` : '-';
-
+      tbody.innerHTML = visiveis.map(r => {
+        const chaveCurta = r.chave ? `${r.chave.slice(0, 10)}...${r.chave.slice(-6)}` : "-";
         return `
-          <tr class="hover:bg-slate-50/80 transition">
-            <td class="px-4 py-3 whitespace-nowrap">${renderizarBadgeConferencia(item)}</td>
-            <td class="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">${escaparHTML(item.empresa)}</td>
-            <td class="px-4 py-3 text-xs font-semibold text-slate-700 whitespace-nowrap">${sigla}/${item.ano}</td>
-            <td class="px-4 py-3 whitespace-nowrap">
-              <div class="font-semibold text-slate-900">NF ${escaparHTML(item.numero)}</div>
-              <div class="text-xs font-mono mono-chave text-slate-500" title="${escaparHTML(item.chave)}">${escaparHTML(chaveCurta)}</div>
-            </td>
-            <td class="px-4 py-3 text-slate-700 max-w-xs truncate" title="${escaparHTML(item.parceiro)}">${escaparHTML(item.parceiro)}</td>
-            <td class="px-4 py-3 text-right font-medium text-slate-800 whitespace-nowrap">
-              ${item.valorLivro !== null && item.valorLivro !== undefined ? formatarMoedaBRL(item.valorLivro) : '<span class="text-slate-400">—</span>'}
-            </td>
-            <td class="px-4 py-3 text-right font-medium text-slate-800 whitespace-nowrap">
-              ${item.valorPlanilha !== null && item.valorPlanilha !== undefined ? formatarMoedaBRL(item.valorPlanilha) : '<span class="text-slate-400">—</span>'}
-            </td>
-            <td class="px-4 py-3 text-center whitespace-nowrap">
-              ${renderizarBotoesDrive(item)}
-            </td>
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-3 text-xs font-semibold whitespace-nowrap">${r.statusLabel}</td>
+            <td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">${r.empresa}</td>
+            <td class="px-4 py-3 whitespace-nowrap">${r.numero}</td>
+            <td class="px-4 py-3 font-mono text-xs text-slate-600" title="${r.chave}">${chaveCurta}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-slate-600">${r.data}</td>
+            <td class="px-4 py-3 text-right font-medium whitespace-nowrap">${formatarMoeda(r.valor)}</td>
+            <td class="px-4 py-3 text-center whitespace-nowrap">${renderizarBotoesDrive(r)}</td>
           </tr>
         `;
-      }).join('');
+      }).join("");
     }
 
-    function exportarResultadoCSV() {
-      const dados = obterResultadosFiltradosConferencia();
-      if (dados.length === 0) {
-        mostrarBanner('Não há linhas no resultado atual para exportar.', 'alerta');
+    function exportarCsvConferencia() {
+      const lista = estado.resultadosConferencia;
+      if (!lista || lista.length === 0) {
+        mostrarAlerta("Não há resultado de conferência para exportar.", "warn");
         return;
       }
+      const cab = ["Status", "Empresa", "Numero", "Chave", "Data", "Valor", "URL Arquivo", "URL Pasta"];
+      const linhas = lista.map(r => [
+        r.statusLabel,
+        r.empresa,
+        r.numero,
+        r.chave,
+        r.data,
+        Number(r.valor || 0).toFixed(2).replace(".", ","),
+        r.urlArquivo,
+        r.urlPasta
+      ].map(v => `"${String(v || "").replace(/"/g, '""')}"`).join(";"));
 
-      const cabecalho = [
-        'Status Conferencia',
-        'Empresa',
-        'Mes',
-        'Ano',
-        'Numero',
-        'Chave Acesso',
-        'Parceiro',
-        'Valor Livro',
-        'Valor Planilha',
-        'URL Arquivo',
-        'URL Pasta'
-      ];
-
-      const escaparCSV = (v) => {
-        const s = String(v === null || v === undefined ? '' : v).replace(/"/g, '""');
-        return `"${s}"`;
-      };
-
-      const linhasCSV = [
-        cabecalho.map(escaparCSV).join(';'),
-        ...dados.map(d => [
-          d.statusLabel,
-          d.empresa,
-          d.mes,
-          d.ano,
-          d.numero,
-          d.chave,
-          d.parceiro,
-          d.valorLivro !== null && d.valorLivro !== undefined ? String(d.valorLivro).replace('.', ',') : '',
-          d.valorPlanilha !== null && d.valorPlanilha !== undefined ? String(d.valorPlanilha).replace('.', ',') : '',
-          d.urlArquivo || '',
-          d.urlPasta || ''
-        ].map(escaparCSV).join(';'))
-      ];
-
-      const blob = new Blob(['\uFEFF' + linhasCSV.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const csv = "﻿" + [cab.join(";"), ...linhas].join("
+");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `conferencia_fiscal_${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `conferencia-livro-fiscal-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
       URL.revokeObjectURL(url);
-
-      mostrarBanner(`Exportado ${dados.length} registro(s) em CSV.`, 'sucesso');
     }
 
-    // -----------------------------------------------------------------------
-    // 6. FONTE DE DADOS / APPS SCRIPT MODAL E INTEGRAÇÃO
-    // -----------------------------------------------------------------------
-    function abrirModalFonteDados() {
-      const radios = document.getElementsByName('modoFonte');
-      radios.forEach(r => {
-        r.checked = (r.value === estado.modoFonte);
-      });
-      document.getElementById('inputUrlWebApp').value = estado.urlWebApp;
-      alternarCamposUrlFonte();
-      document.getElementById('modalFonteDados').classList.remove('hidden');
+    function atualizarContadorLinhasLivro() {
+      const linhas = document.getElementById("textoLivroFiscal").value
+        .split(/
+?
+/)
+        .map(l => l.trim())
+        .filter(Boolean).length;
+      document.getElementById("resumoTextoLivro").textContent = `${linhas} linha(s) carregada(s) no livro fiscal`;
     }
 
-    function fecharModalFonteDados() {
-      document.getElementById('modalFonteDados').classList.add('hidden');
-    }
+    // Eventos
+    document.getElementById("btnAtualizarDados").addEventListener("click", carregarDadosPlanilha);
+    document.getElementById("filtroBuscaNotas").addEventListener("input", renderizarNotasPlanilha);
+    document.getElementById("filtroEmpresaNotas").addEventListener("change", renderizarNotasPlanilha);
+    document.getElementById("filtroDriveNotas").addEventListener("change", renderizarNotasPlanilha);
+    document.getElementById("filtroMesNotas").addEventListener("change", renderizarNotasPlanilha);
+    document.getElementById("ocultarDesconsideradasNotas").addEventListener("change", renderizarNotasPlanilha);
 
-    function alternarCamposUrlFonte() {
-      const selecionado = [...document.getElementsByName('modoFonte')].find(r => r.checked);
-      const modo = selecionado ? selecionado.value : 'DEMO';
-      const blocoUrl = document.getElementById('blocoUrlWebApp');
-      if (modo === 'WEBAPP') {
-        blocoUrl.classList.remove('hidden');
-      } else {
-        blocoUrl.classList.add('hidden');
+    document.getElementById("btnLimparFiltrosNotas").addEventListener("click", () => {
+      document.getElementById("filtroBuscaNotas").value = "";
+      document.getElementById("filtroEmpresaNotas").value = "";
+      document.getElementById("filtroDriveNotas").value = "TODAS";
+      document.getElementById("filtroMesNotas").value = "";
+      document.getElementById("ocultarDesconsideradasNotas").checked = true;
+      renderizarNotasPlanilha();
+    });
+
+    document.getElementById("textoLivroFiscal").addEventListener("input", atualizarContadorLinhasLivro);
+    document.getElementById("btnLimparLivro").addEventListener("click", () => {
+      document.getElementById("textoLivroFiscal").value = "";
+      document.getElementById("progressoArquivoLivro").classList.add("hidden");
+      atualizarContadorLinhasLivro();
+    });
+
+    document.getElementById("btnCarregarExemploLivro").addEventListener("click", () => {
+      document.getElementById("textoLivroFiscal").value = [
+        "ALPINE; NF 1021; 35260112345678000199550010000010211000010210; 12/01/2026; 14.850,00",
+        "MEDIC; NF 1022; 35260198765432000111550010000010221000010225; 18/01/2026; 8.320,50",
+        "ALPINE; NF 9999; 35260111111111000122550010000099991000009999; 25/01/2026; 3.150,00"
+      ].join("
+");
+      atualizarContadorLinhasLivro();
+    });
+
+    document.getElementById("inputArquivoLivro").addEventListener("change", async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        if (file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf") {
+          const textoExtraido = await extrairTextoPdf(file);
+          const textarea = document.getElementById("textoLivroFiscal");
+          textarea.value = textarea.value.trim()
+            ? `${textarea.value.trim()}
+${textoExtraido}`
+            : textoExtraido;
+        } else {
+          const texto = await file.text();
+          document.getElementById("textoLivroFiscal").value = texto;
+        }
+        atualizarContadorLinhasLivro();
+      } catch (err) {
+        mostrarAlerta(`Erro ao ler arquivo: ${err.message}`, "error");
+      } finally {
+        e.target.value = "";
       }
-    }
+    });
 
-    function aplicarConfiguracaoFonte() {
-      const selecionado = [...document.getElementsByName('modoFonte')].find(r => r.checked);
-      estado.modoFonte = selecionado ? selecionado.value : 'DEMO';
-      estado.urlWebApp = (document.getElementById('inputUrlWebApp').value || '').trim();
-      fecharModalFonteDados();
-      recarregarFonteDados();
-    }
+    document.getElementById("btnExecutarConferencia").addEventListener("click", executarConferencia);
+    document.getElementById("filtroStatusConferencia").addEventListener("change", renderizarResultadoConferencia);
+    document.getElementById("filtroBuscaConferencia").addEventListener("input", renderizarResultadoConferencia);
+    document.getElementById("btnExportarCsvConferencia").addEventListener("click", exportarCsvConferencia);
 
-    function recarregarFonteDados() {
-      if (estado.modoFonte === 'DEMO') {
-        aplicarBaseDados(BASE_DEMO, 'Demonstração (Planilha)');
-        mostrarBanner('Base de demonstração atualizada.', 'info');
-        return;
+    // Modal Fonte de Dados
+    const modal = document.getElementById("modalFonteDados");
+    document.getElementById("btnAbrirFonteDados").addEventListener("click", () => {
+      document.getElementById("selectModoFonte").value = estado.modo;
+      document.getElementById("inputWebAppUrl").value = estado.webappUrl || FIXED_WEBAPP_URL;
+      modal.classList.remove("hidden");
+    });
+    document.getElementById("btnFecharModal").addEventListener("click", () => modal.classList.add("hidden"));
+    document.getElementById("btnCancelarModal").addEventListener("click", () => modal.classList.add("hidden"));
+    document.getElementById("btnRestaurarUrlPadrao").addEventListener("click", () => {
+      document.getElementById("inputWebAppUrl").value = FIXED_WEBAPP_URL;
+    });
+    document.getElementById("btnCopiarCodeGs").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(CODE_GS_TEMPLATE);
+        mostrarAlerta("Código Code.gs copiado para a área de transferência!", "success");
+      } catch {
+        mostrarAlerta("Não foi possível copiar automaticamente; selecione e copie o código manualmente.", "warn");
       }
+    });
+    document.getElementById("btnSalvarFonteDados").addEventListener("click", () => {
+      const novoModo = document.getElementById("selectModoFonte").value;
+      const novaUrl = (document.getElementById("inputWebAppUrl").value || FIXED_WEBAPP_URL).trim();
+      estado.modo = novoModo;
+      estado.webappUrl = novaUrl;
+      localStorage.setItem(STORAGE_KEY_MODE, novoModo);
+      localStorage.setItem(STORAGE_KEY_URL, novaUrl);
+      modal.classList.add("hidden");
+      carregarDadosPlanilha();
+    });
 
-      if (typeof google !== 'undefined' && google.script && google.script.run) {
-        atualizarIndicadoresFonte('Carregando via Apps Script...');
-        google.script.run
-          .withSuccessHandler((res) => {
-            const payload = res && res.data ? res.data : res;
-            if (payload && Array.isArray(payload.notas)) {
-              aplicarBaseDados(payload, 'Google Apps Script (Planilha)');
-              mostrarBanner(`Carregadas ${payload.notas.length} notas da planilha via Apps Script.`, 'sucesso');
-            } else {
-              aplicarBaseDados(BASE_DEMO, 'Demonstração (Fallback)');
-              mostrarBanner('Retorno do Apps Script sem lista de notas; mantendo base de demonstração.', 'alerta');
-            }
-          })
-          .withFailureHandler((err) => {
-            aplicarBaseDados(BASE_DEMO, 'Demonstração (Fallback)');
-            mostrarBanner(`Erro no Apps Script: ${err && err.message ? err.message : 'falha na execução'}.`, 'erro');
-          })
-          .obterDadosConsolidadosPlanilha();
-        return;
-      }
-
-      if (!estado.urlWebApp) {
-        aplicarBaseDados(BASE_DEMO, 'Demonstração (Planilha)');
-        mostrarBanner('Nenhuma URL de Web App informada. Usando dados de demonstração.', 'alerta');
-        return;
-      }
-
-      atualizarIndicadoresFonte('Conectando ao Web App...');
-      fetch(estado.urlWebApp, { method: 'GET' })
-        .then(resp => {
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          return resp.json();
-        })
-        .then(json => {
-          const payload = json && json.data ? json.data : json;
-          if (!payload || !Array.isArray(payload.notas)) {
-            throw new Error('JSON não contém o campo "notas".');
-          }
-          aplicarBaseDados(payload, 'Web App (Planilha)');
-          mostrarBanner(`Conectado com sucesso! ${payload.notas.length} notas carregadas da planilha.`, 'sucesso');
-        })
-        .catch(err => {
-          aplicarBaseDados(BASE_DEMO, 'Demonstração (Fallback)');
-          mostrarBanner(`Não foi possível ler a URL (${err.message}). Exibindo base de demonstração.`, 'erro');
-        });
-    }
-
-    function atualizarIndicadoresFonte(rotulo) {
-      document.getElementById('badgeFonteAtiva').innerHTML = `
-        <span class="h-2 w-2 rounded-full ${rotulo.includes('Demonstração') ? 'bg-emerald-500' : 'bg-blue-500'}"></span>
-        ${escaparHTML(rotulo)}
-      `;
-      document.getElementById('rodapeResumoConexao').textContent = `Modo: ${rotulo}`;
-    }
-
-    function copiarCodigoAppsScript() {
-      copiarTextoSeguro(CODIGO_APPS_SCRIPT, 'Código Code.gs copiado! Cole no editor do Google Apps Script.');
-    }
+    // Inicialização
+    sincronizarControlesEmpresa();
+    carregarDadosPlanilha();
   </script>
 </body>
 </html>
