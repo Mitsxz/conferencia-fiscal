@@ -1,1033 +1,2181 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Conferência Fiscal | Auditoria Automatizada</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
-    <style>
-        :root {
-            --navy-dark: #14244b;
-            --navy-mid: #1e3a8a;
-            --bg-page: #f1f5f9;
-            --card-bg: #ffffff;
-            --text-main: #0f172a;
-            --text-muted: #64748b;
-            --border: #e2e8f0;
-            --ok-bg: #dcfce7;
-            --ok-text: #166534;
-            --warn-bg: #fef3c7;
-            --warn-text: #92400e;
-            --err-bg: #fee2e2;
-            --err-text: #991b1b;
-            --info-bg: #dbeafe;
-            --info-text: #1e40af;
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Controle e Conferência Fiscal de Notas</title>
+  <!-- Fonte Inter para alta legibilidade em operação fiscal -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+            }
+          }
         }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
-        body { background-color: var(--bg-page); color: var(--text-main); padding-bottom: 60px; }
-
-        .header {
-            background: linear-gradient(135deg, var(--navy-dark) 0%, #0f172a 100%);
-            color: #ffffff;
-            padding: 26px 20px;
-            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
-            margin-bottom: 28px;
-        }
-        .header-content {
-            max-width: 1280px;
-            margin: 0 auto;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-        }
-        .header h1 { font-size: 1.6rem; font-weight: 700; color: #ffffff; margin-bottom: 3px; }
-        .header p { font-size: 0.88rem; color: #cbd5e1; }
-        .header-badge {
-            background-color: rgba(255, 255, 255, 0.14);
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            color: #ffffff;
-            padding: 6px 14px;
-            border-radius: 999px;
-            font-size: 0.8rem;
-            font-weight: 600;
-        }
-
-        .container { max-width: 1280px; margin: 0 auto; padding: 0 20px; }
-
-        .card {
-            background: var(--card-bg);
-            border-radius: 14px;
-            padding: 24px;
-            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
-            border: 1px solid var(--border);
-            margin-bottom: 24px;
-        }
-
-        .setup-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 16px;
-            margin-bottom: 20px;
-        }
-
-        .field-box {
-            background: #f8fafc;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 14px 16px;
-        }
-        .field-box label {
-            display: block;
-            font-size: 0.78rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            color: var(--navy-mid);
-            margin-bottom: 6px;
-        }
-        .field-box select, .field-box input[type="file"] {
-            width: 100%;
-            padding: 9px 10px;
-            border-radius: 8px;
-            border: 1px solid #cbd5e1;
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: var(--navy-dark);
-            background: #ffffff;
-        }
-
-        .drive-planilha-box {
-            background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
-            border: 1px solid #bfdbfe;
-            border-radius: 12px;
-            padding: 16px 18px;
-            margin-bottom: 18px;
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: space-between;
-            gap: 14px;
-        }
-        .drive-planilha-info {
-            flex: 1;
-            min-width: 280px;
-        }
-        .drive-planilha-info h4 {
-            font-size: 0.92rem;
-            color: var(--navy-dark);
-            margin-bottom: 4px;
-        }
-        .drive-planilha-info p {
-            font-size: 0.82rem;
-            color: var(--text-muted);
-        }
-        .select-planilha-drive {
-            min-width: 320px;
-            max-width: 100%;
-            padding: 9px 12px;
-            border-radius: 8px;
-            border: 1px solid #93c5fd;
-            font-size: 0.88rem;
-            font-weight: 700;
-            color: var(--navy-dark);
-            background: #ffffff;
-        }
-
-        .modo-bar {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 14px;
-            align-items: center;
-            justify-content: space-between;
-            padding-top: 16px;
-            border-top: 1px solid var(--border);
-        }
-        .radio-group { display: flex; flex-wrap: wrap; gap: 16px; }
-        .radio-option {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            background: #f8fafc;
-            padding: 8px 14px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-        }
-
-        .btn-primary {
-            background: var(--navy-dark);
-            color: #ffffff;
-            border: none;
-            padding: 12px 26px;
-            border-radius: 10px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .btn-primary:hover { background: var(--navy-mid); }
-        .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
-
-        .btn-secondary {
-            background: #ffffff;
-            color: var(--navy-dark);
-            border: 1px solid #cbd5e1;
-            padding: 9px 16px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .btn-secondary:hover { background: #f1f5f9; }
-
-        .progress-box {
-            display: none;
-            margin-top: 18px;
-            padding: 16px;
-            background: #f8fafc;
-            border-radius: 10px;
-            border: 1px solid var(--border);
-        }
-        .progress-bar-bg {
-            width: 100%;
-            height: 10px;
-            background: #e2e8f0;
-            border-radius: 999px;
-            overflow: hidden;
-            margin-top: 8px;
-        }
-        .progress-bar-fill {
-            height: 100%;
-            width: 0%;
-            background: var(--navy-mid);
-            transition: width 0.25s;
-        }
-
-        .erros-lote {
-            display: none;
-            margin-top: 14px;
-            padding: 12px 16px;
-            background: var(--err-bg);
-            color: var(--err-text);
-            border-radius: 8px;
-            font-size: 0.84rem;
-        }
-
-        #painel-resultados { display: none; }
-
-        .resumo-barra {
-            background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
-            border: 2px solid #bfdbfe;
-            border-radius: 12px;
-            padding: 16px 20px;
-            margin-bottom: 20px;
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: space-between;
-            gap: 14px;
-        }
-
-        .kpis {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-            gap: 16px;
-            margin-bottom: 20px;
-        }
-        .kpi-card {
-            background: #ffffff;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 16px 18px;
-        }
-        .kpi-label { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
-        .kpi-value { font-size: 1.35rem; font-weight: 700; color: var(--navy-dark); margin-top: 4px; }
-
-        .filtros-tabela {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 14px;
-        }
-        .filter-pills { display: flex; flex-wrap: wrap; gap: 6px; }
-        .f-pill {
-            padding: 7px 14px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            background: #f8fafc;
-            color: var(--text-main);
-            font-size: 0.82rem;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .f-pill.active {
-            border-color: var(--navy-mid);
-            background: var(--navy-mid);
-            color: #ffffff;
-        }
-        .search-input {
-            padding: 7px 12px;
-            border: 1px solid #cbd5e1;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            width: 230px;
-        }
-
-        .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; background: #ffffff; min-width: 1120px; }
-        th {
-            background: #f8fafc;
-            color: var(--text-muted);
-            font-weight: 700;
-            text-align: left;
-            padding: 11px 12px;
-            border-bottom: 1px solid var(--border);
-            white-space: nowrap;
-        }
-        td { padding: 11px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-        th:last-child, td:last-child { min-width: 220px; padding-right: 18px; white-space: nowrap; }
-        tr:hover td { background: #f8fafc; }
-
-        .badge-cfop {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 6px;
-            border: 1px solid #cbd5e1;
-            font-weight: 700;
-            font-size: 0.8rem;
-            background: #ffffff;
-            white-space: nowrap !important;
-            min-width: 58px !important;
-            text-align: center !important;
-        }
-        .badge-emp {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 6px;
-            background: #e2e8f0;
-            color: #1e293b;
-            font-weight: 700;
-            font-size: 0.76rem;
-        }
-        .status-pill {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 999px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            white-space: nowrap;
-        }
-        .st-ok { background: var(--ok-bg); color: var(--ok-text); }
-        .st-ausente { background: var(--warn-bg); color: var(--warn-text); }
-        .drive-acoes {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: nowrap;
-        }
-        .drive-acoes .btn-drive {
-            flex-shrink: 0;
-        }
-        .btn-drive {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: #1e3a8a;
-            color: #ffffff !important;
-            text-decoration: none;
-            padding: 7px 14px;
-            border-radius: 8px;
-            font-size: 0.78rem;
-            font-weight: 600;
-            white-space: nowrap;
-            transition: background 0.15s;
-        }
-        .btn-drive:hover { background: #14244b; }
-    </style>
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    /* Scrollbar discreta para tabelas largas de operação fiscal */
+    .table-scroll::-webkit-scrollbar {
+      height: 8px;
+      width: 8px;
+    }
+    .table-scroll::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 9999px;
+    }
+    .table-scroll::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    .table-scroll::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    .mono-chave {
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.02em;
+    }
+  </style>
 </head>
-<body>
+<body class="min-h-screen flex flex-col bg-slate-50 text-slate-900">
 
-<header class="header">
-    <div class="header-content">
-        <div style="display: flex; align-items: center; gap: 16px;">
-            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" style="height: 54px; width: auto; mix-blend-mode: lighten;">
-            <div>
-                <h1>Conferência Fiscal — Entradas (NF-e)</h1>
-                <p>Selecione a Empresa, o Mês/Ano e o Livro Fiscal (PDF) — a planilha e as NF-es vêm direto do Google Drive</p>
+  <!-- Cabeçalho Superior Fixo -->
+  <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between py-3.5 gap-3">
+        <!-- Identidade do Sistema -->
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h1 class="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
+                Controle &amp; Conferência Fiscal
+              </h1>
+              <span id="badgeFonteAtiva" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                Demonstração (Planilha)
+              </span>
             </div>
+            <p class="text-xs text-slate-500">
+              Abas de empresas, DEPARA e REGISTRO_NOTAS integrados ao Google Drive
+            </p>
+          </div>
         </div>
-        <span class="header-badge">Integração Direta Google Drive</span>
+
+        <!-- Ações de Fonte de Dados -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <button
+            id="btnRecarregarDados"
+            type="button"
+            onclick="recarregarFonteDados()"
+            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer"
+          >
+            <svg id="iconeRecarregar" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Atualizar Base
+          </button>
+
+          <button
+            type="button"
+            onclick="abrirModalFonteDados()"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition cursor-pointer"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+            Fonte de Dados / Apps Script
+          </button>
+        </div>
+      </div>
+
+      <!-- Navegação entre as 2 Abas Principais -->
+      <nav class="flex gap-2 -mb-px overflow-x-auto" aria-label="Abas principais">
+        <button
+          id="tabBtnNotas"
+          type="button"
+          onclick="trocarAba('notas')"
+          class="group inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 border-blue-600 text-blue-600 whitespace-nowrap transition cursor-pointer"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+          </svg>
+          1. Notas da Planilha
+          <span id="contadorAbaNotas" class="ml-1 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700 font-semibold">0</span>
+        </button>
+
+        <button
+          id="tabBtnConferencia"
+          type="button"
+          onclick="trocarAba('conferencia')"
+          class="group inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300 whitespace-nowrap transition cursor-pointer"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+          2. Conferência com Livro Fiscal
+          <span id="contadorAbaConferencia" class="hidden ml-1 px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-700 font-semibold">0</span>
+        </button>
+      </nav>
     </div>
-</header>
+  </header>
 
-<div class="container">
-    <div class="card">
-        <div class="setup-grid">
-            <div class="field-box">
-                <label for="sel-empresa">1. Empresa</label>
-                <select id="sel-empresa" onchange="consultarRecursosDrive()">
-                    <option value="MEDIC">MEDIC</option>
-                    <option value="SALVADOR">SALVADOR</option>
-                    <option value="ALPINE">ALPINE</option>
-                    <option value="NEUROPHARMA">NEUROPHARMA</option>
-                    <option value="NEOSURGICAL">NEOSURGICAL</option>
-                    <option value="DMF">DMF</option>
-                    <option value="DNA">DNA</option>
-                    <option value="ORTHOPRIME">ORTHOPRIME (Matriz)</option>
-                    <option value="ORTHOPRIME_FILIAL">ORTHOPRIME FILIAL</option>
-                    <option value="AVANT">AVANT</option>
-                    <option value="ALLIVIA_ERAS">ALLIVIA / ERAS</option>
-                    <option value="SURGILOG_MATRIZ_F05">SURGILOG (Matriz + F05)</option>
-                    <option value="SURGILOG_F02">SURGILOG F02</option>
-                    <option value="SURGILOG_F03">SURGILOG F03</option>
-                    <option value="SURGILOG_F04">SURGILOG F04</option>
-                    <option value="SURGILOG_F06">SURGILOG F06</option>
-                </select>
-            </div>
+  <!-- Banner de Notificação / Mensagens (substitui alert/confirm) -->
+  <div id="bannerFeedback" class="hidden max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+    <div id="bannerFeedbackInterno" class="rounded-xl px-4 py-3 text-sm font-medium flex items-center justify-between gap-3 border">
+      <div class="flex items-center gap-2.5">
+        <span id="bannerFeedbackIcone"></span>
+        <span id="bannerFeedbackTexto"></span>
+      </div>
+      <button type="button" onclick="ocultarBanner()" class="text-xs opacity-75 hover:opacity-100 font-semibold cursor-pointer">
+        Fechar
+      </button>
+    </div>
+  </div>
 
-            <div class="field-box">
-                <label for="sel-mes">2. Mês de Conferência</label>
-                <select id="sel-mes" onchange="consultarRecursosDrive()">
-                    <option value="1">01 - Janeiro</option>
-                    <option value="2">02 - Fevereiro</option>
-                    <option value="3">03 - Março</option>
-                    <option value="4">04 - Abril</option>
-                    <option value="5">05 - Maio</option>
-                    <option value="6">06 - Junho</option>
-                    <option value="7">07 - Julho</option>
-                    <option value="8">08 - Agosto</option>
-                    <option value="9">09 - Setembro</option>
-                    <option value="10" selected>10 - Outubro</option>
-                    <option value="11">11 - Novembro</option>
-                    <option value="12">12 - Dezembro</option>
-                </select>
-            </div>
+  <!-- Conteúdo Principal -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
-            <div class="field-box">
-                <label for="sel-ano">3. Ano</label>
-                <select id="sel-ano" onchange="consultarRecursosDrive()">
-                    <option value="2026" selected>2026</option>
-                    <option value="2025">2025</option>
-                    <option value="2024">2024</option>
-                </select>
-            </div>
-
-            <div class="field-box">
-                <label for="input-livros">4. Livro Fiscal de Entradas (PDF)</label>
-                <input type="file" id="input-livros" multiple accept=".pdf,.xlsx,.ods,.csv">
-            </div>
+    <!-- ===================================================================== -->
+    <!-- ABA 1: NOTAS DA PLANILHA                                              -->
+    <!-- ===================================================================== -->
+    <section id="abaNotas" class="space-y-6">
+      <!-- Cards de Resumo da Base Consolidada -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
+          <p class="text-xs font-medium text-slate-500">Total na Planilha</p>
+          <p id="statTotalNotas" class="mt-1 text-2xl font-bold text-slate-900">0</p>
+          <p class="mt-1 text-xs text-slate-400">Abas de empresas + REGISTRO_NOTAS</p>
         </div>
 
-        <div class="drive-planilha-box">
-            <div class="drive-planilha-info">
-                <h4>Planilha Consolidada no Google Drive (ENTRADAS > ANO)</h4>
-                <p id="status-drive-busca">Carregando planilhas e notas NF-e do Google Drive...</p>
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
+          <p class="text-xs font-medium text-slate-500">Com Link no Drive</p>
+          <p id="statComDrive" class="mt-1 text-2xl font-bold text-emerald-600">0</p>
+          <p class="mt-1 text-xs text-slate-400">Arquivo ou pasta disponível</p>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
+          <p class="text-xs font-medium text-slate-500">Sem Link no Drive</p>
+          <p id="statSemDrive" class="mt-1 text-2xl font-bold text-amber-600">0</p>
+          <p class="mt-1 text-xs text-slate-400">Pendentes de localização/arquivo</p>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
+          <p class="text-xs font-medium text-slate-500">Desconsideradas / Regra</p>
+          <p id="statDesconsideradas" class="mt-1 text-2xl font-bold text-rose-600">0</p>
+          <p class="mt-1 text-xs text-slate-400">Marcadas na coluna de status</p>
+        </div>
+      </div>
+
+      <!-- Barra de Filtros da Aba 1 -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500">
+            Filtros da Planilha
+          </h2>
+          <button
+            type="button"
+            onclick="limparFiltrosAba1()"
+            class="self-start sm:self-auto text-xs font-semibold text-blue-600 hover:text-blue-800 cursor-pointer"
+          >
+            Limpar todos os filtros
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <!-- Busca por Texto -->
+          <div>
+            <label for="filtroBuscaAba1" class="block text-xs font-medium text-slate-700 mb-1">
+              Buscar (Número, Chave, Parceiro, ID)
+            </label>
+            <div class="relative">
+              <input
+                id="filtroBuscaAba1"
+                type="text"
+                oninput="renderizarTabelaNotas()"
+                placeholder="Ex: 001482, 352611..., ALPINE..."
+                class="w-full rounded-xl border border-slate-300 bg-slate-50 focus:bg-white px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
             </div>
-            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
-                <select id="sel-planilha-drive" class="select-planilha-drive">
-                    <option value="">-- Buscando planilhas no Drive... --</option>
-                </select>
-                <button type="button" class="btn-secondary" onclick="consultarRecursosDrive(true)" title="Atualizar lista do Drive">
-                    ↻ Atualizar Drive
+          </div>
+
+          <!-- Filtro por Empresa -->
+          <div>
+            <label for="filtroEmpresaAba1" class="block text-xs font-medium text-slate-700 mb-1">
+              Empresa
+            </label>
+            <select
+              id="filtroEmpresaAba1"
+              onchange="renderizarTabelaNotas()"
+              class="w-full rounded-xl border border-slate-300 bg-slate-50 focus:bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="TODAS">Todas as empresas</option>
+            </select>
+          </div>
+
+          <!-- Filtro por Mês/Ano (DEPARA) -->
+          <div>
+            <label for="filtroPeriodoAba1" class="block text-xs font-medium text-slate-700 mb-1">
+              Período (Mês / Ano - DEPARA)
+            </label>
+            <select
+              id="filtroPeriodoAba1"
+              onchange="renderizarTabelaNotas()"
+              class="w-full rounded-xl border border-slate-300 bg-slate-50 focus:bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="TODOS">Todos os períodos</option>
+            </select>
+          </div>
+
+          <!-- Filtro Drive -->
+          <div>
+            <label for="filtroDriveAba1" class="block text-xs font-medium text-slate-700 mb-1">
+              Disponibilidade no Drive
+            </label>
+            <select
+              id="filtroDriveAba1"
+              onchange="renderizarTabelaNotas()"
+              class="w-full rounded-xl border border-slate-300 bg-slate-50 focus:bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="TODAS">Todas as notas</option>
+              <option value="COM_LINK">Com link no Drive</option>
+              <option value="SEM_LINK">Sem link no Drive</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Opção de incluir/ocultar desconsideradas -->
+        <div class="flex items-center justify-between pt-1 border-t border-slate-100 flex-wrap gap-2">
+          <label class="inline-flex items-center gap-2 text-xs sm:text-sm text-slate-600 cursor-pointer select-none">
+            <input
+              id="filtroOcultarDesconsideradas"
+              type="checkbox"
+              onchange="renderizarTabelaNotas()"
+              class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            Ocultar notas com status "Desconsiderada (Regra de Nome)"
+          </label>
+          <span id="contadorResultadosAba1" class="text-xs font-medium text-slate-500">
+            Exibindo 0 notas
+          </span>
+        </div>
+      </div>
+
+      <!-- Tabela Consolidada da Aba 1 -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+        <div class="table-scroll overflow-x-auto">
+          <table class="min-w-full divide-y divide-slate-200 text-left">
+            <thead class="bg-slate-50 text-slate-600 text-xs font-semibold uppercase tracking-wider">
+              <tr>
+                <th class="px-4 py-3.5">Empresa</th>
+                <th class="px-4 py-3.5">Período</th>
+                <th class="px-4 py-3.5">Número / Chave / ID</th>
+                <th class="px-4 py-3.5">Fornecedor / Cliente</th>
+                <th class="px-4 py-3.5 text-right">Valor</th>
+                <th class="px-4 py-3.5">Status Fiscal</th>
+                <th class="px-4 py-3.5 text-center">Google Drive</th>
+              </tr>
+            </thead>
+            <tbody id="corpoTabelaNotas" class="divide-y divide-slate-100 text-sm">
+              <!-- Linhas renderizadas via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- ABA 2: CONFERÊNCIA COM LIVRO FISCAL                                   -->
+    <!-- ===================================================================== -->
+    <section id="abaConferencia" class="hidden space-y-6">
+      <!-- Passo 1 & 2: Seleção Múltipla de Empresas + Meses/Ano -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Seleção de Múltiplas Empresas (7 cols) -->
+        <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
+              <div>
+                <h2 class="text-base font-bold text-slate-900">1. Selecione as Empresas</h2>
+                <p class="text-xs text-slate-500">Marque uma ou várias empresas para cruzar simultaneamente</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  onclick="selecionarTodasEmpresas(true)"
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+                >
+                  Selecionar todas
                 </button>
+                <button
+                  type="button"
+                  onclick="selecionarTodasEmpresas(false)"
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition cursor-pointer"
+                >
+                  Limpar
+                </button>
+              </div>
             </div>
+
+            <div id="containerChipsEmpresas" class="flex flex-wrap gap-2 pt-1">
+              <!-- Chips de empresas gerados via JS -->
+            </div>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <span>Empresas selecionadas:</span>
+            <strong id="resumoEmpresasSelecionadas" class="text-slate-800">Nenhuma</strong>
+          </div>
         </div>
 
-        <div class="modo-bar">
-            <div class="radio-group">
-                <label class="radio-option">
-                    <input type="radio" name="modo_operacao" value="notas" checked>
-                    Conferência Nota a Nota (Detalhado)
-                </label>
-                <label class="radio-option">
-                    <input type="radio" name="modo_operacao" value="resumo_cfop">
-                    Resumo por CFOP (Totais)
-                </label>
+        <!-- Seleção de Múltiplos Meses / Ano (5 cols) -->
+        <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
+              <div>
+                <h2 class="text-base font-bold text-slate-900">2. Período (DEPARA)</h2>
+                <p class="text-xs text-slate-500">Escolha um ou mais meses do ano fiscal</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <select
+                  id="selectAnoConferencia"
+                  onchange="renderizarChipsMeses()"
+                  class="rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="2026" selected>2026</option>
+                  <option value="2025">2025</option>
+                  <option value="TODOS_ANOS">Todos os anos</option>
+                </select>
+                <button
+                  type="button"
+                  onclick="selecionarTodosMeses(true)"
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+                >
+                  Todos
+                </button>
+                <button
+                  type="button"
+                  onclick="selecionarTodosMeses(false)"
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition cursor-pointer"
+                >
+                  Limpar
+                </button>
+              </div>
             </div>
-            <button type="button" class="btn-primary" id="btn-processar" onclick="iniciarConferenciaDrive()">
-                Iniciar Conferência
+
+            <div id="containerChipsMeses" class="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-4 gap-2 pt-1">
+              <!-- Meses JAN..DEZ gerados via JS -->
+            </div>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <span>Meses ativos:</span>
+            <strong id="resumoMesesSelecionados" class="text-slate-800">Todos os meses</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Passo 3: Entrada do Livro Fiscal -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <h2 class="text-base font-bold text-slate-900">3. Livro Fiscal (CSV, TXT, Colar Linhas ou JSON)</h2>
+            <p class="text-xs text-slate-500">
+              Aceita colunas como <code class="bg-slate-100 px-1 py-0.5 rounded">empresa</code>, <code class="bg-slate-100 px-1 py-0.5 rounded">chave</code>, <code class="bg-slate-100 px-1 py-0.5 rounded">numero</code>, <code class="bg-slate-100 px-1 py-0.5 rounded">data</code> (ou mês), <code class="bg-slate-100 px-1 py-0.5 rounded">valor</code> e <code class="bg-slate-100 px-1 py-0.5 rounded">parceiro</code>.
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2 flex-wrap">
+            <label class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              Enviar CSV / TXT
+              <input id="inputArquivoLivro" type="file" accept=".csv,.txt,.tsv,.json" onchange="lerArquivoLivroFiscal(event)" class="hidden" />
+            </label>
+
+            <button
+              type="button"
+              onclick="carregarLivroExemplo()"
+              class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              </svg>
+              Carregar Livro de Exemplo
             </button>
+
+            <button
+              type="button"
+              onclick="limparTextoLivro()"
+              class="px-3 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer"
+            >
+              Limpar
+            </button>
+          </div>
         </div>
 
-        <div class="progress-box" id="progress-box">
-            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600;">
-                <span id="progress-texto">Preparando arquivos...</span>
-                <span id="progress-pct">0%</span>
-            </div>
-            <div class="progress-bar-bg">
-                <div class="progress-bar-fill" id="progress-fill"></div>
-            </div>
+        <textarea
+          id="textareaLivroFiscal"
+          rows="6"
+          placeholder="Cole aqui as linhas do livro fiscal (CSV, ponto-e-vírgula, tabulação ou JSON). Ex:&#10;empresa;numero;chave;data;valor;fornecedor&#10;ALPINE;1482;35261101234567000190550010000014821123456789;10/11/2026;4850.00;MEDHOSPITALAR LTDA"
+          class="w-full rounded-xl border border-slate-300 bg-slate-50 focus:bg-white p-3.5 text-xs sm:text-sm font-mono text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        ></textarea>
+
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
+          <div class="flex items-center gap-3 flex-wrap">
+            <label class="inline-flex items-center gap-2 text-xs sm:text-sm text-slate-700 cursor-pointer select-none">
+              <input
+                id="chkIncluirSomentePlanilha"
+                type="checkbox"
+                checked
+                class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              Incluir também notas da planilha que não constaram no livro (no período selecionado)
+            </label>
+          </div>
+
+          <button
+            type="button"
+            onclick="executarConferencia()"
+            class="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition cursor-pointer"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Conferir Notas
+          </button>
+        </div>
+      </div>
+
+      <!-- Painel Consolidado de Resultado da Conferência -->
+      <div id="painelResultadoConferencia" class="hidden space-y-5">
+        <!-- Métricas Consolidadas -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
+            <p class="text-xs font-medium text-slate-500">Total Conferido</p>
+            <p id="confTotal" class="mt-1 text-2xl font-bold text-slate-900">0</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
+            <p class="text-xs font-medium text-slate-500">No Drive / Localizadas</p>
+            <p id="confNoDrive" class="mt-1 text-2xl font-bold text-emerald-600">0</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
+            <p class="text-xs font-medium text-slate-500">Na Planilha (Sem Link)</p>
+            <p id="confSemLink" class="mt-1 text-2xl font-bold text-amber-600">0</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
+            <p class="text-xs font-medium text-slate-500">Só no Livro Fiscal</p>
+            <p id="confSoLivro" class="mt-1 text-2xl font-bold text-rose-600">0</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs col-span-2 sm:col-span-1">
+            <p class="text-xs font-medium text-slate-500">Só na Planilha (Período)</p>
+            <p id="confSoPlanilha" class="mt-1 text-2xl font-bold text-blue-600">0</p>
+          </div>
         </div>
 
-        <div class="erros-lote" id="erros-lote"></div>
+        <!-- Barra de Filtros do Resultado e Exportação CSV -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 mr-1">Filtrar resultado:</span>
+            <button
+              type="button"
+              data-filtro-conf="TODOS"
+              onclick="setFiltroResultadoConferencia('TODOS')"
+              class="btn-filtro-conf px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white cursor-pointer"
+            >
+              Todos
+            </button>
+            <button
+              type="button"
+              data-filtro-conf="NO_DRIVE"
+              onclick="setFiltroResultadoConferencia('NO_DRIVE')"
+              class="btn-filtro-conf px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer"
+            >
+              No Drive
+            </button>
+            <button
+              type="button"
+              data-filtro-conf="PENDENTES"
+              onclick="setFiltroResultadoConferencia('PENDENTES')"
+              class="btn-filtro-conf px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer"
+            >
+              Pendências (Sem link / Só livro)
+            </button>
+            <button
+              type="button"
+              data-filtro-conf="SO_LIVRO"
+              onclick="setFiltroResultadoConferencia('SO_LIVRO')"
+              class="btn-filtro-conf px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer"
+            >
+              Só no Livro
+            </button>
+            <button
+              type="button"
+              data-filtro-conf="SO_PLANILHA"
+              onclick="setFiltroResultadoConferencia('SO_PLANILHA')"
+              class="btn-filtro-conf px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer"
+            >
+              Só na Planilha
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onclick="exportarResultadoCSV()"
+            class="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition cursor-pointer"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Exportar Resultado (CSV)
+          </button>
+        </div>
+
+        <!-- Tabela Consolidada do Resultado -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <div class="table-scroll overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-left">
+              <thead class="bg-slate-50 text-slate-600 text-xs font-semibold uppercase tracking-wider">
+                <tr>
+                  <th class="px-4 py-3.5">Status Conferência</th>
+                  <th class="px-4 py-3.5">Empresa</th>
+                  <th class="px-4 py-3.5">Período</th>
+                  <th class="px-4 py-3.5">Número / Chave</th>
+                  <th class="px-4 py-3.5">Parceiro</th>
+                  <th class="px-4 py-3.5 text-right">Valor Livro</th>
+                  <th class="px-4 py-3.5 text-right">Valor Planilha</th>
+                  <th class="px-4 py-3.5 text-center">Drive</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaConferencia" class="divide-y divide-slate-100 text-sm">
+                <!-- Linhas geradas via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Rodapé -->
+  <footer class="bg-white border-t border-slate-200 py-4 mt-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+      <span>Operação Fiscal • Cruzamento de abas de empresas, DEPARA e REGISTRO_NOTAS</span>
+      <span id="rodapeResumoConexao">Modo: Demonstração embutida</span>
     </div>
+  </footer>
 
-    <div id="painel-resultados">
-        <div class="resumo-barra">
+  <!-- ===================================================================== -->
+  <!-- MODAL: FONTE DE DADOS (APPS SCRIPT / PLANILHA)                        -->
+  <!-- ===================================================================== -->
+  <div id="modalFonteDados" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+      <!-- Cabeçalho do Modal -->
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+        <div>
+          <h3 class="text-base sm:text-lg font-bold text-slate-900">
+            Fonte de Dados (Planilha &amp; Google Apps Script)
+          </h3>
+          <p class="text-xs text-slate-500">
+            Use dados de demonstração, conecte a um Web App do Apps Script ou rode via <code class="bg-slate-100 px-1 rounded">google.script.run</code>
+          </p>
+        </div>
+        <button type="button" onclick="fecharModalFonteDados()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Corpo do Modal -->
+      <div class="p-5 overflow-y-auto space-y-5 text-sm">
+        <!-- Seleção de Modo -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 hover:border-blue-400 cursor-pointer transition">
+            <input type="radio" name="modoFonte" value="DEMO" checked onchange="alternarCamposUrlFonte()" class="mt-1 text-blue-600 focus:ring-blue-500" />
             <div>
-                <div style="font-size: 0.78rem; font-weight: 700; color: var(--navy-mid); text-transform: uppercase;">
-                    Conferência Ativa:
-                </div>
-                <div id="titulo-conferencia-ativa" style="font-size: 1.05rem; font-weight: 700; color: var(--navy-dark); margin-top: 2px;">
-                    —
-                </div>
+              <span class="font-semibold text-slate-900 block">Dados de Demonstração</span>
+              <span class="text-xs text-slate-500">Base simulada com ALPINE, MEDIC, NEOSURGICAL, SALVADOR, DEPARA e REGISTRO_NOTAS.</span>
             </div>
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <span id="info-planilha-filtrada" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;"></span>
-                <button type="button" class="btn-secondary" onclick="exportarCSV()">Exportar Tabela (Excel/CSV)</button>
+          </label>
+
+          <label class="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 hover:border-blue-400 cursor-pointer transition">
+            <input type="radio" name="modoFonte" value="WEBAPP" onchange="alternarCamposUrlFonte()" class="mt-1 text-blue-600 focus:ring-blue-500" />
+            <div>
+              <span class="font-semibold text-slate-900 block">Web App / Apps Script</span>
+              <span class="text-xs text-slate-500">Conecta à URL publicada do Apps Script (JSON) ou usa automaticamente <code class="bg-slate-100 px-1 rounded">google.script.run</code>.</span>
             </div>
+          </label>
         </div>
 
-        <div class="kpis">
-            <div class="kpi-card">
-                <div class="kpi-label">Total Livro Fiscal (NF-e)</div>
-                <div class="kpi-value" id="kpi-livro">R$ 0,00</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Total Planilha Drive (Mês)</div>
-                <div class="kpi-value" id="kpi-planilha">R$ 0,00</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Diferença Líquida</div>
-                <div class="kpi-value" id="kpi-diff">R$ 0,00</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Ausentes na Planilha</div>
-                <div class="kpi-value" id="kpi-div" style="color: #b91c1c;">0</div>
-            </div>
+        <!-- Campo de URL do Web App -->
+        <div id="blocoUrlWebApp" class="hidden space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
+          <label for="inputUrlWebApp" class="block text-xs font-semibold text-slate-700">
+            URL do Web App do Google Apps Script (opcional se estiver dentro do HTML Service)
+          </label>
+          <input
+            id="inputUrlWebApp"
+            type="url"
+            placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+            class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <p class="text-[11px] text-slate-500">
+            Se o site rodar dentro do Google Apps Script (<code class="bg-slate-200/70 px-1 rounded">google.script.run</code>), ele chamará <code class="bg-slate-200/70 px-1 rounded">obterDadosConsolidadosPlanilha()</code> diretamente mesmo sem URL.
+          </p>
         </div>
 
-        <div class="card">
-            <div class="filtros-tabela">
-                <div class="filter-pills" id="status-pills">
-                    <button type="button" class="f-pill active" data-st="TODOS" onclick="mudarFiltroStatus('TODOS', this)">OK + Ausente Planilha</button>
-                    <button type="button" class="f-pill" data-st="OK" onclick="mudarFiltroStatus('OK', this)">OK (Batem)</button>
-                    <button type="button" class="f-pill" data-st="AUSENTE_PLANILHA" onclick="mudarFiltroStatus('AUSENTE_PLANILHA', this)">Ausente Planilha</button>
-                </div>
-                <input type="text" class="search-input" id="busca-tabela" placeholder="Buscar Nota ou CFOP..." oninput="renderizarTabela()">
-            </div>
-
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Empresa</th>
-                            <th>Data</th>
-                            <th>Nota (NF-e)</th>
-                            <th>CFOP</th>
-                            <th>Valor Livro</th>
-                            <th>Valor Planilha</th>
-                            <th>Diferença</th>
-                            <th>Status</th>
-                            <th>Diagnóstico</th>
-                            <th>Pasta NFE (Drive)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbody-resultados"></tbody>
-                </table>
-            </div>
+        <!-- Código Pronto do Google Apps Script (Code.gs) -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-600">
+              Código pronto para o Apps Script (Code.gs)
+            </span>
+            <button
+              type="button"
+              onclick="copiarCodigoAppsScript()"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-900 text-white transition cursor-pointer"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Copiar Code.gs
+            </button>
+          </div>
+          <pre id="codigoAppsScriptPre" class="bg-slate-900 text-slate-100 rounded-xl p-3.5 text-[11px] leading-relaxed overflow-x-auto max-h-64 font-mono"></pre>
         </div>
+      </div>
+
+      <!-- Rodapé do Modal -->
+      <div class="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+        <button type="button" onclick="fecharModalFonteDados()" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-600 hover:bg-slate-200/70 transition cursor-pointer">
+          Cancelar
+        </button>
+        <button type="button" onclick="aplicarConfiguracaoFonte()" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition cursor-pointer">
+          Aplicar e Carregar
+        </button>
+      </div>
     </div>
-</div>
+  </div>
 
-<script>
-    const EMPRESAS_CONFIG = {
-        'MEDIC': { label: 'MEDIC', aliases: ['MEDIC'] },
-        'SALVADOR': { label: 'SALVADOR', aliases: ['SALVADOR'] },
-        'ALPINE': { label: 'ALPINE', aliases: ['ALPINE'] },
-        'NEUROPHARMA': { label: 'NEUROPHARMA', aliases: ['NEUROPHARMA'] },
-        'NEOSURGICAL': { label: 'NEOSURGICAL', aliases: ['NEOSURGICAL'] },
-        'DMF': { label: 'DMF', aliases: ['DMF'] },
-        'DNA': { label: 'DNA', aliases: ['DNA'] },
-        'ORTHOPRIME': { label: 'ORTHOPRIME', aliases: ['ORTHOPRIME'] },
-        'ORTHOPRIME_FILIAL': { label: 'ORTHOPRIME FILIAL', aliases: ['ORTHOPRIME FILIAL'] },
-        'AVANT': { label: 'AVANT', aliases: ['AVANT'] },
-        'ALLIVIA_ERAS': { label: 'ALLIVIA / ERAS', aliases: ['ALLIVIA', 'ERAS'] },
-        'SURGILOG_MATRIZ_F05': { label: 'SURGILOG (Matriz + F05)', aliases: ['SURGILOG MATRIZ', 'SURGILOG F05'] },
-        'SURGILOG_F02': { label: 'SURGILOG F02', aliases: ['SURGILOG F02'] },
-        'SURGILOG_F03': { label: 'SURGILOG F03', aliases: ['SURGILOG F03'] },
-        'SURGILOG_F04': { label: 'SURGILOG F04', aliases: ['SURGILOG F04'] },
-        'SURGILOG_F06': { label: 'SURGILOG F06', aliases: ['SURGILOG F06'] }
+  <!-- ===================================================================== -->
+  <!-- LÓGICA JAVASCRIPT COMPLETA                                            -->
+  <!-- ===================================================================== -->
+  <script>
+    // -----------------------------------------------------------------------
+    // 1. CONSTANTES DE DEPARA E CONFIGURAÇÃO DE ESTADO
+    // -----------------------------------------------------------------------
+    const MESES_DEPARA = [
+      { num: 1, sigla: 'JAN', nome: 'Janeiro' },
+      { num: 2, sigla: 'FEV', nome: 'Fevereiro' },
+      { num: 3, sigla: 'MAR', nome: 'Março' },
+      { num: 4, sigla: 'ABR', nome: 'Abril' },
+      { num: 5, sigla: 'MAI', nome: 'Maio' },
+      { num: 6, sigla: 'JUN', nome: 'Junho' },
+      { num: 7, sigla: 'JUL', nome: 'Julho' },
+      { num: 8, sigla: 'AGO', nome: 'Agosto' },
+      { num: 9, sigla: 'SET', nome: 'Setembro' },
+      { num: 10, sigla: 'OUT', nome: 'Outubro' },
+      { num: 11, sigla: 'NOV', nome: 'Novembro' },
+      { num: 12, sigla: 'DEZ', nome: 'Dezembro' }
+    ];
+
+    // Código Code.gs pronto para o usuário colar no projeto do Google Apps Script
+    const CODIGO_APPS_SCRIPT = `/**
+ * Code.gs - Consolida abas de empresas, DEPARA e REGISTRO_NOTAS
+ * para o aplicativo web de controle e conferência fiscal.
+ */
+function doGet(e) {
+  try {
+    const payload = obterDadosConsolidadosPlanilha();
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true, data: payload }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function obterDadosConsolidadosPlanilha() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const abasIgnoradas = ['DEPARA', 'REGISTRO_NOTAS', 'CONFIG', 'PARAMETROS'];
+
+  // 1. Lê ano de referência na DEPARA (padrão 2026)
+  let anoReferencia = 2026;
+  const abaDepara = ss.getSheetByName('DEPARA');
+  if (abaDepara) {
+    const valsDepara = abaDepara.getDataRange().getValues();
+    for (let r = 0; r < valsDepara.length; r++) {
+      for (let c = 0; c < valsDepara[r].length; c++) {
+        const cellStr = String(valsDepara[r][c] || '').trim();
+        if (/^20\\d{2}$/.test(cellStr)) {
+          anoReferencia = parseInt(cellStr, 10);
+          break;
+        }
+      }
+    }
+  }
+
+  // 2. Indexa REGISTRO_NOTAS por múltiplos identificadores
+  const mapaRegistro = new Map();
+  const abaRegistro = ss.getSheetByName('REGISTRO_NOTAS');
+  if (abaRegistro) {
+    const dadosReg = abaRegistro.getDataRange().getValues();
+    if (dadosReg.length > 1) {
+      const cabReg = dadosReg[0].map(h => String(h || '').trim().toUpperCase());
+      const idxId = cabReg.indexOf('ID');
+      const idxEmp = cabReg.indexOf('EMPRESA');
+      const idxArq = cabReg.indexOf('URL ARQUIVO');
+      const idxPasta = cabReg.indexOf('URL PASTA');
+
+      for (let i = 1; i < dadosReg.length; i++) {
+        const idRaw = limparErro(dadosReg[i][idxId]);
+        if (!idRaw) continue;
+        const emp = idxEmp >= 0 ? String(dadosReg[i][idxEmp] || '').trim().toUpperCase() : '';
+        const urlArquivo = idxArq >= 0 ? limparUrl(dadosReg[i][idxArq]) : '';
+        const urlPasta = idxPasta >= 0 ? limparUrl(dadosReg[i][idxPasta]) : '';
+        const info = { urlArquivo, urlPasta, empresa: emp };
+
+        const norm = idRaw.toUpperCase();
+        const dig = norm.replace(/\\D/g, '');
+        [norm, dig].filter(Boolean).forEach(k => {
+          if (emp) mapaRegistro.set(emp + '::' + k, info);
+          if (!mapaRegistro.has(k)) mapaRegistro.set(k, info);
+        });
+      }
+    }
+  }
+
+  // 3. Percorre abas de empresas
+  const empresasSet = new Set(['ALPINE', 'MEDIC', 'NEOSURGICAL', 'SALVADOR']);
+  const notas = [];
+
+  ss.getSheets().forEach(sheet => {
+    const nomeAba = String(sheet.getName() || '').trim();
+    const upperAba = nomeAba.toUpperCase();
+    if (abasIgnoradas.includes(upperAba)) return;
+
+    const dados = sheet.getDataRange().getValues();
+    if (dados.length < 2) return;
+
+    const cab = dados[0].map(h => String(h || '').trim().toUpperCase());
+    const colChave = acharColuna(cab, ['CHAVE DE ACESSO', 'CHAVE']);
+    const colNumero = acharColuna(cab, ['NUMERO', 'NÚMERO', 'NF', 'NUMERO NF']);
+    const colData = acharColuna(cab, ['DATA EMISSAO', 'DATA EMISSÃO', 'DATA ENTRADA', 'DATA']);
+    const colParceiro = acharColuna(cab, ['FORNECEDOR', 'CLIENTE', 'NOME / RAZAO SOCIAL', 'PARCEIRO']);
+    const colValor = acharColuna(cab, ['VALOR CONTABIL', 'VALOR CONTÁBIL', 'VALOR TOTAL', 'VALOR']);
+    const colStatus = acharColuna(cab, ['STATUS FISCAL', 'STATUS']);
+    const colUrlArq = acharColuna(cab, ['URL ARQUIVO', 'LINK ARQUIVO']);
+    const colUrlPasta = acharColuna(cab, ['URL PASTA', 'LINK PASTA', 'LINK DRIVE']);
+
+    empresasSet.add(upperAba);
+
+    for (let r = 1; r < dados.length; r++) {
+      const row = dados[r];
+      const chave = colChave >= 0 ? limparErro(row[colChave]).replace(/\\D/g, '') : '';
+      const numero = colNumero >= 0 ? limparErro(row[colNumero]) : '';
+      const parceiro = colParceiro >= 0 ? limparErro(row[colParceiro]) : '';
+      const statusFiscal = colStatus >= 0 ? limparErro(row[colStatus]) : '';
+      const valor = colValor >= 0 ? parseNumero(row[colValor]) : 0;
+
+      if (!chave && !numero && !parceiro) continue;
+
+      const dataInfo = parseDataSheet(colData >= 0 ? row[colData] : '', anoReferencia);
+      const regMatch = buscarNoRegistro(mapaRegistro, upperAba, chave, numero);
+
+      let urlArquivo = colUrlArq >= 0 ? limparUrl(row[colUrlArq]) : '';
+      let urlPasta = colUrlPasta >= 0 ? limparUrl(row[colUrlPasta]) : '';
+      if (regMatch) {
+        urlArquivo = urlArquivo || regMatch.urlArquivo || '';
+        urlPasta = urlPasta || regMatch.urlPasta || '';
+      }
+
+      notas.push({
+        id: upperAba + '_' + (r + 1),
+        empresa: upperAba,
+        numero: numero,
+        chave: chave,
+        parceiro: parceiro || 'Não informado',
+        valor: valor,
+        mes: dataInfo.mes,
+        ano: dataInfo.ano,
+        dataFormatada: dataInfo.dataFormatada,
+        statusFiscal: statusFiscal || (urlArquivo || urlPasta ? 'Localizada no Drive' : 'Sem registro'),
+        urlArquivo: urlArquivo,
+        urlPasta: urlPasta
+      });
+    }
+  });
+
+  return {
+    anoReferencia: anoReferencia,
+    empresas: Array.from(empresasSet).sort(),
+    notas: notas
+  };
+}
+
+function acharColuna(cab, candidatos) {
+  for (const c of candidatos) {
+    const idx = cab.indexOf(c.toUpperCase());
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
+
+function limparErro(v) {
+  if (v === null || v === undefined) return '';
+  const s = String(v).trim();
+  if (s.startsWith('#') || s.startsWith('Err:')) return '';
+  return s;
+}
+
+function limparUrl(v) {
+  const s = limparErro(v);
+  return /^https?:\\/\\//i.test(s) ? s : '';
+}
+
+function parseNumero(v) {
+  if (typeof v === 'number') return isNaN(v) ? 0 : v;
+  const limpo = limparErro(v).replace(/[^0-9,.-]/g, '').replace(',', '.');
+  const n = parseFloat(limpo);
+  return isNaN(n) ? 0 : n;
+}
+
+function parseDataSheet(v, anoPadrao) {
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    const m = v.getMonth() + 1;
+    const a = v.getFullYear();
+    return {
+      mes: m,
+      ano: a,
+      dataFormatada: String(v.getDate()).padStart(2, '0') + '/' + String(m).padStart(2, '0') + '/' + a
+    };
+  }
+  const s = limparErro(v);
+  const matchBr = s.match(/(\\d{1,2})[\\/\\-](\\d{1,2})(?:[\\/\\-](\\d{2,4}))?/);
+  if (matchBr) {
+    const d = matchBr[1].padStart(2, '0');
+    const m = parseInt(matchBr[2], 10);
+    let a = matchBr[3] ? parseInt(matchBr[3], 10) : anoPadrao;
+    if (a < 100) a += 2000;
+    return { mes: m, ano: a, dataFormatada: d + '/' + String(m).padStart(2, '0') + '/' + a };
+  }
+  return { mes: 11, ano: anoPadrao, dataFormatada: s || '-' };
+}
+
+function buscarNoRegistro(mapa, empresa, chave, numero) {
+  const digNum = String(numero || '').replace(/\\D/g, '');
+  const chaves = [
+    empresa + '::' + chave,
+    empresa + '::NUM_' + digNum,
+    empresa + '::' + digNum,
+    chave,
+    'NUM_' + digNum,
+    digNum
+  ].filter(Boolean);
+  for (const k of chaves) {
+    if (mapa.has(k)) return mapa.get(k);
+  }
+  return null;
+}`;
+
+    // Base de demonstração rica baseada na estrutura da planilha do usuário
+    const BASE_DEMO = {
+      anoReferencia: 2026,
+      empresas: ['ALPINE', 'MEDIC', 'NEOSURGICAL', 'SALVADOR', 'RENOVA', 'SURGILOG'],
+      notas: [
+        {
+          id: 'ALP_01',
+          empresa: 'ALPINE',
+          numero: '001482',
+          chave: '35261101234567000190550010000014821123456789',
+          parceiro: 'MEDHOSPITALAR PRODUTOS SA',
+          valor: 4850.00,
+          mes: 11,
+          ano: 2026,
+          dataFormatada: '10/11/2026',
+          statusFiscal: '🟢 Localizada no Drive',
+          urlArquivo: 'https://drive.google.com/file/d/1ALPINE_001482_DEMO/view',
+          urlPasta: 'https://drive.google.com/drive/folders/1PASTA_ALPINE_2026_11'
+        },
+        {
+          id: 'ALP_02',
+          empresa: 'ALPINE',
+          numero: '001495',
+          chave: '35261101234567000190550010000014951987654321',
+          parceiro: 'ORTHO DISTRIBUIDORA LTDA',
+          valor: 12390.50,
+          mes: 11,
+          ano: 2026,
+          dataFormatada: '18/11/2026',
+          statusFiscal: '🟢 Baixada do Gmail',
+          urlArquivo: '',
+          urlPasta: 'https://drive.google.com/drive/folders/1PASTA_ALPINE_2026_11'
+        },
+        {
+          id: 'ALP_03',
+          empresa: 'ALPINE',
+          numero: '001310',
+          chave: '35261001234567000190550010000013101554433221',
+          parceiro: 'FORNECEDOR DESCONSIDERADO TESTE',
+          valor: 920.00,
+          mes: 10,
+          ano: 2026,
+          dataFormatada: '22/10/2026',
+          statusFiscal: '🔴 Desconsiderada (Regra de Nome)',
+          urlArquivo: '',
+          urlPasta: ''
+        },
+        {
+          id: 'MED_01',
+          empresa: 'MEDIC',
+          numero: '008821',
+          chave: '35261198765432000110550010000088211112233445',
+          parceiro: 'CIRURGICA BRASIL COMERCIO',
+          valor: 7640.25,
+          mes: 11,
+          ano: 2026,
+          dataFormatada: '05/11/2026',
+          statusFiscal: '🟢 Localizada (já salva)',
+          urlArquivo: 'https://drive.google.com/file/d/1MEDIC_008821_DEMO/view',
+          urlPasta: 'https://drive.google.com/drive/folders/1PASTA_MEDIC_2026_11'
+        },
+        {
+          id: 'MED_02',
+          empresa: 'MEDIC',
+          numero: '008904',
+          chave: '35261198765432000110550010000089041667788990',
+          parceiro: 'BIOVITA INSUMOS HOSPITALARES',
+          valor: 3180.00,
+          mes: 11,
+          ano: 2026,
+          dataFormatada: '24/11/2026',
+          statusFiscal: 'Pendente anexar PDF',
+          urlArquivo: '',
+          urlPasta: ''
+        },
+        {
+          id: 'NEO_01',
+          empresa: 'NEOSURGICAL',
+          numero: '004120',
+          chave: '35261144556677000188550010000041201778899001',
+          parceiro: 'STRYKER DO BRASIL LTDA',
+          valor: 28900.00,
+          mes: 11,
+          ano: 2026,
+          dataFormatada: '12/11/2026',
+          statusFiscal: '🟢 Localizada no Drive',
+          urlArquivo: 'https://drive.google.com/file/d/1NEOSURG_004120_DEMO/view',
+          urlPasta: 'https://drive.google.com/drive/folders/1PASTA_NEO_2026_11'
+        },
+        {
+          id: 'NEO_02',
+          empresa: 'NEOSURGICAL',
+          numero: '003998',
+          chave: '35261044556677000188550010000039981223344556',
+          parceiro: 'ZIMMER BIOMET BRASIL',
+          valor: 15420.80,
+          mes: 10,
+          ano: 2026,
+          dataFormatada: '29/10/2026',
+          statusFiscal: '🟢 Localizada no Drive',
+          urlArquivo: 'https://drive.google.com/file/d/1NEOSURG_003998_DEMO/view',
+          urlPasta: 'https://drive.google.com/drive/folders/1PASTA_NEO_2026_10'
+        },
+        {
+          id: 'SAL_01',
+          empresa: 'SALVADOR',
+          numero: '002215',
+          chave: '29261111223344000155550010000022151334455667',
+          parceiro: 'NORDESTE HOSPITALAR SA',
+          valor: 6410.00,
+          mes: 11,
+          ano: 2026,
+          dataFormatada: '14/11/2026',
+          statusFiscal: '🟢 Baixada do Gmail',
+          urlArquivo: 'https://drive.google.com/file/d/1SALVADOR_002215_DEMO/view',
+          urlPasta: 'https://drive.google.com/drive/folders/1PASTA_SALV_2026_11'
+        },
+        {
+          id: 'SAL_02',
+          empresa: 'SALVADOR',
+          numero: '002240',
+          chave: '29261111223344000155550010000022401889900112',
+          parceiro: 'BAHIA MED DISTRIBUIDORA',
+          valor: 2150.40,
+          mes: 11,
+          ano: 2026,
+          dataFormatada: '20/11/2026',
+          statusFiscal: 'Sem vínculo no Drive',
+          urlArquivo: '',
+          urlPasta: ''
+        },
+        {
+          id: 'REN_01',
+          empresa: 'RENOVA',
+          numero: '000774',
+          chave: '35261177889900000122550010000007741990011223',
+          parceiro: 'PHARMA LOGISTICA LTDA',
+          valor: 9320.00,
+          mes: 11,
+          ano: 2026,
+          dataFormatada: '08/11/2026',
+          statusFiscal: '🟢 Localizada no Drive',
+          urlArquivo: 'https://drive.google.com/file/d/1RENOVA_000774_DEMO/view',
+          urlPasta: ''
+        },
+        {
+          id: 'SUR_01',
+          empresa: 'SURGILOG',
+          numero: '005501',
+          chave: '35261155443322000199550010000055011445566778',
+          parceiro: 'MEDTRONIC COMERCIAL LTDA',
+          valor: 18750.00,
+          mes: 11,
+          ano: 2026,
+          dataFormatada: '16/11/2026',
+          statusFiscal: '🟢 Localizada (já salva)',
+          urlArquivo: '',
+          urlPasta: 'https://drive.google.com/drive/folders/1PASTA_SURGILOG_2026_11'
+        }
+      ]
     };
 
-    let planilhasDisponiveisDrive = [];
-    let notasNfeDrive = [];
-    let registrosLivro = [];
-    let registrosPlanilha = [];
-    let filtroStatusAtual = 'TODOS';
-    let linhasAtuaisTabela = [];
+    // Estado reativo da aplicação
+    const estado = {
+      abaAtiva: 'notas',
+      modoFonte: 'DEMO',
+      urlWebApp: '',
+      empresas: [],
+      notas: [],
+      empresasSelecionadas: new Set(['ALPINE', 'MEDIC', 'NEOSURGICAL', 'SALVADOR']),
+      mesesSelecionados: new Set([11]), // Novembro por padrão
+      resultadosConferencia: [],
+      filtroResultadoConf: 'TODOS'
+    };
 
+    // -----------------------------------------------------------------------
+    // 2. INICIALIZAÇÃO
+    // -----------------------------------------------------------------------
     window.addEventListener('DOMContentLoaded', () => {
-        consultarRecursosDrive(false);
+      document.getElementById('codigoAppsScriptPre').textContent = CODIGO_APPS_SCRIPT;
+      carregarDadosIniciais();
     });
 
-    function escapeHtml(str) {
-        return String(str == null ? '' : str)
-            .replace(/&/g, '&')
-            .replace(/</g, '<')
-            .replace(/>/g, '>')
-            .replace(/"/g, '"');
+    function carregarDadosIniciais() {
+      aplicarBaseDados(BASE_DEMO, 'Demonstração (Planilha)');
     }
 
-    function normalizarTexto(txt) {
-        return (txt || '')
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .toUpperCase();
+    function aplicarBaseDados(base, rotuloFonte) {
+      const notasLimpa = Array.isArray(base.notas) ? base.notas.map((n, idx) => sanitizarNota(n, idx)) : [];
+      const setEmpresas = new Set(['ALPINE', 'MEDIC', 'NEOSURGICAL', 'SALVADOR']);
+
+      if (Array.isArray(base.empresas)) {
+        base.empresas.forEach(e => {
+          const limpo = limparErroCelula(e).toUpperCase();
+          if (limpo) setEmpresas.add(limpo);
+        });
+      }
+      notasLimpa.forEach(n => {
+        if (n.empresa) setEmpresas.add(n.empresa);
+      });
+
+      estado.empresas = Array.from(setEmpresas).sort();
+      estado.notas = notasLimpa;
+
+      // Garante que empresas selecionadas existam na base atual
+      const validas = new Set([...estado.empresasSelecionadas].filter(e => setEmpresas.has(e)));
+      if (validas.size === 0 && estado.empresas.length > 0) {
+        estado.empresas.slice(0, Math.min(4, estado.empresas.length)).forEach(e => validas.add(e));
+      }
+      estado.empresasSelecionadas = validas;
+
+      atualizarIndicadoresFonte(rotuloFonte);
+      popularFiltrosAba1();
+      atualizarEstatisticasAba1();
+      renderizarTabelaNotas();
+      renderizarChipsEmpresas();
+      renderizarChipsMeses();
     }
 
-    function compactarSemEspacos(txt) {
-        return normalizarTexto(txt).replace(/[^A-Z0-9]/g, '');
+    // Sanitiza campos para evitar #NAME?, Err:509 ou valores malformados
+    function sanitizarNota(raw, idx) {
+      const empresa = limparErroCelula(raw.empresa).toUpperCase() || 'OUTRA';
+      const numero = limparErroCelula(raw.numero);
+      const chave = limparErroCelula(raw.chave).replace(/\D/g, '');
+      const parceiro = limparErroCelula(raw.parceiro) || 'Não informado';
+      const statusFiscal = limparErroCelula(raw.statusFiscal) || 'Sem status';
+      const urlArquivo = validarUrlDrive(raw.urlArquivo);
+      const urlPasta = validarUrlDrive(raw.urlPasta);
+      const valorNum = typeof raw.valor === 'number'
+        ? (isNaN(raw.valor) ? 0 : raw.valor)
+        : (parseFloat(limparErroCelula(raw.valor).replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0);
+
+      let mes = parseInt(raw.mes, 10);
+      if (isNaN(mes) || mes < 1 || mes > 12) mes = 11;
+      let ano = parseInt(raw.ano, 10);
+      if (isNaN(ano) || ano < 2000) ano = 2026;
+
+      return {
+        id: limparErroCelula(raw.id) || `NOTA_${idx + 1}`,
+        empresa,
+        numero,
+        chave,
+        parceiro,
+        valor: valorNum,
+        mes,
+        ano,
+        dataFormatada: limparErroCelula(raw.dataFormatada) || `${String(mes).padStart(2, '0')}/${ano}`,
+        statusFiscal,
+        urlArquivo,
+        urlPasta
+      };
     }
 
-    function extrairMesAnoData(dataStr) {
-        const t = String(dataStr || '').trim();
-        if (!t || t === '-') return null;
-        let m = t.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
-        if (m) {
-            const ano = m[3].length === 2 ? '20' + m[3] : m[3];
-            return { mes: Number(m[2]), ano: ano };
+    function limparErroCelula(val) {
+      if (val === null || val === undefined) return '';
+      const str = String(val).trim();
+      if (!str || str.startsWith('#') || str.startsWith('Err:')) return '';
+      return str;
+    }
+
+    function validarUrlDrive(url) {
+      const limpo = limparErroCelula(url);
+      return /^https?:\/\//i.test(limpo) ? limpo : '';
+    }
+
+    function formatarMoedaBRL(valor) {
+      return (Number(valor) || 0).toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+      });
+    }
+
+    function escaparHTML(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // -----------------------------------------------------------------------
+    // 3. NAVEGAÇÃO ENTRE ABAS E FEEDBACK VISUAL
+    // -----------------------------------------------------------------------
+    function trocarAba(aba) {
+      estado.abaAtiva = aba;
+      const btnNotas = document.getElementById('tabBtnNotas');
+      const btnConf = document.getElementById('tabBtnConferencia');
+      const secNotas = document.getElementById('abaNotas');
+      const secConf = document.getElementById('abaConferencia');
+
+      if (aba === 'notas') {
+        btnNotas.className = 'group inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 border-blue-600 text-blue-600 whitespace-nowrap transition cursor-pointer';
+        btnConf.className = 'group inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300 whitespace-nowrap transition cursor-pointer';
+        secNotas.classList.remove('hidden');
+        secConf.classList.add('hidden');
+      } else {
+        btnConf.className = 'group inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 border-blue-600 text-blue-600 whitespace-nowrap transition cursor-pointer';
+        btnNotas.className = 'group inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300 whitespace-nowrap transition cursor-pointer';
+        secConf.classList.remove('hidden');
+        secNotas.classList.add('hidden');
+      }
+    }
+
+    function mostrarBanner(mensagem, tipo = 'info') {
+      const container = document.getElementById('bannerFeedback');
+      const interno = document.getElementById('bannerFeedbackInterno');
+      const icone = document.getElementById('bannerFeedbackIcone');
+      const texto = document.getElementById('bannerFeedbackTexto');
+
+      const estilos = {
+        sucesso: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+        alerta: 'bg-amber-50 text-amber-800 border-amber-200',
+        erro: 'bg-rose-50 text-rose-800 border-rose-200',
+        info: 'bg-blue-50 text-blue-800 border-blue-200'
+      };
+      const icones = {
+        sucesso: '✅',
+        alerta: '⚠️',
+        erro: '❌',
+        info: 'ℹ️'
+      };
+
+      interno.className = `rounded-xl px-4 py-3 text-sm font-medium flex items-center justify-between gap-3 border ${estilos[tipo] || estilos.info}`;
+      icone.textContent = icones[tipo] || icones.info;
+      texto.textContent = mensagem;
+      container.classList.remove('hidden');
+    }
+
+    function ocultarBanner() {
+      document.getElementById('bannerFeedback').classList.add('hidden');
+    }
+
+    function copiarTextoSeguro(texto, mensagemSucesso) {
+      if (!texto) return;
+      const textareaTemp = document.createElement('textarea');
+      textareaTemp.value = texto;
+      textareaTemp.setAttribute('readonly', '');
+      textareaTemp.style.position = 'fixed';
+      textareaTemp.style.left = '-9999px';
+      document.body.appendChild(textareaTemp);
+      textareaTemp.select();
+      try {
+        document.execCommand('copy');
+        mostrarBanner(mensagemSucesso || 'Copiado para a área de transferência.', 'sucesso');
+      } catch (err) {
+        mostrarBanner('Não foi possível copiar automaticamente.', 'alerta');
+      } finally {
+        document.body.removeChild(textareaTemp);
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // 4. ABA 1: NOTAS DA PLANILHA
+    // -----------------------------------------------------------------------
+    function popularFiltrosAba1() {
+      const selectEmp = document.getElementById('filtroEmpresaAba1');
+      const valorAtualEmp = selectEmp.value || 'TODAS';
+      selectEmp.innerHTML = '<option value="TODAS">Todas as empresas</option>';
+      estado.empresas.forEach(emp => {
+        const opt = document.createElement('option');
+        opt.value = emp;
+        opt.textContent = emp;
+        selectEmp.appendChild(opt);
+      });
+      if ([...selectEmp.options].some(o => o.value === valorAtualEmp)) {
+        selectEmp.value = valorAtualEmp;
+      }
+
+      const selectPer = document.getElementById('filtroPeriodoAba1');
+      const valorAtualPer = selectPer.value || 'TODOS';
+      selectPer.innerHTML = '<option value="TODOS">Todos os períodos</option>';
+      const periodosSet = new Set();
+      estado.notas.forEach(n => {
+        const mesObj = MESES_DEPARA.find(m => m.num === n.mes);
+        const sigla = mesObj ? mesObj.sigla : String(n.mes).padStart(2, '0');
+        periodosSet.add(`${n.ano}-${String(n.mes).padStart(2, '0')}|${sigla}/${n.ano}`);
+      });
+      Array.from(periodosSet).sort().reverse().forEach(item => {
+        const [chaveVal, rotulo] = item.split('|');
+        const opt = document.createElement('option');
+        opt.value = chaveVal;
+        opt.textContent = rotulo;
+        selectPer.appendChild(opt);
+      });
+      if ([...selectPer.options].some(o => o.value === valorAtualPer)) {
+        selectPer.value = valorAtualPer;
+      }
+    }
+
+    function atualizarEstatisticasAba1() {
+      const total = estado.notas.length;
+      const comDrive = estado.notas.filter(n => Boolean(n.urlArquivo || n.urlPasta)).length;
+      const semDrive = total - comDrive;
+      const descons = estado.notas.filter(n => n.statusFiscal.toLowerCase().includes('desconsiderada')).length;
+
+      document.getElementById('statTotalNotas').textContent = total;
+      document.getElementById('statComDrive').textContent = comDrive;
+      document.getElementById('statSemDrive').textContent = semDrive;
+      document.getElementById('statDesconsideradas').textContent = descons;
+      document.getElementById('contadorAbaNotas').textContent = total;
+    }
+
+    function limparFiltrosAba1() {
+      document.getElementById('filtroBuscaAba1').value = '';
+      document.getElementById('filtroEmpresaAba1').value = 'TODAS';
+      document.getElementById('filtroPeriodoAba1').value = 'TODOS';
+      document.getElementById('filtroDriveAba1').value = 'TODAS';
+      document.getElementById('filtroOcultarDesconsideradas').checked = false;
+      renderizarTabelaNotas();
+    }
+
+    function obterNotasFiltradasAba1() {
+      const busca = (document.getElementById('filtroBuscaAba1').value || '').trim().toLowerCase();
+      const buscaDigitos = busca.replace(/\D/g, '');
+      const empresaFiltro = document.getElementById('filtroEmpresaAba1').value;
+      const periodoFiltro = document.getElementById('filtroPeriodoAba1').value;
+      const driveFiltro = document.getElementById('filtroDriveAba1').value;
+      const ocultarDescons = document.getElementById('filtroOcultarDesconsideradas').checked;
+
+      return estado.notas.filter(nota => {
+        const isDescons = nota.statusFiscal.toLowerCase().includes('desconsiderada');
+        if (ocultarDescons && isDescons) return false;
+
+        if (empresaFiltro !== 'TODAS' && nota.empresa !== empresaFiltro) return false;
+
+        if (periodoFiltro !== 'TODOS') {
+          const chaveNotaPeriodo = `${nota.ano}-${String(nota.mes).padStart(2, '0')}`;
+          if (chaveNotaPeriodo !== periodoFiltro) return false;
         }
-        m = t.match(/^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})/);
-        if (m) return { mes: Number(m[2]), ano: m[1] };
-        m = t.match(/^(\d{1,2})\/(\d{4})$/);
-        if (m) return { mes: Number(m[1]), ano: m[2] };
-        return null;
+
+        const temLink = Boolean(nota.urlArquivo || nota.urlPasta);
+        if (driveFiltro === 'COM_LINK' && !temLink) return false;
+        if (driveFiltro === 'SEM_LINK' && temLink) return false;
+
+        if (busca) {
+          const textoAlvo = `${nota.empresa} ${nota.numero} ${nota.chave} ${nota.parceiro} ${nota.id} ${nota.statusFiscal}`.toLowerCase();
+          const bateTexto = textoAlvo.includes(busca);
+          const bateDigitos = buscaDigitos.length >= 3 && (
+            (nota.chave && nota.chave.includes(buscaDigitos)) ||
+            (nota.numero && nota.numero.replace(/\D/g, '').includes(buscaDigitos))
+          );
+          if (!bateTexto && !bateDigitos) return false;
+        }
+
+        return true;
+      });
     }
 
-    async function consultarRecursosDrive(forcar = false) {
-        const empKey = document.getElementById('sel-empresa').value;
-        const mes = Number(document.getElementById('sel-mes').value);
-        const ano = document.getElementById('sel-ano').value;
-        const cfg = EMPRESAS_CONFIG[empKey] || { label: empKey, aliases: [empKey] };
+    function renderizarBadgeStatusFiscal(status) {
+      const lower = (status || '').toLowerCase();
+      if (lower.includes('desconsiderada')) {
+        return `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">${escaparHTML(status)}</span>`;
+      }
+      if (lower.includes('localizada') || lower.includes('baixada') || status.includes('🟢')) {
+        return `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">${escaparHTML(status)}</span>`;
+      }
+      return `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">${escaparHTML(status)}</span>`;
+    }
 
-        const statusEl = document.getElementById('status-drive-busca');
-        const selPlan = document.getElementById('sel-planilha-drive');
+    function renderizarBotoesDrive(nota) {
+      const botoes = [];
+      if (nota.urlArquivo) {
+        botoes.push(`
+          <a href="${escaparHTML(nota.urlArquivo)}" target="_blank" rel="noopener noreferrer"
+             class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            Abrir Arquivo
+          </a>
+        `);
+      }
+      if (nota.urlPasta) {
+        botoes.push(`
+          <a href="${escaparHTML(nota.urlPasta)}" target="_blank" rel="noopener noreferrer"
+             class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            Abrir Pasta
+          </a>
+        `);
+      }
+      if (botoes.length === 0) {
+        const chaveCopiar = nota.chave || nota.numero || nota.id;
+        return `
+          <div class="inline-flex items-center gap-1.5">
+            <span class="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200">
+              Sem link
+            </span>
+            ${chaveCopiar ? `
+              <button type="button" onclick="copiarTextoSeguro('${escaparHTML(chaveCopiar)}', 'Identificador ${escaparHTML(chaveCopiar)} copiado.')"
+                      class="px-2 py-1 rounded-lg text-xs font-medium text-blue-600 hover:bg-blue-50 transition cursor-pointer" title="Copiar chave/número">
+                Copiar
+              </button>
+            ` : ''}
+          </div>
+        `;
+      }
+      return `<div class="inline-flex items-center justify-center gap-1.5 flex-wrap">${botoes.join('')}</div>`;
+    }
 
-        statusEl.textContent = `Buscando planilha em ENTRADAS > ${ano} e notas em ${String(mes).padStart(2, '0')}-${ano} > NFE para ${cfg.label}...`;
-        selPlan.innerHTML = `<option value="">-- Carregando do Drive... --</option>`;
+    function renderizarTabelaNotas() {
+      const tbody = document.getElementById('corpoTabelaNotas');
+      const filtradas = obterNotasFiltradasAba1();
+      document.getElementById('contadorResultadosAba1').textContent =
+        `Exibindo ${filtradas.length} de ${estado.notas.length} notas`;
 
+      if (filtradas.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="px-4 py-10 text-center text-sm text-slate-500">
+              Nenhuma nota encontrada com os filtros atuais.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = filtradas.map(nota => {
+        const mesObj = MESES_DEPARA.find(m => m.num === nota.mes);
+        const siglaMes = mesObj ? mesObj.sigla : String(nota.mes).padStart(2, '0');
+        const chaveResumida = nota.chave
+          ? `${nota.chave.slice(0, 8)}…${nota.chave.slice(-6)}`
+          : '-';
+
+        return `
+          <tr class="hover:bg-slate-50/80 transition">
+            <td class="px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
+                ${escaparHTML(nota.empresa)}
+              </span>
+            </td>
+            <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
+              <div class="font-semibold text-slate-800">${siglaMes}/${nota.ano}</div>
+              <div class="text-slate-400">${escaparHTML(nota.dataFormatada)}</div>
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap">
+              <div class="font-semibold text-slate-900">NF ${escaparHTML(nota.numero || '-')}</div>
+              <div class="text-xs font-mono mono-chave text-slate-500" title="${escaparHTML(nota.chave)}">
+                ${escaparHTML(chaveResumida)}
+              </div>
+            </td>
+            <td class="px-4 py-3 text-slate-700 max-w-xs truncate" title="${escaparHTML(nota.parceiro)}">
+              ${escaparHTML(nota.parceiro)}
+            </td>
+            <td class="px-4 py-3 text-right font-semibold text-slate-900 whitespace-nowrap">
+              ${formatarMoedaBRL(nota.valor)}
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap">
+              ${renderizarBadgeStatusFiscal(nota.statusFiscal)}
+            </td>
+            <td class="px-4 py-3 text-center whitespace-nowrap">
+              ${renderizarBotoesDrive(nota)}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // -----------------------------------------------------------------------
+    // 5. ABA 2: CONFERÊNCIA COM LIVRO FISCAL (SELEÇÃO MÚLTIPLA + CRUZAMENTO)
+    // -----------------------------------------------------------------------
+    function renderizarChipsEmpresas() {
+      const container = document.getElementById('containerChipsEmpresas');
+      container.innerHTML = estado.empresas.map(emp => {
+        const ativa = estado.empresasSelecionadas.has(emp);
+        return `
+          <button
+            type="button"
+            onclick="toggleEmpresaConferencia('${escaparHTML(emp)}')"
+            class="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition cursor-pointer ${
+              ativa
+                ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }"
+          >
+            <span class="h-2 w-2 rounded-full ${ativa ? 'bg-white' : 'bg-slate-300'}"></span>
+            ${escaparHTML(emp)}
+          </button>
+        `;
+      }).join('');
+
+      const lista = Array.from(estado.empresasSelecionadas);
+      document.getElementById('resumoEmpresasSelecionadas').textContent =
+        lista.length > 0 ? lista.join(', ') : 'Nenhuma';
+    }
+
+    function toggleEmpresaConferencia(emp) {
+      if (estado.empresasSelecionadas.has(emp)) {
+        estado.empresasSelecionadas.delete(emp);
+      } else {
+        estado.empresasSelecionadas.add(emp);
+      }
+      renderizarChipsEmpresas();
+    }
+
+    function selecionarTodasEmpresas(marcar) {
+      if (marcar) {
+        estado.empresas.forEach(e => estado.empresasSelecionadas.add(e));
+      } else {
+        estado.empresasSelecionadas.clear();
+      }
+      renderizarChipsEmpresas();
+    }
+
+    function renderizarChipsMeses() {
+      const container = document.getElementById('containerChipsMeses');
+      container.innerHTML = MESES_DEPARA.map(m => {
+        const ativo = estado.mesesSelecionados.has(m.num);
+        return `
+          <button
+            type="button"
+            onclick="toggleMesConferencia(${m.num})"
+            title="${m.nome}"
+            class="px-2.5 py-2 rounded-xl text-xs font-semibold border text-center transition cursor-pointer ${
+              ativo
+                ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }"
+          >
+            ${m.sigla}
+          </button>
+        `;
+      }).join('');
+
+      const labelResumo = document.getElementById('resumoMesesSelecionados');
+      if (estado.mesesSelecionados.size === 0) {
+        labelResumo.textContent = 'Todos os meses';
+      } else {
+        const nomes = Array.from(estado.mesesSelecionados)
+          .sort((a, b) => a - b)
+          .map(num => {
+            const found = MESES_DEPARA.find(m => m.num === num);
+            return found ? found.sigla : num;
+          });
+        labelResumo.textContent = nomes.join(', ');
+      }
+    }
+
+    function toggleMesConferencia(numMes) {
+      if (estado.mesesSelecionados.has(numMes)) {
+        estado.mesesSelecionados.delete(numMes);
+      } else {
+        estado.mesesSelecionados.add(numMes);
+      }
+      renderizarChipsMeses();
+    }
+
+    function selecionarTodosMeses(marcar) {
+      estado.mesesSelecionados.clear();
+      if (marcar) {
+        MESES_DEPARA.forEach(m => estado.mesesSelecionados.add(m.num));
+      }
+      renderizarChipsMeses();
+    }
+
+    function carregarLivroExemplo() {
+      const exemplo = [
+        'empresa;numero;chave;data;valor;parceiro',
+        'ALPINE;001482;35261101234567000190550010000014821123456789;10/11/2026;4850.00;MEDHOSPITALAR PRODUTOS SA',
+        'ALPINE;001495;35261101234567000190550010000014951987654321;18/11/2026;12390.50;ORTHO DISTRIBUIDORA LTDA',
+        'ALPINE;001599;35261101234567000190550010000015991111122222;25/11/2026;2790.00;FORNECEDOR SO NO LIVRO',
+        'MEDIC;008821;35261198765432000110550010000088211112233445;05/11/2026;7640.25;CIRURGICA BRASIL COMERCIO',
+        'MEDIC;008904;35261198765432000110550010000089041667788990;24/11/2026;3180.00;BIOVITA INSUMOS HOSPITALARES',
+        'NEOSURGICAL;004120;35261144556677000188550010000041201778899001;12/11/2026;28900.00;STRYKER DO BRASIL LTDA',
+        'SALVADOR;002215;29261111223344000155550010000022151334455667;14/11/2026;6410.00;NORDESTE HOSPITALAR SA'
+      ].join('\n');
+
+      document.getElementById('textareaLivroFiscal').value = exemplo;
+      mostrarBanner('Livro fiscal de exemplo carregado. Clique em "Conferir Notas" para ver o resultado.', 'info');
+    }
+
+    function limparTextoLivro() {
+      document.getElementById('textareaLivroFiscal').value = '';
+      document.getElementById('inputArquivoLivro').value = '';
+    }
+
+    function lerArquivoLivroFiscal(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById('textareaLivroFiscal').value = String(e.target.result || '');
+        mostrarBanner(`Arquivo "${file.name}" carregado com sucesso.`, 'sucesso');
+      };
+      reader.onerror = function() {
+        mostrarBanner('Erro ao ler o arquivo selecionado.', 'erro');
+      };
+      reader.readAsText(file, 'UTF-8');
+    }
+
+    // Parser flexível para CSV (; , \t) ou JSON do livro fiscal
+    function parsearLivroFiscal(textoBruto, anoPadrao) {
+      const texto = String(textoBruto || '').trim();
+      if (!texto) return [];
+
+      // Suporte a JSON array
+      if (texto.startsWith('[')) {
         try {
-            const resp = await fetch('/api/drive-entradas', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    aliases: cfg.aliases,
-                    ano: ano,
-                    mes: mes,
-                    refresh: forcar
-                })
-            });
-            const json = await resp.json();
-
-            if (!json.sucesso) {
-                planilhasDisponiveisDrive = [];
-                notasNfeDrive = [];
-                statusEl.textContent = `Erro Drive: ${json.erro || 'falha na consulta'}`;
-                selPlan.innerHTML = `<option value="">-- Erro ao listar planilhas --</option>`;
-                return;
-            }
-
-            planilhasDisponiveisDrive = json.planilhas || [];
-            notasNfeDrive = json.notasNfe || [];
-
-            if (planilhasDisponiveisDrive.length === 0) {
-                const dbg = (json.debug && json.debug.length) ? ` (${json.debug.join(' | ')})` : '';
-                statusEl.textContent = `Nenhuma planilha encontrada em ENTRADAS > ${ano}. ${notasNfeDrive.length} PDF(s) achado(s) em NFE.${dbg}`;
-                selPlan.innerHTML = `<option value="">-- Nenhuma planilha na pasta ${ano} --</option>`;
-            } else {
-                statusEl.textContent = `✓ ${planilhasDisponiveisDrive.length} planilha(s) achada(s) em ${ano} • ${notasNfeDrive.length} PDF(s) achado(s) na pasta NFE do mês.`;
-                selPlan.innerHTML = planilhasDisponiveisDrive.map((p, idx) =>
-                    `<option value="${idx}">${escapeHtml(p.nome)} (${escapeHtml(p.pastaOrigem)})</option>`
-                ).join('');
-            }
+          const arr = JSON.parse(texto);
+          if (Array.isArray(arr)) {
+            return arr.map((obj, i) => normalizarItemLivro(obj, i, anoPadrao)).filter(Boolean);
+          }
         } catch (err) {
-            statusEl.textContent = `Erro de comunicação ao buscar pastas do Drive: ${err.message}`;
-            selPlan.innerHTML = `<option value="">-- Falha de conexão --</option>`;
+          // Segue para parser delimitado se não for JSON válido
         }
+      }
+
+      const linhas = texto.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (linhas.length === 0) return [];
+
+      // Detecta delimitador predominante
+      const primeira = linhas[0];
+      const qtdPontoVirgula = (primeira.match(/;/g) || []).length;
+      const qtdVirgula = (primeira.match(/,/g) || []).length;
+      const qtdTab = (primeira.match(/\t/g) || []).length;
+      let delim = ';';
+      if (qtdTab > qtdPontoVirgula && qtdTab >= qtdVirgula) delim = '\t';
+      else if (qtdVirgula > qtdPontoVirgula) delim = ',';
+
+      const splitLinha = (linha) => linha.split(delim).map(c => c.replace(/^["']|["']$/g, '').trim());
+      const colsPrimeira = splitLinha(primeira).map(c => c.toLowerCase());
+
+      // Identifica se a primeira linha é cabeçalho
+      const temCabecalho = colsPrimeira.some(c =>
+        ['empresa', 'chave', 'numero', 'número', 'nf', 'valor', 'data', 'mes', 'mês', 'fornecedor', 'cliente', 'parceiro'].includes(c)
+      );
+
+      let mapaIndices = {
+        empresa: 0,
+        numero: 1,
+        chave: 2,
+        data: 3,
+        valor: 4,
+        parceiro: 5
+      };
+      let inicioDados = 0;
+
+      if (temCabecalho) {
+        inicioDados = 1;
+        mapaIndices = {
+          empresa: acharIndiceColunaTexto(colsPrimeira, ['empresa', 'emp', 'filial']),
+          numero: acharIndiceColunaTexto(colsPrimeira, ['numero', 'número', 'nf', 'num_nf', 'nota']),
+          chave: acharIndiceColunaTexto(colsPrimeira, ['chave', 'chave_acesso', 'chave de acesso', 'nfe']),
+          data: acharIndiceColunaTexto(colsPrimeira, ['data', 'emissao', 'emissão', 'data_emissao', 'mes', 'mês', 'competencia']),
+          valor: acharIndiceColunaTexto(colsPrimeira, ['valor', 'vlr', 'total', 'valor_contabil']),
+          parceiro: acharIndiceColunaTexto(colsPrimeira, ['parceiro', 'fornecedor', 'cliente', 'nome', 'razao', 'razão'])
+        };
+      }
+
+      const itens = [];
+      for (let i = inicioDados; i < linhas.length; i++) {
+        const partes = splitLinha(linhas[i]);
+        if (partes.every(p => !p)) continue;
+
+        const registroObj = {
+          empresa: mapaIndices.empresa >= 0 ? partes[mapaIndices.empresa] : '',
+          numero: mapaIndices.numero >= 0 ? partes[mapaIndices.numero] : '',
+          chave: mapaIndices.chave >= 0 ? partes[mapaIndices.chave] : '',
+          data: mapaIndices.data >= 0 ? partes[mapaIndices.data] : '',
+          valor: mapaIndices.valor >= 0 ? partes[mapaIndices.valor] : '',
+          parceiro: mapaIndices.parceiro >= 0 ? partes[mapaIndices.parceiro] : ''
+        };
+
+        const norm = normalizarItemLivro(registroObj, i, anoPadrao);
+        if (norm) itens.push(norm);
+      }
+
+      return itens;
     }
 
-    async function iniciarConferenciaDrive() {
-        const empKey = document.getElementById('sel-empresa').value;
-        const cfg = EMPRESAS_CONFIG[empKey] || { label: empKey, aliases: [empKey] };
-        const mes = Number(document.getElementById('sel-mes').value);
-        const ano = document.getElementById('sel-ano').value;
-        const modo = document.querySelector('input[name="modo_operacao"]:checked').value;
-
-        const inputLivros = document.getElementById('input-livros');
-        const filesLivros = inputLivros && inputLivros.files ? Array.from(inputLivros.files) : [];
-
-        const selPlanIdx = document.getElementById('sel-planilha-drive').value;
-        const planilhaEscolhida = selPlanIdx !== '' ? planilhasDisponiveisDrive[Number(selPlanIdx)] : null;
-
-        if (filesLivros.length === 0 && !planilhaEscolhida) {
-            alert('Selecione o PDF do Livro Fiscal (e/ou aguarde o carregamento da planilha do Drive).');
-            return;
-        }
-
-        const btn = document.getElementById('btn-processar');
-        const progressBox = document.getElementById('progress-box');
-        const progressTexto = document.getElementById('progress-texto');
-        const progressPct = document.getElementById('progress-pct');
-        const progressFill = document.getElementById('progress-fill');
-        const errosBox = document.getElementById('erros-lote');
-
-        btn.disabled = true;
-        progressBox.style.display = 'block';
-        errosBox.style.display = 'none';
-        errosBox.innerHTML = '';
-
-        registrosLivro = [];
-        registrosPlanilha = [];
-        const erros = [];
-
-        const totalEtapas = filesLivros.length + (planilhaEscolhida ? 1 : 0);
-        let etapaAtual = 0;
-
-        for (const file of filesLivros) {
-            const pct = Math.round((etapaAtual / Math.max(totalEtapas, 1)) * 100);
-            progressTexto.textContent = `Lendo Livro Fiscal: ${file.name}...`;
-            progressPct.textContent = `${pct}%`;
-            progressFill.style.width = `${pct}%`;
-
-            const formData = new FormData();
-            formData.append('arquivo', file);
-            formData.append('modo_operacao', modo);
-
-            try {
-                const resp = await fetch('/api/extrair', { method: 'POST', body: formData });
-                const json = await resp.json();
-                if (!resp.ok || !json.sucesso) {
-                    erros.push(`• <strong>${escapeHtml(file.name)}</strong>: ${escapeHtml(json.erro || 'Erro ao ler PDF')}`);
-                } else {
-                    (json.registros || []).forEach(reg => {
-                        registrosLivro.push({
-                            empresa: cfg.label,
-                            data: reg.data,
-                            data_emissao: reg.data_emissao,
-                            nota: reg.nota,
-                            cfop: reg.cfop,
-                            valor: Number(reg.valor) || 0
-                        });
-                    });
-                }
-            } catch (e) {
-                erros.push(`• <strong>${escapeHtml(file.name)}</strong>: Falha de rede (${escapeHtml(e.message)})`);
-            }
-            etapaAtual++;
-        }
-
-        let totalBrutoPlanilha = 0;
-        let totalFiltradoMes = 0;
-
-        if (planilhaEscolhida) {
-            const pct = Math.round((etapaAtual / Math.max(totalEtapas, 1)) * 100);
-            progressTexto.textContent = `Baixando e lendo planilha do Drive: ${planilhaEscolhida.nome}...`;
-            progressPct.textContent = `${pct}%`;
-            progressFill.style.width = `${pct}%`;
-
-            try {
-                const resp = await fetch('/api/drive-extrair-planilha', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        fileId: planilhaEscolhida.id,
-                        nome: planilhaEscolhida.nome,
-                        mimeType: planilhaEscolhida.mimeType,
-                        modo_operacao: modo
-                    })
-                });
-                const json = await resp.json();
-
-                if (!resp.ok || !json.sucesso) {
-                    erros.push(`• <strong>${escapeHtml(planilhaEscolhida.nome)}</strong>: ${escapeHtml(json.erro || 'Erro ao ler planilha do Drive')}`);
-                } else {
-                    const todosRegs = json.registros || [];
-                    totalBrutoPlanilha = todosRegs.length;
-
-                    const regsComData = todosRegs.filter(r => extrairMesAnoData(r.data) !== null);
-                    if (regsComData.length > 0 && modo !== 'resumo_cfop') {
-                        todosRegs.forEach(reg => {
-                            const dt = extrairMesAnoData(reg.data);
-                            if (dt && dt.mes === mes && dt.ano === String(ano)) {
-                                registrosPlanilha.push({
-                                    empresa: cfg.label,
-                                    data: reg.data,
-                                    nota: reg.nota,
-                                    cfop: reg.cfop,
-                                    valor: Number(reg.valor) || 0
-                                });
-                            }
-                        });
-                    } else {
-                        todosRegs.forEach(reg => {
-                            registrosPlanilha.push({
-                                empresa: cfg.label,
-                                data: reg.data,
-                                nota: reg.nota,
-                                cfop: reg.cfop,
-                                valor: Number(reg.valor) || 0
-                            });
-                        });
-                    }
-                    totalFiltradoMes = registrosPlanilha.length;
-
-                    if (totalBrutoPlanilha > 0 && totalFiltradoMes === 0) {
-                        const exemploDatas = [...new Set(todosRegs.slice(0, 10).map(r => r.data).filter(Boolean))].join(', ');
-                        erros.push(`• <strong>${escapeHtml(planilhaEscolhida.nome)}</strong>: Extraídas ${totalBrutoPlanilha} linha(s), mas 0 bateram com ${String(mes).padStart(2, '0')}/${ano} (datas encontradas: ${escapeHtml(exemploDatas || 'nenhuma')}).`);
-                    }
-                }
-            } catch (e) {
-                erros.push(`• <strong>${escapeHtml(planilhaEscolhida.nome)}</strong>: Falha de rede (${escapeHtml(e.message)})`);
-            }
-        }
-
-        progressTexto.textContent = 'Conferência concluída!';
-        progressPct.textContent = '100%';
-        progressFill.style.width = '100%';
-        btn.disabled = false;
-
-        if (erros.length > 0) {
-            errosBox.style.display = 'block';
-            errosBox.innerHTML = `<strong>Avisos:</strong><br>${erros.join('<br>')}`;
-        }
-
-        document.getElementById('titulo-conferencia-ativa').textContent =
-            `${cfg.label} — ${String(mes).padStart(2, '0')}/${ano}`;
-
-        document.getElementById('info-planilha-filtrada').textContent = planilhaEscolhida
-            ? `Planilha: ${planilhaEscolhida.nome} (${totalFiltradoMes} de ${totalBrutoPlanilha} linhas no mês) • ${notasNfeDrive.length} PDF(s) em NFE`
-            : `Sem planilha do Drive selecionada • ${notasNfeDrive.length} PDF(s) em NFE`;
-
-        document.getElementById('painel-resultados').style.display = 'block';
-        renderizarTabela();
+    function acharIndiceColunaTexto(cab, possiveis) {
+      for (const p of possiveis) {
+        const idx = cab.indexOf(p);
+        if (idx !== -1) return idx;
+      }
+      return -1;
     }
 
-    function buscarNotaNaPastaNfe(nota, empresaLabel) {
-        if (!nota || nota === 'RESUMO' || notasNfeDrive.length === 0) return null;
-        const notaLimpa = String(nota).replace(/\D/g, '').replace(/^0+/, '') || '0';
-        if (!notaLimpa || notaLimpa === '0') return null;
+    function extrairMesAnoTexto(rawData, anoPadrao) {
+      const s = limparErroCelula(rawData).toUpperCase();
+      if (!s) return { mes: null, ano: anoPadrao };
 
-        const numsBusca = [notaLimpa];
-        if (/^20\d{2}\d{2,}$/.test(notaLimpa)) {
-            const semAno = notaLimpa.slice(4).replace(/^0+/, '') || '0';
-            if (semAno.length >= 2) numsBusca.push(semAno);
+      // Verifica sigla de mês (JAN..DEZ)
+      const mesSigla = MESES_DEPARA.find(m => s === m.sigla || s.startsWith(m.sigla + '/') || s.startsWith(m.sigla + '-'));
+      if (mesSigla) {
+        const matchAno = s.match(/(20\d{2})/);
+        return { mes: mesSigla.num, ano: matchAno ? parseInt(matchAno[1], 10) : anoPadrao };
+      }
+
+      // Data DD/MM/AAAA ou MM/AAAA ou AAAA-MM-DD
+      const br = s.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+      if (br) {
+        const m = parseInt(br[2], 10);
+        let a = br[3] ? parseInt(br[3], 10) : anoPadrao;
+        if (a < 100) a += 2000;
+        if (m >= 1 && m <= 12) return { mes: m, ano: a };
+      }
+
+      const iso = s.match(/(20\d{2})[\/\-](\d{1,2})/);
+      if (iso) {
+        const a = parseInt(iso[1], 10);
+        const m = parseInt(iso[2], 10);
+        if (m >= 1 && m <= 12) return { mes: m, ano: a };
+      }
+
+      const numSimples = parseInt(s, 10);
+      if (!isNaN(numSimples) && numSimples >= 1 && numSimples <= 12) {
+        return { mes: numSimples, ano: anoPadrao };
+      }
+
+      return { mes: null, ano: anoPadrao };
+    }
+
+    function normalizarItemLivro(raw, idx, anoPadrao) {
+      const empresa = limparErroCelula(raw.empresa).toUpperCase();
+      const numero = limparErroCelula(raw.numero);
+      const chave = limparErroCelula(raw.chave).replace(/\D/g, '');
+      const parceiro = limparErroCelula(raw.parceiro) || 'Não informado';
+      const valorNum = typeof raw.valor === 'number'
+        ? (isNaN(raw.valor) ? 0 : raw.valor)
+        : (parseFloat(limparErroCelula(raw.valor).replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0);
+
+      const { mes, ano } = extrairMesAnoTexto(raw.data || raw.mes || '', anoPadrao);
+
+      if (!empresa && !numero && !chave) return null;
+
+      return {
+        idxLivro: idx,
+        empresa: empresa || (estado.empresasSelecionadas.size === 1 ? Array.from(estado.empresasSelecionadas)[0] : 'NAO_INFORMADA'),
+        numero,
+        chave,
+        parceiro,
+        valor: valorNum,
+        mes,
+        ano,
+        dataRaw: limparErroCelula(raw.data) || '-'
+      };
+    }
+
+    // Constrói índice de busca por múltiplos identificadores da planilha
+    function construirIndicePlanilha(notas) {
+      const mapa = new Map();
+      const registrar = (chaveBusca, nota) => {
+        if (!chaveBusca) return;
+        if (!mapa.has(chaveBusca)) {
+          mapa.set(chaveBusca, nota);
         }
+      };
 
-        const empComp = compactarSemEspacos(empresaLabel);
-        const candidatos = [];
+      notas.forEach(nota => {
+        const emp = nota.empresa;
+        const ch = nota.chave;
+        const numDig = (nota.numero || '').replace(/\D/g, '');
+        const numNorm = (nota.numero || '').trim().toUpperCase();
 
-        for (const arq of notasNfeDrive) {
-            const batePrincipal = numsBusca.includes(arq.numeroPrincipal);
-            const bateQualquer = (arq.numeros || []).some(n => numsBusca.includes(n));
-            if (!batePrincipal && !bateQualquer) continue;
-
-            let score = batePrincipal ? 10 : 5;
-            const benefComp = compactarSemEspacos(arq.empresaBenef || '');
-            if (benefComp && empComp && (benefComp.includes(empComp) || empComp.includes(benefComp))) {
-                score += 4;
-            }
-            candidatos.push({
-                ...arq,
-                url: arq.url || `https://drive.google.com/file/d/${encodeURIComponent(arq.id)}/view`,
-                score
-            });
+        if (ch) {
+          registrar(`${emp}::CHAVE::${ch}`, nota);
+          registrar(`CHAVE::${ch}`, nota);
         }
-
-        if (candidatos.length === 0) return null;
-        candidatos.sort((a, b) => b.score - a.score);
-        return candidatos[0];
-    }
-
-    function mudarFiltroStatus(st, btn) {
-        filtroStatusAtual = st;
-        document.querySelectorAll('.f-pill').forEach(p => p.classList.remove('active'));
-        btn.classList.add('active');
-        renderizarTabela();
-    }
-
-    function formatarCFOP(cfop) {
-        const codigo = String(cfop ?? '').replace(/\D/g, '');
-        if (codigo.length === 4) {
-            return codigo.slice(0, 1) + '-' + codigo.slice(1);
+        if (numDig) {
+          registrar(`${emp}::NUM::${numDig}`, nota);
+          registrar(`NUM::${numDig}`, nota);
         }
-        return String(cfop ?? '');
+        if (numNorm && numNorm !== numDig) {
+          registrar(`${emp}::NUMSTR::${numNorm}`, nota);
+          registrar(`NUMSTR::${numNorm}`, nota);
+        }
+      });
+
+      return mapa;
     }
 
-    function formatarMoeda(val) {
-        return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    function localizarNotaNaPlanilha(indice, itemLivro) {
+      const emp = itemLivro.empresa;
+      const ch = itemLivro.chave;
+      const numDig = (itemLivro.numero || '').replace(/\D/g, '');
+      const numNorm = (itemLivro.numero || '').trim().toUpperCase();
+
+      const candidatos = [
+        ch ? `${emp}::CHAVE::${ch}` : '',
+        numDig ? `${emp}::NUM::${numDig}` : '',
+        numNorm ? `${emp}::NUMSTR::${numNorm}` : '',
+        ch ? `CHAVE::${ch}` : '',
+        numDig ? `NUM::${numDig}` : '',
+        numNorm ? `NUMSTR::${numNorm}` : ''
+      ].filter(Boolean);
+
+      for (const cand of candidatos) {
+        if (indice.has(cand)) {
+          return indice.get(cand);
+        }
+      }
+      return null;
     }
 
-    function renderizarTabela() {
-        const modo = document.querySelector('input[name="modo_operacao"]:checked').value;
-        const mapaLivro = new Map();
-        const mapaPlan = new Map();
+    // Executa conferência cruzando múltiplas empresas e meses selecionados
+    function executarConferencia() {
+      if (estado.empresasSelecionadas.size === 0) {
+        mostrarBanner('Selecione pelo menos uma empresa antes de conferir.', 'alerta');
+        return;
+      }
 
-        registrosLivro.forEach(item => {
-            const chave = modo === 'resumo_cfop'
-                ? `${item.empresa}|${item.cfop}`
-                : `${item.empresa}|${item.nota}`;
-            const atual = mapaLivro.get(chave) || { ...item, valor: 0 };
-            if (atual.data === '-' && item.data !== '-') atual.data = item.data;
-            if (!atual.cfop && item.cfop) atual.cfop = item.cfop;
-            atual.valor = Math.round((atual.valor + item.valor) * 100) / 100;
-            mapaLivro.set(chave, atual);
+      const textoLivro = document.getElementById('textareaLivroFiscal').value;
+      const itensLivroBrutos = parsearLivroFiscal(textoLivro, BASE_DEMO.anoReferencia);
+
+      if (itensLivroBrutos.length === 0) {
+        mostrarBanner('Informe ou carregue as linhas do Livro Fiscal antes de clicar em Conferir Notas.', 'alerta');
+        return;
+      }
+
+      const anoFiltro = document.getElementById('selectAnoConferencia').value;
+      const filtrarMeses = estado.mesesSelecionados.size > 0;
+      const incluirSoPlanilha = document.getElementById('chkIncluirSomentePlanilha').checked;
+
+      // Filtra itens do livro pelas empresas e meses selecionados
+      const itensLivroFiltrados = itensLivroBrutos.filter(item => {
+        const bateEmpresa = item.empresa === 'NAO_INFORMADA' || estado.empresasSelecionadas.has(item.empresa);
+        if (!bateEmpresa) return false;
+
+        if (anoFiltro !== 'TODOS_ANOS' && item.ano && String(item.ano) !== anoFiltro) {
+          return false;
+        }
+        if (filtrarMeses && item.mes && !estado.mesesSelecionados.has(item.mes)) {
+          return false;
+        }
+        return true;
+      });
+
+      const indicePlanilha = construirIndicePlanilha(estado.notas);
+      const idsNotasPlanilhaCasadas = new Set();
+      const resultados = [];
+
+      // 1. Cruza cada item do livro fiscal contra a planilha
+      itensLivroFiltrados.forEach((item, index) => {
+        const matchPlanilha = localizarNotaNaPlanilha(indicePlanilha, item);
+        const empresaFinal = matchPlanilha ? matchPlanilha.empresa : item.empresa;
+
+        if (matchPlanilha) {
+          idsNotasPlanilhaCasadas.add(matchPlanilha.id);
+          const temLinkDrive = Boolean(matchPlanilha.urlArquivo || matchPlanilha.urlPasta);
+          resultados.push({
+            idLinha: `CONF_LIV_${index}`,
+            categoria: temLinkDrive ? 'NO_DRIVE' : 'SEM_LINK',
+            statusLabel: temLinkDrive ? '🟢 No Drive' : '🟡 Na Planilha (Sem link)',
+            empresa: empresaFinal,
+            mes: matchPlanilha.mes || item.mes || 11,
+            ano: matchPlanilha.ano || item.ano || 2026,
+            numero: matchPlanilha.numero || item.numero || '-',
+            chave: matchPlanilha.chave || item.chave || '',
+            parceiro: matchPlanilha.parceiro || item.parceiro,
+            valorLivro: item.valor,
+            valorPlanilha: matchPlanilha.valor,
+            urlArquivo: matchPlanilha.urlArquivo,
+            urlPasta: matchPlanilha.urlPasta
+          });
+        } else {
+          resultados.push({
+            idLinha: `CONF_LIV_${index}`,
+            categoria: 'SO_LIVRO',
+            statusLabel: '🔴 Só no Livro Fiscal',
+            empresa: empresaFinal,
+            mes: item.mes || (filtrarMeses ? Array.from(estado.mesesSelecionados)[0] : 11),
+            ano: item.ano || (anoFiltro !== 'TODOS_ANOS' ? parseInt(anoFiltro, 10) : 2026),
+            numero: item.numero || '-',
+            chave: item.chave || '',
+            parceiro: item.parceiro,
+            valorLivro: item.valor,
+            valorPlanilha: null,
+            urlArquivo: '',
+            urlPasta: ''
+          });
+        }
+      });
+
+      // 2. Opcionalmente inclui notas da planilha do mesmo recorte que não vieram no livro
+      if (incluirSoPlanilha) {
+        estado.notas.forEach(nota => {
+          if (idsNotasPlanilhaCasadas.has(nota.id)) return;
+          if (!estado.empresasSelecionadas.has(nota.empresa)) return;
+          if (anoFiltro !== 'TODOS_ANOS' && String(nota.ano) !== anoFiltro) return;
+          if (filtrarMeses && !estado.mesesSelecionados.has(nota.mes)) return;
+
+          resultados.push({
+            idLinha: `CONF_PLAN_${nota.id}`,
+            categoria: 'SO_PLANILHA',
+            statusLabel: '🔵 Só na Planilha',
+            empresa: nota.empresa,
+            mes: nota.mes,
+            ano: nota.ano,
+            numero: nota.numero || '-',
+            chave: nota.chave || '',
+            parceiro: nota.parceiro,
+            valorLivro: null,
+            valorPlanilha: nota.valor,
+            urlArquivo: nota.urlArquivo,
+            urlPasta: nota.urlPasta
+          });
         });
+      }
 
-        registrosPlanilha.forEach(item => {
-            const chave = modo === 'resumo_cfop'
-                ? `${item.empresa}|${item.cfop}`
-                : `${item.empresa}|${item.nota}`;
-            const atual = mapaPlan.get(chave) || { ...item, valor: 0 };
-            if (atual.data === '-' && item.data !== '-') atual.data = item.data;
-            if (!atual.cfop && item.cfop) atual.cfop = item.cfop;
-            atual.valor = Math.round((atual.valor + item.valor) * 100) / 100;
-            mapaPlan.set(chave, atual);
-        });
+      estado.resultadosConferencia = resultados;
+      estado.filtroResultadoConf = 'TODOS';
 
-        const todasChaves = new Set([...mapaLivro.keys(), ...mapaPlan.keys()]);
-        const linhas = [];
-        let somaLivro = 0;
-        let somaPlan = 0;
-        let qtdAusentesPlanilha = 0;
+      const badgeConf = document.getElementById('contadorAbaConferencia');
+      badgeConf.textContent = resultados.length;
+      badgeConf.classList.remove('hidden');
 
-        todasChaves.forEach(chave => {
-            const liv = mapaLivro.get(chave);
-            const pla = mapaPlan.get(chave);
+      atualizarMetricasConferencia();
+      atualizarBotoesFiltroConferencia();
+      renderizarTabelaConferencia();
 
-            const empresa = liv ? liv.empresa : pla.empresa;
-            const data = (liv && liv.data !== '-') ? liv.data : (pla ? pla.data : '-');
-            const nota = liv ? liv.nota : pla.nota;
-            const cfop = (liv && liv.cfop) ? liv.cfop : (pla ? pla.cfop : '');
-            const valLiv = liv ? liv.valor : 0;
-            const valPla = pla ? pla.valor : 0;
-            const diff = Math.round((valLiv - valPla) * 100) / 100;
+      document.getElementById('painelResultadoConferencia').classList.remove('hidden');
+      mostrarBanner(`Conferência concluída: ${resultados.length} registro(s) consolidado(s).`, 'sucesso');
+    }
 
-            somaLivro += valLiv;
-            somaPlan += valPla;
+    function atualizarMetricasConferencia() {
+      const todos = estado.resultadosConferencia;
+      const noDrive = todos.filter(r => r.categoria === 'NO_DRIVE').length;
+      const semLink = todos.filter(r => r.categoria === 'SEM_LINK').length;
+      const soLivro = todos.filter(r => r.categoria === 'SO_LIVRO').length;
+      const soPlanilha = todos.filter(r => r.categoria === 'SO_PLANILHA').length;
 
-            if (!liv) return; // Ignora AUSENTE_LIVRO
+      document.getElementById('confTotal').textContent = todos.length;
+      document.getElementById('confNoDrive').textContent = noDrive;
+      document.getElementById('confSemLink').textContent = semLink;
+      document.getElementById('confSoLivro').textContent = soLivro;
+      document.getElementById('confSoPlanilha').textContent = soPlanilha;
+    }
 
-            let status = null;
-            let diag = '';
+    function setFiltroResultadoConferencia(filtro) {
+      estado.filtroResultadoConf = filtro;
+      atualizarBotoesFiltroConferencia();
+      renderizarTabelaConferencia();
+    }
 
-            if (!pla) {
-                status = 'AUSENTE_PLANILHA';
-                diag = 'Consta no Livro Fiscal (PDF), mas não na Planilha do Drive';
-                qtdAusentesPlanilha++;
-            } else if (Math.abs(diff) <= 0.02) {
-                status = 'OK';
-                diag = 'Bate com a Planilha do Drive';
+    function atualizarBotoesFiltroConferencia() {
+      document.querySelectorAll('.btn-filtro-conf').forEach(btn => {
+        const ativo = btn.getAttribute('data-filtro-conf') === estado.filtroResultadoConf;
+        btn.className = ativo
+          ? 'btn-filtro-conf px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white cursor-pointer'
+          : 'btn-filtro-conf px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer';
+      });
+    }
+
+    function obterResultadosFiltradosConferencia() {
+      const f = estado.filtroResultadoConf;
+      return estado.resultadosConferencia.filter(r => {
+        if (f === 'TODOS') return true;
+        if (f === 'NO_DRIVE') return r.categoria === 'NO_DRIVE';
+        if (f === 'PENDENTES') return r.categoria === 'SEM_LINK' || r.categoria === 'SO_LIVRO';
+        if (f === 'SO_LIVRO') return r.categoria === 'SO_LIVRO';
+        if (f === 'SO_PLANILHA') return r.categoria === 'SO_PLANILHA';
+        return true;
+      });
+    }
+
+    function renderizarBadgeConferencia(item) {
+      const mapEstilos = {
+        NO_DRIVE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        SEM_LINK: 'bg-amber-50 text-amber-700 border-amber-200',
+        SO_LIVRO: 'bg-rose-50 text-rose-700 border-rose-200',
+        SO_PLANILHA: 'bg-blue-50 text-blue-700 border-blue-200'
+      };
+      const cls = mapEstilos[item.categoria] || 'bg-slate-100 text-slate-700 border-slate-200';
+      return `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${cls}">${escaparHTML(item.statusLabel)}</span>`;
+    }
+
+    function renderizarTabelaConferencia() {
+      const tbody = document.getElementById('corpoTabelaConferencia');
+      const linhas = obterResultadosFiltradosConferencia();
+
+      if (linhas.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" class="px-4 py-10 text-center text-sm text-slate-500">
+              Nenhum item corresponde ao filtro selecionado.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = linhas.map(item => {
+        const mesObj = MESES_DEPARA.find(m => m.num === item.mes);
+        const sigla = mesObj ? mesObj.sigla : String(item.mes).padStart(2, '0');
+        const chaveCurta = item.chave ? `${item.chave.slice(0, 8)}…${item.chave.slice(-6)}` : '-';
+
+        return `
+          <tr class="hover:bg-slate-50/80 transition">
+            <td class="px-4 py-3 whitespace-nowrap">${renderizarBadgeConferencia(item)}</td>
+            <td class="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">${escaparHTML(item.empresa)}</td>
+            <td class="px-4 py-3 text-xs font-semibold text-slate-700 whitespace-nowrap">${sigla}/${item.ano}</td>
+            <td class="px-4 py-3 whitespace-nowrap">
+              <div class="font-semibold text-slate-900">NF ${escaparHTML(item.numero)}</div>
+              <div class="text-xs font-mono mono-chave text-slate-500" title="${escaparHTML(item.chave)}">${escaparHTML(chaveCurta)}</div>
+            </td>
+            <td class="px-4 py-3 text-slate-700 max-w-xs truncate" title="${escaparHTML(item.parceiro)}">${escaparHTML(item.parceiro)}</td>
+            <td class="px-4 py-3 text-right font-medium text-slate-800 whitespace-nowrap">
+              ${item.valorLivro !== null && item.valorLivro !== undefined ? formatarMoedaBRL(item.valorLivro) : '<span class="text-slate-400">—</span>'}
+            </td>
+            <td class="px-4 py-3 text-right font-medium text-slate-800 whitespace-nowrap">
+              ${item.valorPlanilha !== null && item.valorPlanilha !== undefined ? formatarMoedaBRL(item.valorPlanilha) : '<span class="text-slate-400">—</span>'}
+            </td>
+            <td class="px-4 py-3 text-center whitespace-nowrap">
+              ${renderizarBotoesDrive(item)}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function exportarResultadoCSV() {
+      const dados = obterResultadosFiltradosConferencia();
+      if (dados.length === 0) {
+        mostrarBanner('Não há linhas no resultado atual para exportar.', 'alerta');
+        return;
+      }
+
+      const cabecalho = [
+        'Status Conferencia',
+        'Empresa',
+        'Mes',
+        'Ano',
+        'Numero',
+        'Chave Acesso',
+        'Parceiro',
+        'Valor Livro',
+        'Valor Planilha',
+        'URL Arquivo',
+        'URL Pasta'
+      ];
+
+      const escaparCSV = (v) => {
+        const s = String(v === null || v === undefined ? '' : v).replace(/"/g, '""');
+        return `"${s}"`;
+      };
+
+      const linhasCSV = [
+        cabecalho.map(escaparCSV).join(';'),
+        ...dados.map(d => [
+          d.statusLabel,
+          d.empresa,
+          d.mes,
+          d.ano,
+          d.numero,
+          d.chave,
+          d.parceiro,
+          d.valorLivro !== null && d.valorLivro !== undefined ? String(d.valorLivro).replace('.', ',') : '',
+          d.valorPlanilha !== null && d.valorPlanilha !== undefined ? String(d.valorPlanilha).replace('.', ',') : '',
+          d.urlArquivo || '',
+          d.urlPasta || ''
+        ].map(escaparCSV).join(';'))
+      ];
+
+      const blob = new Blob(['\uFEFF' + linhasCSV.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `conferencia_fiscal_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      mostrarBanner(`Exportado ${dados.length} registro(s) em CSV.`, 'sucesso');
+    }
+
+    // -----------------------------------------------------------------------
+    // 6. FONTE DE DADOS / APPS SCRIPT MODAL E INTEGRAÇÃO
+    // -----------------------------------------------------------------------
+    function abrirModalFonteDados() {
+      const radios = document.getElementsByName('modoFonte');
+      radios.forEach(r => {
+        r.checked = (r.value === estado.modoFonte);
+      });
+      document.getElementById('inputUrlWebApp').value = estado.urlWebApp;
+      alternarCamposUrlFonte();
+      document.getElementById('modalFonteDados').classList.remove('hidden');
+    }
+
+    function fecharModalFonteDados() {
+      document.getElementById('modalFonteDados').classList.add('hidden');
+    }
+
+    function alternarCamposUrlFonte() {
+      const selecionado = [...document.getElementsByName('modoFonte')].find(r => r.checked);
+      const modo = selecionado ? selecionado.value : 'DEMO';
+      const blocoUrl = document.getElementById('blocoUrlWebApp');
+      if (modo === 'WEBAPP') {
+        blocoUrl.classList.remove('hidden');
+      } else {
+        blocoUrl.classList.add('hidden');
+      }
+    }
+
+    function aplicarConfiguracaoFonte() {
+      const selecionado = [...document.getElementsByName('modoFonte')].find(r => r.checked);
+      estado.modoFonte = selecionado ? selecionado.value : 'DEMO';
+      estado.urlWebApp = (document.getElementById('inputUrlWebApp').value || '').trim();
+      fecharModalFonteDados();
+      recarregarFonteDados();
+    }
+
+    function recarregarFonteDados() {
+      if (estado.modoFonte === 'DEMO') {
+        aplicarBaseDados(BASE_DEMO, 'Demonstração (Planilha)');
+        mostrarBanner('Base de demonstração atualizada.', 'info');
+        return;
+      }
+
+      // Modo WEBAPP: tenta google.script.run se disponível, senão fetch na URL informada
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        atualizarIndicadoresFonte('Carregando via Apps Script...');
+        google.script.run
+          .withSuccessHandler((res) => {
+            const payload = res && res.data ? res.data : res;
+            if (payload && Array.isArray(payload.notas)) {
+              aplicarBaseDados(payload, 'Google Apps Script (Planilha)');
+              mostrarBanner(`Carregadas ${payload.notas.length} notas da planilha via Apps Script.`, 'sucesso');
             } else {
-                return;
+              aplicarBaseDados(BASE_DEMO, 'Demonstração (Fallback)');
+              mostrarBanner('Retorno do Apps Script sem lista de notas; mantendo base de demonstração.', 'alerta');
             }
+          })
+          .withFailureHandler((err) => {
+            aplicarBaseDados(BASE_DEMO, 'Demonstração (Fallback)');
+            mostrarBanner(`Erro no Apps Script: ${err && err.message ? err.message : 'falha na execução'}.`, 'erro');
+          })
+          .obterDadosConsolidadosPlanilha();
+        return;
+      }
 
-            const arqDrive = buscarNotaNaPastaNfe(nota, empresa);
+      if (!estado.urlWebApp) {
+        aplicarBaseDados(BASE_DEMO, 'Demonstração (Planilha)');
+        mostrarBanner('Nenhuma URL de Web App informada. Usando dados de demonstração.', 'alerta');
+        return;
+      }
 
-            linhas.push({
-                empresa,
-                data,
-                nota,
-                cfop,
-                valLiv,
-                valPla,
-                diff,
-                status,
-                diag,
-                noDrive: Boolean(arqDrive),
-                driveUrl: arqDrive ? arqDrive.url : '',
-                driveNome: arqDrive ? arqDrive.nome : ''
-            });
+      atualizarIndicadoresFonte('Conectando ao Web App...');
+      fetch(estado.urlWebApp, { method: 'GET' })
+        .then(resp => {
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          return resp.json();
+        })
+        .then(json => {
+          const payload = json && json.data ? json.data : json;
+          if (!payload || !Array.isArray(payload.notas)) {
+            throw new Error('JSON não contém o campo "notas".');
+          }
+          aplicarBaseDados(payload, 'Web App (Planilha)');
+          mostrarBanner(`Conectado com sucesso! ${payload.notas.length} notas carregadas da planilha.`, 'sucesso');
+        })
+        .catch(err => {
+          aplicarBaseDados(BASE_DEMO, 'Demonstração (Fallback)');
+          mostrarBanner(`Não foi possível ler a URL (${err.message}). Exibindo base de demonstração.`, 'erro');
         });
-
-        document.getElementById('kpi-livro').textContent = formatarMoeda(somaLivro);
-        document.getElementById('kpi-planilha').textContent = formatarMoeda(somaPlan);
-        document.getElementById('kpi-diff').textContent = formatarMoeda(somaLivro - somaPlan);
-        document.getElementById('kpi-div').textContent = qtdAusentesPlanilha;
-
-        const termoBusca = document.getElementById('busca-tabela').value.trim().toLowerCase();
-        const linhasExibidas = linhas.filter(l => {
-            if (filtroStatusAtual !== 'TODOS' && l.status !== filtroStatusAtual) return false;
-            if (termoBusca && !l.nota.toLowerCase().includes(termoBusca) && !l.cfop.includes(termoBusca)) {
-                return false;
-            }
-            return true;
-        });
-
-        linhasAtuaisTabela = linhasExibidas;
-        const tbody = document.getElementById('tbody-resultados');
-
-        if (linhasExibidas.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:#64748b;">Nenhum registro encontrado para este filtro.</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = linhasExibidas.map(l => {
-            const stClass = l.status === 'OK' ? 'st-ok' : 'st-ausente';
-            const diffColor = Math.abs(l.diff) <= 0.02 ? '#166534' : '#b91c1c';
-
-            const celulaDrive = l.noDrive
-                ? `<div class="drive-acoes">
-                       <a href="${escapeHtml(l.driveUrl)}" target="_blank" rel="noopener noreferrer" class="btn-drive" title="${escapeHtml(l.driveNome)}">
-                           Abrir NF-e ↗
-                       </a>
-                   </div>`
-                : `<span style="color:#64748b; font-size:0.78rem;">${l.nota === 'RESUMO' ? 'Não se aplica' : 'Sem PDF na NFE'}</span>`;
-
-            return `
-                <tr>
-                    <td><span class="badge-emp">${escapeHtml(l.empresa)}</span></td>
-                    <td>${escapeHtml(l.data)}</td>
-                    <td style="font-weight:700;">${escapeHtml(l.nota)}</td>
-                    <td><span class="badge-cfop">${escapeHtml(formatarCFOP(l.cfop))}</span></td>
-                    <td style="font-weight:600;">${formatarMoeda(l.valLiv)}</td>
-                    <td style="font-weight:600;">${formatarMoeda(l.valPla)}</td>
-                    <td style="font-weight:700; color:${diffColor};">${formatarMoeda(l.diff)}</td>
-                    <td><span class="status-pill ${stClass}">${escapeHtml(l.status)}</span></td>
-                    <td style="color:#475569; font-size:0.82rem;">${escapeHtml(l.diag)}</td>
-                    <td>${celulaDrive}</td>
-                </tr>
-            `;
-        }).join('');
     }
 
-    function exportarCSV() {
-        if (!linhasAtuaisTabela.length) return;
-        const cab = ['Empresa', 'Data', 'Nota', 'CFOP', 'Valor Livro', 'Valor Planilha', 'Diferenca', 'Status', 'Diagnostico', 'Na Pasta NFE', 'Link Drive'];
-        const csvLinhas = [cab.join(';')];
-
-        linhasAtuaisTabela.forEach(l => {
-            csvLinhas.push([
-                l.empresa,
-                l.data,
-                l.nota,
-                formatarCFOP(l.cfop),
-                l.valLiv.toFixed(2).replace('.', ','),
-                l.valPla.toFixed(2).replace('.', ','),
-                l.diff.toFixed(2).replace('.', ','),
-                l.status,
-                `"${l.diag}"`,
-                l.noDrive ? 'SIM' : 'NAO',
-                l.driveUrl || ''
-            ].join(';'));
-        });
-
-        const blob = new Blob(['\uFEFF' + csvLinhas.join('\n')], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const emp = document.getElementById('sel-empresa').value;
-        a.download = `conferencia_fiscal_${emp}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
+    function atualizarIndicadoresFonte(rotulo) {
+      document.getElementById('badgeFonteAtiva').innerHTML = `
+        <span class="h-2 w-2 rounded-full ${rotulo.includes('Demonstração') ? 'bg-emerald-500' : 'bg-blue-500'}"></span>
+        ${escaparHTML(rotulo)}
+      `;
+      document.getElementById('rodapeResumoConexao').textContent = `Modo: ${rotulo}`;
     }
-</script>
 
+    function copiarCodigoAppsScript() {
+      copiarTextoSeguro(CODIGO_APPS_SCRIPT, 'Código Code.gs copiado! Cole no editor do Google Apps Script.');
+    }
+  </script>
 </body>
 </html>
