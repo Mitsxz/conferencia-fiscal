@@ -879,9 +879,10 @@
         registrosLivro.forEach(item => {
             const chave = modo === 'resumo_cfop'
                 ? `${item.empresa}|${item.cfop}`
-                : `${item.empresa}|${item.nota}|${item.cfop}`;
+                : `${item.empresa}|${item.nota}`;
             const atual = mapaLivro.get(chave) || { ...item, valor: 0 };
             if (atual.data === '-' && item.data !== '-') atual.data = item.data;
+            if (!atual.cfop && item.cfop) atual.cfop = item.cfop;
             atual.valor = Math.round((atual.valor + item.valor) * 100) / 100;
             mapaLivro.set(chave, atual);
         });
@@ -889,9 +890,10 @@
         registrosPlanilha.forEach(item => {
             const chave = modo === 'resumo_cfop'
                 ? `${item.empresa}|${item.cfop}`
-                : `${item.empresa}|${item.nota}|${item.cfop}`;
+                : `${item.empresa}|${item.nota}`;
             const atual = mapaPlan.get(chave) || { ...item, valor: 0 };
             if (atual.data === '-' && item.data !== '-') atual.data = item.data;
+            if (!atual.cfop && item.cfop) atual.cfop = item.cfop;
             atual.valor = Math.round((atual.valor + item.valor) * 100) / 100;
             mapaPlan.set(chave, atual);
         });
