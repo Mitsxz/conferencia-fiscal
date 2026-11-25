@@ -275,7 +275,7 @@
         }
 
         .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.86rem; background: #ffffff; min-width: 1160px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.86rem; background: #ffffff; min-width: 1260px; }
         th {
             background: #f8fafc;
             color: var(--text-muted);
@@ -285,8 +285,8 @@
             border-bottom: 1px solid var(--border);
             white-space: nowrap;
         }
-        td { padding: 11px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-        th:last-child, td:last-child { min-width: 230px; white-space: nowrap; }
+        td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        th:last-child, td:last-child { min-width: 280px; padding-right: 20px; white-space: nowrap; }
         tr:hover td { background: #f8fafc; }
 
         .badge-cfop {
@@ -326,7 +326,7 @@
         .drive-acoes {
             display: inline-flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
             flex-wrap: nowrap;
         }
         .drive-acoes .status-pill,
@@ -336,13 +336,13 @@
         .btn-drive {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
+            gap: 6px;
             background: #1e3a8a;
             color: #ffffff !important;
             text-decoration: none;
-            padding: 6px 12px;
-            border-radius: 7px;
-            font-size: 0.76rem;
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-size: 0.78rem;
             font-weight: 600;
             white-space: nowrap;
             transition: background 0.15s;
@@ -501,7 +501,7 @@
                 <div class="kpi-value" id="kpi-diff">R$ 0,00</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Divergências / Ausentes</div>
+                <div class="kpi-label">Divergências / Ausentes Planilha</div>
                 <div class="kpi-value" id="kpi-div" style="color: #b91c1c;">0</div>
             </div>
         </div>
@@ -510,12 +510,10 @@
         <div class="card">
             <div class="filtros-tabela">
                 <div class="filter-pills" id="status-pills">
-                    <button type="button" class="f-pill active" data-st="OK" onclick="mudarFiltroStatus('OK', this)">OK (Batem com o Livro)</button>
-                    <button type="button" class="f-pill" data-st="TODOS" onclick="mudarFiltroStatus('TODOS', this)">Todos</button>
-                    <button type="button" class="f-pill" data-st="PROBLEMAS" onclick="mudarFiltroStatus('PROBLEMAS', this)">Somente Divergências/Ausentes</button>
-                    <button type="button" class="f-pill" data-st="DIVERGENCIA_VALOR" onclick="mudarFiltroStatus('DIVERGENCIA_VALOR', this)">Divergência Valor</button>
-                    <button type="button" class="f-pill" data-st="AUSENTE_LIVRO" onclick="mudarFiltroStatus('AUSENTE_LIVRO', this)">Ausente Livro</button>
+                    <button type="button" class="f-pill active" data-st="TODOS" onclick="mudarFiltroStatus('TODOS', this)">Resultado (OK + Ausente Planilha + Divergência)</button>
+                    <button type="button" class="f-pill" data-st="OK" onclick="mudarFiltroStatus('OK', this)">OK (Batem com Planilha)</button>
                     <button type="button" class="f-pill" data-st="AUSENTE_PLANILHA" onclick="mudarFiltroStatus('AUSENTE_PLANILHA', this)">Ausente Planilha</button>
+                    <button type="button" class="f-pill" data-st="DIVERGENCIA_VALOR" onclick="mudarFiltroStatus('DIVERGENCIA_VALOR', this)">Divergência Valor</button>
                 </div>
                 <input type="text" class="search-input" id="busca-tabela" placeholder="Buscar Nota ou CFOP..." oninput="renderizarTabela()">
             </div>
@@ -563,11 +561,13 @@
         'SURGILOG_F06': { label: 'SURGILOG F06', aliases: ['SURGILOG F06'] }
     };
 
+    const STATUS_PERMITIDOS = new Set(['OK', 'AUSENTE_PLANILHA', 'DIVERGENCIA_VALOR']);
+
     let planilhasDisponiveisDrive = [];
     let notasNfeDrive = [];
     let registrosLivro = [];
     let registrosPlanilha = [];
-    let filtroStatusAtual = 'OK';
+    let filtroStatusAtual = 'TODOS';
     let linhasAtuaisTabela = [];
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -918,12 +918,11 @@
             somaPlan += valPla;
 
             let status = 'OK';
-            let diag = 'Valores conferem';
+            let diag = 'Valores conferem com a planilha';
 
             if (!liv && pla) {
                 status = 'AUSENTE_LIVRO';
                 diag = 'Consta na Planilha do Drive, mas não no Livro Fiscal (PDF)';
-                qtdProblemas++;
             } else if (liv && !pla) {
                 status = 'AUSENTE_PLANILHA';
                 diag = 'Consta no Livro Fiscal (PDF), mas não na Planilha do Drive';
@@ -933,6 +932,8 @@
                 diag = `Diferença de ${formatarMoeda(diff)} entre Livro Fiscal e Planilha`;
                 qtdProblemas++;
             }
+
+            if (!STATUS_PERMITIDOS.has(status)) return;
 
             const arqDrive = buscarNotaNaPastaNfe(nota, empresa);
 
@@ -959,8 +960,7 @@
 
         const termoBusca = document.getElementById('busca-tabela').value.trim().toLowerCase();
         const linhasExibidas = linhas.filter(l => {
-            if (filtroStatusAtual === 'PROBLEMAS' && l.status === 'OK') return false;
-            if (filtroStatusAtual !== 'TODOS' && filtroStatusAtual !== 'PROBLEMAS' && l.status !== filtroStatusAtual) return false;
+            if (filtroStatusAtual !== 'TODOS' && l.status !== filtroStatusAtual) return false;
             if (termoBusca && !l.nota.toLowerCase().includes(termoBusca) && !l.cfop.includes(termoBusca)) {
                 return false;
             }
@@ -978,7 +978,7 @@
         tbody.innerHTML = linhasExibidas.map(l => {
             let stClass = 'st-ok';
             if (l.status === 'DIVERGENCIA_VALOR') stClass = 'st-div';
-            else if (l.status.startsWith('AUSENTE')) stClass = 'st-ausente';
+            else if (l.status === 'AUSENTE_PLANILHA') stClass = 'st-ausente';
 
             const celulaDrive = l.noDrive
                 ? `<div class="drive-acoes">
