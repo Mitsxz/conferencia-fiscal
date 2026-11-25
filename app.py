@@ -55,9 +55,14 @@ def parse_valor_br(val):
     if val is None:
         return 0.0
     if isinstance(val, (int, float)):
-        return round(float(val), 2)
+        num = round(float(val), 2)
+        return 0.0 if abs(num) > 100_000_000 else num
     s = str(val).strip()
     if not s or s == "-":
+        return 0.0
+    # Se for uma sequência numérica gigante sem vírgula/ponto (ex.: chave de acesso de 44 dígitos), ignora
+    apenas_digitos = re.sub(r"\D", "", s)
+    if "," not in s and "." not in s and len(apenas_digitos) >= 12:
         return 0.0
     s = re.sub(r"[^\d,.-]", "", s)
     if not s:
@@ -70,7 +75,8 @@ def parse_valor_br(val):
     elif "," in s:
         s = s.replace(".", "").replace(",", ".")
     try:
-        return round(float(s), 2)
+        num = round(float(s), 2)
+        return 0.0 if abs(num) > 100_000_000 else num
     except ValueError:
         return 0.0
 
@@ -153,9 +159,6 @@ def processar_pdf_livro(file_bytes, modo_operacao="notas"):
                 if l_up.startswith("OBS") or any(p in l_up for p in ["TOTAL", "SUBTOTAL", "TRANSPORTE", "RESUMO", "PAGINA", "FOLHA"]):
                     continue
 
-                # Padrão principal das linhas do livro:
-                # <data_entrada> Nota <serie> <numero_nota> <data_emissao> <uf/cod> <valor> <cfop> ...
-                # ou <data_entrada> NF de <numero_nota> <data_emissao> ...
                 m_doc = re.match(
                     r"^(\d{2}/\d{2}/\d{4})\s+(?:NOTA(?:\s+\d+)?|NF(?:\s+DE)?)\s+0*(\d{1,9})\b(.*)$",
                     l_clean,
@@ -174,7 +177,6 @@ def processar_pdf_livro(file_bytes, modo_operacao="notas"):
                     m_cfop = re.search(r"(?<![\d.,])([123])[.\-](\d{3})(?![\d.,])", resto_sem_datas)
                     cfop = limpar_cfop(m_cfop.group(0)) if m_cfop else ""
 
-                    # O valor contabilístico aparece antes do CFOP na linha principal
                     antes_cfop = resto_sem_datas[:m_cfop.start()] if m_cfop else resto_sem_datas
                     valores_antes = re.findall(r"\b\d{1,3}(?:\.\d{3})*,\d{2}\b", antes_cfop)
                     valores_todos = re.findall(r"\b\d{1,3}(?:\.\d{3})*,\d{2}\b", resto_sem_datas)
@@ -192,7 +194,6 @@ def processar_pdf_livro(file_bytes, modo_operacao="notas"):
                         })
                     continue
 
-                # Fallback para linhas que tenham data + número + CFOP explícito com separador (1-xxx / 2-xxx / 3-xxx)
                 datas_linha = re.findall(r"\b(\d{2}/\d{2}/\d{4})\b", l_clean)
                 if datas_linha:
                     data_atual = datas_linha[0]
