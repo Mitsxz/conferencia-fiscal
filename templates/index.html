@@ -911,7 +911,7 @@
             const empresa = liv ? liv.empresa : pla.empresa;
             const data = (liv && liv.data !== '-') ? liv.data : (pla ? pla.data : '-');
             const nota = liv ? liv.nota : pla.nota;
-            const cfop = liv ? liv.cfop : pla.cfop;
+            const cfop = (liv && liv.cfop) ? liv.cfop : (pla ? pla.cfop : '');
             const valLiv = liv ? liv.valor : 0;
             const valPla = pla ? pla.valor : 0;
             const diff = Math.round((valLiv - valPla) * 100) / 100;
