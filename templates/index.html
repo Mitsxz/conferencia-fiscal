@@ -520,198 +520,165 @@
   </div>
 
   <script>
-    const CODE_GS_TEMPLATE = `function doGet(e) {
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const registroSheet = ss.getSheetByName('REGISTRO_NOTAS');
-    const deparaSheet = ss.getSheetByName('DEPARA');
-
-    const ignorarAbas = new Set([
-      'DEPARA',
-      'REGISTRO_NOTAS',
-      'PARAMETROS',
-      'CONFIG',
-      'LOG',
-      'RESUMO'
-    ]);
-
-    const registroMap = new Map();
-    const empresasDetectadas = new Set();
-
-    if (registroSheet) {
-      const regData = registroSheet.getDataRange().getValues();
-      if (regData.length > 1) {
-        const headers = regData[0].map(h => String(h || '').trim().toUpperCase());
-        const idxId = headers.indexOf('ID');
-        const idxEmp = headers.indexOf('EMPRESA');
-        const idxArq = headers.indexOf('URL ARQUIVO');
-        const idxPasta = headers.indexOf('URL PASTA');
-        const idxData = headers.findIndex(h => h.includes('DATA'));
-
-        for (let i = 1; i < regData.length; i++) {
-          const row = regData[i];
-          const idRaw = limparErro(row[idxId]);
-          if (!idRaw) continue;
-
-          const emp = idxEmp >= 0 ? String(row[idxEmp] || '').trim().toUpperCase() : '';
-          if (emp) empresasDetectadas.add(emp);
-
-          const urlArquivo = idxArq >= 0 ? String(row[idxArq] || '').trim() : '';
-          const urlPasta = idxPasta >= 0 ? String(row[idxPasta] || '').trim() : '';
-          const dataHora = idxData >= 0 ? formatarData(row[idxData]) : '';
-
-          const entry = {
-            empresa: emp,
-            urlArquivo: urlArquivo,
-            urlPasta: urlPasta,
-            dataHora: dataHora
-          };
-
-          indexarChave(registroMap, idRaw, emp, entry);
-        }
-      }
-    }
-
-    const notas = [];
-
-    ss.getSheets().forEach(sheet => {
-      const nomeAba = String(sheet.getName() || '').trim();
-      const nomeUpper = nomeAba.toUpperCase();
-      if (ignorarAbas.has(nomeUpper)) return;
-
-      const data = sheet.getDataRange().getValues();
-      if (!data || data.length < 2) return;
-
-      const headers = data[0].map(h => String(h || '').trim().toUpperCase());
-      const colChave = acharColuna(headers, ['CHAVE DE ACESSO', 'CHAVE', 'CHAVE NFE', 'CHAVE NF-E']);
-      const colNumero = acharColuna(headers, ['NUMERO', 'NÚMERO', 'NF', 'NUMERO NF', 'NÚMERO NF', 'N. NF']);
-      const colSerie = acharColuna(headers, ['SERIE', 'SÉRIE']);
-      const colData = acharColuna(headers, ['DATA EMISSAO', 'DATA EMISSÃO', 'EMISSAO', 'EMISSÃO', 'DATA ENTRADA', 'DATA']);
-      const colParceiro = acharColuna(headers, ['FORNECEDOR', 'CLIENTE', 'PARCEIRO', 'NOME', 'RAZAO SOCIAL', 'RAZÃO SOCIAL']);
-      const colValor = acharColuna(headers, ['VALOR CONTABIL', 'VALOR CONTÁBIL', 'VALOR TOTAL', 'VALOR MERCADORIA', 'VALOR']);
-      const colStatus = acharColuna(headers, ['STATUS FISCAL', 'STATUS', 'SITUACAO', 'SITUAÇÃO']);
-      const colUrlArq = acharColuna(headers, ['URL ARQUIVO', 'LINK ARQUIVO', 'LINK DRIVE', 'LINK']);
-      const colUrlPasta = acharColuna(headers, ['URL PASTA', 'LINK PASTA']);
-
-      const temCaraDeLancamento = colChave >= 0 || colNumero >= 0 || colValor >= 0 || colStatus >= 0;
-      if (!temCaraDeLancamento) return;
-
-      empresasDetectadas.add(nomeUpper);
-
-      for (let r = 1; r < data.length; r++) {
-        const row = data[r];
-        const chave = colChave >= 0 ? limparErro(row[colChave]) : '';
-        const numero = colNumero >= 0 ? limparErro(row[colNumero]) : '';
-        const serie = colSerie >= 0 ? limparErro(row[colSerie]) : '';
-        const dataStr = colData >= 0 ? formatarData(row[colData]) : '';
-        const parceiro = colParceiro >= 0 ? limparErro(row[colParceiro]) : '';
-        const valor = colValor >= 0 ? parseValor(row[colValor]) : 0;
-        const statusFiscal = colStatus >= 0 ? limparErro(row[colStatus]) : '';
-
-        if (!chave && !numero && !parceiro && !valor) continue;
-
-        const matchReg = buscarNoRegistro(registroMap, nomeUpper, chave, numero);
-        const urlArquivo = (colUrlArq >= 0 ? String(row[colUrlArq] || '').trim() : '') || (matchReg ? matchReg.urlArquivo : '');
-        const urlPasta = (colUrlPasta >= 0 ? String(row[colUrlPasta] || '').trim() : '') || (matchReg ? matchReg.urlPasta : '');
-
-        notas.push({
-          id: chave || (nomeUpper + '_' + numero + '_' + r),
-          empresa: nomeUpper,
-          numero: numero,
-          serie: serie,
-          chave: chave.replace(/\D/g, ''),
-          data: dataStr,
-          parceiro: parceiro,
-          valor: valor,
-          statusFiscal: statusFiscal,
-          urlArquivo: urlArquivo,
-          urlPasta: urlPasta
-        });
-      }
-    });
-
-    const payload = {
-      ok: true,
-      atualizadoEm: new Date().toISOString(),
-      empresas: Array.from(empresasDetectadas).sort(),
-      notas: notas
-    };
-
-    return ContentService
-      .createTextOutput(JSON.stringify(payload))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ ok: false, error: String(err) }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function limparErro(val) {
-  if (val === null || val === undefined) return '';
-  const s = String(val).trim();
-  if (!s || s.startsWith('#') || s.toUpperCase().startsWith('ERR:')) return '';
-  return s;
-}
-
-function formatarData(val) {
-  if (!val) return '';
-  if (Object.prototype.toString.call(val) === '[object Date]' && !isNaN(val.getTime())) {
-    const dd = String(val.getDate()).padStart(2, '0');
-    const mm = String(val.getMonth() + 1).padStart(2, '0');
-    const yyyy = val.getFullYear();
-    return dd + '/' + mm + '/' + yyyy;
-  }
-  const s = String(val).trim();
-  if (s.startsWith('#') || s.toUpperCase().startsWith('ERR:')) return '';
-  return s;
-}
-
-function parseValor(val) {
-  if (typeof val === 'number') return isFinite(val) ? val : 0;
-  const s = limparErro(val);
-  if (!s) return 0;
-  const limpo = s.replace(/[^0-9,.-]/g, '').replace(/\.(?=.*,)/g, '').replace(',', '.');
-  const num = parseFloat(limpo);
-  return isNaN(num) ? 0 : num;
-}
-
-function acharColuna(headers, candidatos) {
-  for (let i = 0; i < candidatos.length; i++) {
-    const idx = headers.indexOf(candidatos[i]);
-    if (idx !== -1) return idx;
-  }
-  return -1;
-}
-
-function indexarChave(map, idRaw, emp, entry) {
-  const norm = String(idRaw).trim().toUpperCase();
-  const dig = norm.replace(/\D/g, '');
-  const chaves = [norm];
-  if (dig.length >= 6) chaves.push(dig);
-  chaves.forEach(k => {
-    if (emp) map.set(emp + '::' + k, entry);
-    if (!map.has(k)) map.set(k, entry);
-  });
-}
-
-function buscarNoRegistro(map, emp, chave, numero) {
-  const candidatos = [];
-  if (chave) {
-    const cNorm = chave.trim().toUpperCase();
-    const cDig = cNorm.replace(/\D/g, '');
-    candidatos.push(emp + '::' + cNorm, emp + '::' + cDig, cNorm, cDig);
-  }
-  if (numero) {
-    const nNorm = numero.trim().toUpperCase();
-    const nDig = nNorm.replace(/\D/g, '');
-    candidatos.push(emp + '::NUM_' + nDig, emp + '::' + nNorm, emp + '::' + nDig, 'NUM_' + nDig, nNorm, nDig);
-  }
-  for (let i = 0; i < candidatos.length; i++) {
-    if (candidatos[i] && map.has(candidatos[i])) return map.get(candidatos[i]);
-  }
-  return null;
-}`;
+    <script>
+    const CODE_GS_TEMPLATE = [
+      "function doGet(e) {",
+      "  try {",
+      "    const ss = SpreadsheetApp.getActiveSpreadsheet();",
+      "    const registroSheet = ss.getSheetByName('REGISTRO_NOTAS');",
+      "    const ignorarAbas = new Set(['DEPARA', 'REGISTRO_NOTAS', 'PARAMETROS', 'CONFIG', 'LOG', 'RESUMO']);",
+      "    const registroMap = new Map();",
+      "    const empresasDetectadas = new Set();",
+      "",
+      "    if (registroSheet) {",
+      "      const regData = registroSheet.getDataRange().getValues();",
+      "      if (regData.length > 1) {",
+      "        const headers = regData[0].map(h => String(h || '').trim().toUpperCase());",
+      "        const idxId = headers.indexOf('ID');",
+      "        const idxEmp = headers.indexOf('EMPRESA');",
+      "        const idxArq = headers.indexOf('URL ARQUIVO');",
+      "        const idxPasta = headers.indexOf('URL PASTA');",
+      "        const idxData = headers.findIndex(h => h.includes('DATA'));",
+      "",
+      "        for (let i = 1; i < regData.length; i++) {",
+      "          const row = regData[i];",
+      "          const idRaw = limparErro(row[idxId]);",
+      "          if (!idRaw) continue;",
+      "          const emp = idxEmp >= 0 ? String(row[idxEmp] || '').trim().toUpperCase() : '';",
+      "          if (emp) empresasDetectadas.add(emp);",
+      "          const urlArquivo = idxArq >= 0 ? String(row[idxArq] || '').trim() : '';",
+      "          const urlPasta = idxPasta >= 0 ? String(row[idxPasta] || '').trim() : '';",
+      "          const dataHora = idxData >= 0 ? formatarData(row[idxData]) : '';",
+      "          indexarChave(registroMap, idRaw, emp, { empresa: emp, urlArquivo, urlPasta, dataHora });",
+      "        }",
+      "      }",
+      "    }",
+      "",
+      "    const notas = [];",
+      "    ss.getSheets().forEach(sheet => {",
+      "      const nomeAba = String(sheet.getName() || '').trim();",
+      "      const nomeUpper = nomeAba.toUpperCase();",
+      "      if (ignorarAbas.has(nomeUpper)) return;",
+      "      const data = sheet.getDataRange().getValues();",
+      "      if (!data || data.length < 2) return;",
+      "      const headers = data[0].map(h => String(h || '').trim().toUpperCase());",
+      "      const colChave = acharColuna(headers, ['CHAVE DE ACESSO', 'CHAVE', 'CHAVE NFE', 'CHAVE NF-E']);",
+      "      const colNumero = acharColuna(headers, ['NUMERO', 'NÚMERO', 'NF', 'NUMERO NF', 'NÚMERO NF', 'N. NF']);",
+      "      const colSerie = acharColuna(headers, ['SERIE', 'SÉRIE']);",
+      "      const colData = acharColuna(headers, ['DATA EMISSAO', 'DATA EMISSÃO', 'EMISSAO', 'EMISSÃO', 'DATA ENTRADA', 'DATA']);",
+      "      const colParceiro = acharColuna(headers, ['FORNECEDOR', 'CLIENTE', 'PARCEIRO', 'NOME', 'RAZAO SOCIAL', 'RAZÃO SOCIAL']);",
+      "      const colValor = acharColuna(headers, ['VALOR CONTABIL', 'VALOR CONTÁBIL', 'VALOR TOTAL', 'VALOR MERCADORIA', 'VALOR']);",
+      "      const colStatus = acharColuna(headers, ['STATUS FISCAL', 'STATUS', 'SITUACAO', 'SITUAÇÃO']);",
+      "      const colUrlArq = acharColuna(headers, ['URL ARQUIVO', 'LINK ARQUIVO', 'LINK DRIVE', 'LINK']);",
+      "      const colUrlPasta = acharColuna(headers, ['URL PASTA', 'LINK PASTA']);",
+      "      if (colChave < 0 && colNumero < 0 && colValor < 0 && colStatus < 0) return;",
+      "      empresasDetectadas.add(nomeUpper);",
+      "",
+      "      for (let r = 1; r < data.length; r++) {",
+      "        const row = data[r];",
+      "        const chave = colChave >= 0 ? limparErro(row[colChave]) : '';",
+      "        const numero = colNumero >= 0 ? limparErro(row[colNumero]) : '';",
+      "        const serie = colSerie >= 0 ? limparErro(row[colSerie]) : '';",
+      "        const dataStr = colData >= 0 ? formatarData(row[colData]) : '';",
+      "        const parceiro = colParceiro >= 0 ? limparErro(row[colParceiro]) : '';",
+      "        const valor = colValor >= 0 ? parseValor(row[colValor]) : 0;",
+      "        const statusFiscal = colStatus >= 0 ? limparErro(row[colStatus]) : '';",
+      "        if (!chave && !numero && !parceiro && !valor) continue;",
+      "        const matchReg = buscarNoRegistro(registroMap, nomeUpper, chave, numero);",
+      "        const urlArquivo = (colUrlArq >= 0 ? String(row[colUrlArq] || '').trim() : '') || (matchReg ? matchReg.urlArquivo : '');",
+      "        const urlPasta = (colUrlPasta >= 0 ? String(row[colUrlPasta] || '').trim() : '') || (matchReg ? matchReg.urlPasta : '');",
+      "        notas.push({",
+      "          id: chave || (nomeUpper + '_' + numero + '_' + r),",
+      "          empresa: nomeUpper,",
+      "          numero: numero,",
+      "          serie: serie,",
+      "          chave: chave.replace(/\\D/g, ''),",
+      "          data: dataStr,",
+      "          parceiro: parceiro,",
+      "          valor: valor,",
+      "          statusFiscal: statusFiscal,",
+      "          urlArquivo: urlArquivo,",
+      "          urlPasta: urlPasta",
+      "        });",
+      "      }",
+      "    });",
+      "",
+      "    return ContentService",
+      "      .createTextOutput(JSON.stringify({ ok: true, atualizadoEm: new Date().toISOString(), empresas: Array.from(empresasDetectadas).sort(), notas: notas }))",
+      "      .setMimeType(ContentService.MimeType.JSON);",
+      "  } catch (err) {",
+      "    return ContentService",
+      "      .createTextOutput(JSON.stringify({ ok: false, error: String(err) }))",
+      "      .setMimeType(ContentService.MimeType.JSON);",
+      "  }",
+      "}",
+      "",
+      "function limparErro(val) {",
+      "  if (val === null || val === undefined) return '';",
+      "  const s = String(val).trim();",
+      "  if (!s || s.startsWith('#') || s.toUpperCase().startsWith('ERR:')) return '';",
+      "  return s;",
+      "}",
+      "",
+      "function formatarData(val) {",
+      "  if (!val) return '';",
+      "  if (Object.prototype.toString.call(val) === '[object Date]' && !isNaN(val.getTime())) {",
+      "    const dd = String(val.getDate()).padStart(2, '0');",
+      "    const mm = String(val.getMonth() + 1).padStart(2, '0');",
+      "    const yyyy = val.getFullYear();",
+      "    return dd + '/' + mm + '/' + yyyy;",
+      "  }",
+      "  const s = String(val).trim();",
+      "  if (s.startsWith('#') || s.toUpperCase().startsWith('ERR:')) return '';",
+      "  return s;",
+      "}",
+      "",
+      "function parseValor(val) {",
+      "  if (typeof val === 'number') return isFinite(val) ? val : 0;",
+      "  const s = limparErro(val);",
+      "  if (!s) return 0;",
+      "  const limpo = s.replace(/[^0-9,.-]/g, '').replace(/\\.(?=.*,)/g, '').replace(',', '.');",
+      "  const num = parseFloat(limpo);",
+      "  return isNaN(num) ? 0 : num;",
+      "}",
+      "",
+      "function acharColuna(headers, candidatos) {",
+      "  for (let i = 0; i < candidatos.length; i++) {",
+      "    const idx = headers.indexOf(candidatos[i]);",
+      "    if (idx !== -1) return idx;",
+      "  }",
+      "  return -1;",
+      "}",
+      "",
+      "function indexarChave(map, idRaw, emp, entry) {",
+      "  const norm = String(idRaw).trim().toUpperCase();",
+      "  const dig = norm.replace(/\\D/g, '');",
+      "  const chaves = [norm];",
+      "  if (dig.length >= 6) chaves.push(dig);",
+      "  chaves.forEach(k => {",
+      "    if (emp) map.set(emp + '::' + k, entry);",
+      "    if (!map.has(k)) map.set(k, entry);",
+      "  });",
+      "}",
+      "",
+      "function buscarNoRegistro(map, emp, chave, numero) {",
+      "  const candidatos = [];",
+      "  if (chave) {",
+      "    const cNorm = chave.trim().toUpperCase();",
+      "    const cDig = cNorm.replace(/\\D/g, '');",
+      "    candidatos.push(emp + '::' + cNorm, emp + '::' + cDig, cNorm, cDig);",
+      "  }",
+      "  if (numero) {",
+      "    const nNorm = numero.trim().toUpperCase();",
+      "    const nDig = nNorm.replace(/\\D/g, '');",
+      "    candidatos.push(emp + '::NUM_' + nDig, emp + '::' + nNorm, emp + '::' + nDig, 'NUM_' + nDig, nNorm, nDig);",
+      "  }",
+      "  for (let i = 0; i < candidatos.length; i++) {",
+      "    if (candidatos[i] && map.has(candidatos[i])) return map.get(candidatos[i]);",
+      "  }",
+      "  return null;",
+      "}"
+    ].join("\n");
 
     const DADOS_DEMO = [
       {
@@ -825,7 +792,7 @@ function buscarNoRegistro(map, emp, chave, numero) {
         warn: "bg-amber-50 border-amber-200 text-amber-800",
         error: "bg-rose-50 border-rose-200 text-rose-800"
       };
-      el.className = `rounded-xl border px-4 py-3 text-sm ${estilos[tipo] || estilos.info}`;
+      el.className = "rounded-xl border px-4 py-3 text-sm " + (estilos[tipo] || estilos.info);
       el.textContent = msg;
     }
 
@@ -868,7 +835,7 @@ function buscarNoRegistro(map, emp, chave, numero) {
 
       try {
         const resp = await fetch(urlAtiva, { method: "GET" });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
         const data = await resp.json();
 
         if (!data || data.ok === false) {
@@ -886,8 +853,8 @@ function buscarNoRegistro(map, emp, chave, numero) {
           estado.empresas.forEach(e => estado.empresasSelecionadas.add(e));
         }
 
-        statusEl.textContent = `Conectado à planilha • ${estado.notas.length} notas carregadas`;
-        mostrarAlerta(`Planilha sincronizada com sucesso (${estado.notas.length} notas em ${estado.empresas.length} empresas).`, "success");
+        statusEl.textContent = "Conectado à planilha • " + estado.notas.length + " notas carregadas";
+        mostrarAlerta("Planilha sincronizada com sucesso (" + estado.notas.length + " notas em " + estado.empresas.length + " empresas).", "success");
         sincronizarControlesEmpresa();
         renderizarNotasPlanilha();
       } catch (err) {
@@ -899,7 +866,7 @@ function buscarNoRegistro(map, emp, chave, numero) {
         }
         statusEl.textContent = "Falha na conexão com Web App • Exibindo exemplo";
         mostrarAlerta(
-          `Não foi possível ler o Web App (${err.message}). Verifique se o Code.gs foi salvo e implantado como Aplicativo da Web ("Qualquer pessoa com o link").`,
+          "Não foi possível ler o Web App (" + err.message + "). Verifique se o Code.gs foi salvo e implantado como Aplicativo da Web (\"Qualquer pessoa com o link\").",
           "warn"
         );
         sincronizarControlesEmpresa();
@@ -910,8 +877,8 @@ function buscarNoRegistro(map, emp, chave, numero) {
     function sincronizarControlesEmpresa() {
       const selectFiltro = document.getElementById("filtroEmpresaNotas");
       const valorAtual = selectFiltro.value;
-      selectFiltro.innerHTML = `<option value="">Todas as empresas</option>` +
-        estado.empresas.map(emp => `<option value="${emp}">${emp}</option>`).join("");
+      selectFiltro.innerHTML = '<option value="">Todas as empresas</option>' +
+        estado.empresas.map(emp => '<option value="' + emp + '">' + emp + '</option>').join("");
       if (estado.empresas.includes(valorAtual)) {
         selectFiltro.value = valorAtual;
       }
@@ -919,37 +886,19 @@ function buscarNoRegistro(map, emp, chave, numero) {
       const containerEmp = document.getElementById("containerEmpresasConferencia");
       containerEmp.innerHTML = estado.empresas.map(emp => {
         const ativa = estado.empresasSelecionadas.has(emp);
-        return `
-          <button
-            type="button"
-            onclick="toggleEmpresaConferencia('${emp}')"
-            class="px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer ${
-              ativa
-                ? "bg-blue-600 text-white border-blue-600"
-                : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
-            }"
-          >
-            ${emp}
-          </button>
-        `;
+        const cls = ativa
+          ? "bg-blue-600 text-white border-blue-600"
+          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100";
+        return '<button type="button" onclick="toggleEmpresaConferencia(\'' + emp + '\')" class="px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer ' + cls + '">' + emp + '</button>';
       }).join("");
 
       const containerMes = document.getElementById("containerMesesConferencia");
       containerMes.innerHTML = MESES.map(m => {
         const ativo = estado.mesesSelecionados.has(m.code);
-        return `
-          <button
-            type="button"
-            onclick="toggleMesConferencia('${m.code}')"
-            class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
-              ativo
-                ? "bg-slate-900 text-white border-slate-900"
-                : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
-            }"
-          >
-            ${m.code} - ${m.label}
-          </button>
-        `;
+        const cls = ativo
+          ? "bg-slate-900 text-white border-slate-900"
+          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100";
+        return '<button type="button" onclick="toggleMesConferencia(\'' + m.code + '\')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ' + cls + '">' + m.code + ' - ' + m.label + '</button>';
       }).join("");
     }
 
@@ -987,16 +936,16 @@ function buscarNoRegistro(map, emp, chave, numero) {
       const arq = (nota.urlArquivo || "").trim();
       const pasta = (nota.urlPasta || "").trim();
       if (!arq && !pasta) {
-        return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">Sem link</span>`;
+        return '<span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">Sem link</span>';
       }
       const botoes = [];
       if (arq) {
-        botoes.push(`<a href="${arq}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition">Abrir Arquivo</a>`);
+        botoes.push('<a href="' + arq + '" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition">Abrir Arquivo</a>');
       }
       if (pasta) {
-        botoes.push(`<a href="${pasta}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-900 text-white transition">Abrir Pasta</a>`);
+        botoes.push('<a href="' + pasta + '" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-900 text-white transition">Abrir Pasta</a>');
       }
-      return `<div class="inline-flex flex-wrap items-center justify-center gap-1.5">${botoes.join("")}</div>`;
+      return '<div class="inline-flex flex-wrap items-center justify-center gap-1.5">' + botoes.join("") + '</div>';
     }
 
     function renderizarNotasPlanilha() {
@@ -1032,28 +981,29 @@ function buscarNoRegistro(map, emp, chave, numero) {
       document.getElementById("metricComDrive").textContent = comDrive;
       document.getElementById("metricSemDrive").textContent = filtradas.length - comDrive;
       document.getElementById("metricValorNotas").textContent = formatarMoeda(somaValor);
-      document.getElementById("contadorResultadosNotas").textContent = `Exibindo ${filtradas.length} de ${estado.notas.length} notas`;
+      document.getElementById("contadorResultadosNotas").textContent = "Exibindo " + filtradas.length + " de " + estado.notas.length + " notas";
 
       const tbody = document.getElementById("tbodyNotasPlanilha");
       if (filtradas.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-slate-400">Nenhuma nota encontrada com os filtros atuais.</td></tr>`;
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-slate-400">Nenhuma nota encontrada com os filtros atuais.</td></tr>';
         return;
       }
 
       tbody.innerHTML = filtradas.map(n => {
-        const chaveCurta = n.chave ? `${n.chave.slice(0, 10)}...${n.chave.slice(-6)}` : "-";
-        return `
-          <tr class="hover:bg-slate-50">
-            <td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">${n.empresa || "-"}</td>
-            <td class="px-4 py-3 whitespace-nowrap">${n.numero || "-"}${n.serie ? ` <span class="text-xs text-slate-400">/ ${n.serie}</span>` : ""}</td>
-            <td class="px-4 py-3 font-mono text-xs text-slate-600" title="${n.chave || ""}">${chaveCurta}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-slate-600">${n.data || "-"}</td>
-            <td class="px-4 py-3 text-slate-700 max-w-xs truncate" title="${n.parceiro || ""}">${n.parceiro || "-"}</td>
-            <td class="px-4 py-3 text-right font-medium whitespace-nowrap">${formatarMoeda(n.valor)}</td>
-            <td class="px-4 py-3 text-xs whitespace-nowrap">${n.statusFiscal || "-"}</td>
-            <td class="px-4 py-3 text-center whitespace-nowrap">${renderizarBotoesDrive(n)}</td>
-          </tr>
-        `;
+        const chaveCurta = n.chave ? (n.chave.slice(0, 10) + "..." + n.chave.slice(-6)) : "-";
+        const serieHtml = n.serie ? ' <span class="text-xs text-slate-400">/ ' + n.serie + '</span>' : "";
+        return (
+          '<tr class="hover:bg-slate-50">' +
+            '<td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">' + (n.empresa || "-") + '</td>' +
+            '<td class="px-4 py-3 whitespace-nowrap">' + (n.numero || "-") + serieHtml + '</td>' +
+            '<td class="px-4 py-3 font-mono text-xs text-slate-600" title="' + (n.chave || "") + '">' + chaveCurta + '</td>' +
+            '<td class="px-4 py-3 whitespace-nowrap text-slate-600">' + (n.data || "-") + '</td>' +
+            '<td class="px-4 py-3 text-slate-700 max-w-xs truncate" title="' + (n.parceiro || "") + '">' + (n.parceiro || "-") + '</td>' +
+            '<td class="px-4 py-3 text-right font-medium whitespace-nowrap">' + formatarMoeda(n.valor) + '</td>' +
+            '<td class="px-4 py-3 text-xs whitespace-nowrap">' + (n.statusFiscal || "-") + '</td>' +
+            '<td class="px-4 py-3 text-center whitespace-nowrap">' + renderizarBotoesDrive(n) + '</td>' +
+          '</tr>'
+        );
       }).join("");
     }
 
@@ -1063,28 +1013,27 @@ function buscarNoRegistro(map, emp, chave, numero) {
       }
       const progEl = document.getElementById("progressoArquivoLivro");
       progEl.classList.remove("hidden");
-      progEl.textContent = `Lendo PDF "${file.name}"...`;
+      progEl.textContent = 'Lendo PDF "' + file.name + '"...';
 
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const paginasTexto = [];
 
       for (let p = 1; p <= pdf.numPages; p++) {
-        progEl.textContent = `Extraindo texto do PDF: página ${p} de ${pdf.numPages}...`;
+        progEl.textContent = "Extraindo texto do PDF: página " + p + " de " + pdf.numPages + "...";
         const page = await pdf.getPage(p);
         const content = await page.getTextContent();
         const strings = content.items.map(item => item.str).filter(Boolean);
         paginasTexto.push(strings.join(" "));
       }
 
-      const textoFinal = paginasTexto.join("
-");
+      const textoFinal = paginasTexto.join("\n");
       if (!textoFinal.trim()) {
         progEl.className = "rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800";
         progEl.textContent = "Atenção: este PDF parece ser escaneado/imagem e não contém texto selecionável. Se possível, exporte em CSV/TXT.";
       } else {
         progEl.className = "rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-800";
-        progEl.textContent = `PDF "${file.name}" extraído (${pdf.numPages} página(s)). Revise o texto abaixo e clique em Conferir Notas Agora.`;
+        progEl.textContent = 'PDF "' + file.name + '" extraído (' + pdf.numPages + ' página(s)). Revise o texto abaixo e clique em Conferir Notas Agora.';
       }
 
       return textoFinal;
@@ -1092,45 +1041,45 @@ function buscarNoRegistro(map, emp, chave, numero) {
 
     function parsearLivroFiscal(texto) {
       const linhas = String(texto || "")
-        .split(/
-?
-/)
+        .replace(/\r/g, "")
+        .split("\n")
         .map(l => l.trim())
         .filter(Boolean);
 
       const itens = [];
       linhas.forEach((linha, idx) => {
-        const chaves44 = linha.match(/ \d{44} /g) || [];
-        const partes = linha.split(/[;|	,]/).map(s => s.trim());
+        const chaves44 = linha.match(/\d{44}/g) || [];
+        const partes = linha.split(/[;|\t,]/).map(s => s.trim());
 
         let empresaDetectada = "";
         for (const emp of estado.empresas) {
-          if (new RegExp(`\b${emp}\b`, "i").test(linha)) {
+          const reEmp = new RegExp("(^|[^A-Z0-9_])" + emp.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&") + "([^A-Z0-9_]|$)", "i");
+          if (reEmp.test(linha)) {
             empresaDetectada = emp;
             break;
           }
         }
 
-        const dataMatch = linha.match(/ (\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2}) /);
+        const dataMatch = linha.match(/(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})/);
         const dataStr = dataMatch ? dataMatch[1] : "";
 
         let valorNum = 0;
-        const moedaMatch = linha.match(/R\$\s*([\d.]+,\d{2})|( \d{1,3}(?:\.\d{3})*,\d{2} )/);
+        const moedaMatch = linha.match(/R\$\s*([\d.]+,\d{2})|(\d{1,3}(?:\.\d{3})*,\d{2})/);
         if (moedaMatch) {
           const bruto = (moedaMatch[1] || moedaMatch[2]).replace(/\./g, "").replace(",", ".");
           valorNum = parseFloat(bruto) || 0;
         }
 
         let numero = "";
-        const semChaves = linha.replace(/ \d{44} /g, " ");
-        const numMatch = semChaves.match(/(?:NF[-e]?|N[º°.]?|NUM(?:ERO)?)\s*[:#-]?\s*0*(\d{1,9}) /i);
+        const semChaves = linha.replace(/\d{44}/g, " ");
+        const numMatch = semChaves.match(/(?:NF[-e]?|N[º°.]?|NUM(?:ERO)?)\s*[:#\-]?\s*0*(\d{1,9})/i);
         if (numMatch) {
           numero = numMatch[1];
         } else if (partes.length > 1) {
           const candParte = partes.find(p => /^\d{1,9}$/.test(p.replace(/^0+/, "") || p));
           if (candParte) numero = candParte.replace(/^0+/, "") || candParte;
         } else {
-          const tokensNum = semChaves.match(/ \d{2,8} /g) || [];
+          const tokensNum = semChaves.match(/\d{2,8}/g) || [];
           const candidato = tokensNum.find(t => !/^\d{8}$/.test(t));
           if (candidato) numero = candidato.replace(/^0+/, "") || candidato;
         }
@@ -1188,7 +1137,7 @@ function buscarNoRegistro(map, emp, chave, numero) {
         const ch = String(n.chave || "").replace(/\D/g, "");
         const num = String(n.numero || "").replace(/^0+/, "");
         if (ch) mapaPorChave.set(ch, n);
-        if (emp && num) mapaPorEmpNum.set(`${emp}::${num}`, n);
+        if (emp && num) mapaPorEmpNum.set(emp + "::" + num, n);
       });
 
       const usadasPlanilha = new Set();
@@ -1202,8 +1151,8 @@ function buscarNoRegistro(map, emp, chave, numero) {
         let match = null;
         if (ch && mapaPorChave.has(ch)) {
           match = mapaPorChave.get(ch);
-        } else if (emp && num && mapaPorEmpNum.has(`${emp}::${num}`)) {
-          match = mapaPorEmpNum.get(`${emp}::${num}`);
+        } else if (emp && num && mapaPorEmpNum.has(emp + "::" + num)) {
+          match = mapaPorEmpNum.get(emp + "::" + num);
         } else if (num) {
           match = notasBase.find(n => String(n.numero || "").replace(/^0+/, "") === num) || null;
         }
@@ -1255,7 +1204,7 @@ function buscarNoRegistro(map, emp, chave, numero) {
 
       estado.resultadosConferencia = resultados;
       renderizarResultadoConferencia();
-      mostrarAlerta(`Conferência concluída: ${resultados.length} registro(s) consolidado(s).`, "success");
+      mostrarAlerta("Conferência concluída: " + resultados.length + " registro(s) consolidado(s).", "success");
     }
 
     function renderizarResultadoConferencia() {
@@ -1283,23 +1232,23 @@ function buscarNoRegistro(map, emp, chave, numero) {
 
       const tbody = document.getElementById("tbodyResultadoConferencia");
       if (visiveis.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">Nenhum item corresponde ao filtro selecionado.</td></tr>`;
+        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">Nenhum item corresponde ao filtro selecionado.</td></tr>';
         return;
       }
 
       tbody.innerHTML = visiveis.map(r => {
-        const chaveCurta = r.chave ? `${r.chave.slice(0, 10)}...${r.chave.slice(-6)}` : "-";
-        return `
-          <tr class="hover:bg-slate-50">
-            <td class="px-4 py-3 text-xs font-semibold whitespace-nowrap">${r.statusLabel}</td>
-            <td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">${r.empresa}</td>
-            <td class="px-4 py-3 whitespace-nowrap">${r.numero}</td>
-            <td class="px-4 py-3 font-mono text-xs text-slate-600" title="${r.chave}">${chaveCurta}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-slate-600">${r.data}</td>
-            <td class="px-4 py-3 text-right font-medium whitespace-nowrap">${formatarMoeda(r.valor)}</td>
-            <td class="px-4 py-3 text-center whitespace-nowrap">${renderizarBotoesDrive(r)}</td>
-          </tr>
-        `;
+        const chaveCurta = r.chave ? (r.chave.slice(0, 10) + "..." + r.chave.slice(-6)) : "-";
+        return (
+          '<tr class="hover:bg-slate-50">' +
+            '<td class="px-4 py-3 text-xs font-semibold whitespace-nowrap">' + r.statusLabel + '</td>' +
+            '<td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">' + r.empresa + '</td>' +
+            '<td class="px-4 py-3 whitespace-nowrap">' + r.numero + '</td>' +
+            '<td class="px-4 py-3 font-mono text-xs text-slate-600" title="' + r.chave + '">' + chaveCurta + '</td>' +
+            '<td class="px-4 py-3 whitespace-nowrap text-slate-600">' + r.data + '</td>' +
+            '<td class="px-4 py-3 text-right font-medium whitespace-nowrap">' + formatarMoeda(r.valor) + '</td>' +
+            '<td class="px-4 py-3 text-center whitespace-nowrap">' + renderizarBotoesDrive(r) + '</td>' +
+          '</tr>'
+        );
       }).join("");
     }
 
@@ -1319,27 +1268,25 @@ function buscarNoRegistro(map, emp, chave, numero) {
         Number(r.valor || 0).toFixed(2).replace(".", ","),
         r.urlArquivo,
         r.urlPasta
-      ].map(v => `"${String(v || "").replace(/"/g, '""')}"`).join(";"));
+      ].map(v => '"' + String(v || "").replace(/"/g, '""') + '"').join(";"));
 
-      const csv = "﻿" + [cab.join(";"), ...linhas].join("
-");
+      const csv = "\uFEFF" + [cab.join(";"), ...linhas].join("\n");
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `conferencia-livro-fiscal-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = "conferencia-livro-fiscal-" + new Date().toISOString().slice(0, 10) + ".csv";
       a.click();
       URL.revokeObjectURL(url);
     }
 
     function atualizarContadorLinhasLivro() {
       const linhas = document.getElementById("textoLivroFiscal").value
-        .split(/
-?
-/)
+        .replace(/\r/g, "")
+        .split("\n")
         .map(l => l.trim())
         .filter(Boolean).length;
-      document.getElementById("resumoTextoLivro").textContent = `${linhas} linha(s) carregada(s) no livro fiscal`;
+      document.getElementById("resumoTextoLivro").textContent = linhas + " linha(s) carregada(s) no livro fiscal";
     }
 
     // Eventos
@@ -1371,8 +1318,7 @@ function buscarNoRegistro(map, emp, chave, numero) {
         "ALPINE; NF 1021; 35260112345678000199550010000010211000010210; 12/01/2026; 14.850,00",
         "MEDIC; NF 1022; 35260198765432000111550010000010221000010225; 18/01/2026; 8.320,50",
         "ALPINE; NF 9999; 35260111111111000122550010000099991000009999; 25/01/2026; 3.150,00"
-      ].join("
-");
+      ].join("\n");
       atualizarContadorLinhasLivro();
     });
 
@@ -1384,8 +1330,7 @@ function buscarNoRegistro(map, emp, chave, numero) {
           const textoExtraido = await extrairTextoPdf(file);
           const textarea = document.getElementById("textoLivroFiscal");
           textarea.value = textarea.value.trim()
-            ? `${textarea.value.trim()}
-${textoExtraido}`
+            ? (textarea.value.trim() + "\n" + textoExtraido)
             : textoExtraido;
         } else {
           const texto = await file.text();
@@ -1393,7 +1338,7 @@ ${textoExtraido}`
         }
         atualizarContadorLinhasLivro();
       } catch (err) {
-        mostrarAlerta(`Erro ao ler arquivo: ${err.message}`, "error");
+        mostrarAlerta("Erro ao ler arquivo: " + err.message, "error");
       } finally {
         e.target.value = "";
       }
