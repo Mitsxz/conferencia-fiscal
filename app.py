@@ -439,7 +439,8 @@ def api_drive_extrair_planilha():
         }, timeout=60)
 
         if not dados.get("sucesso") or not dados.get("base64"):
-            return jsonify({"sucesso": False, "erro": dados.get("erro", "Falha ao baixar planilha do Drive")}), 502
+            msg_erro = dados.get("erro") or f"Resposta sem base64 do Apps Script: {json.dumps(dados)[:300]}"
+            return jsonify({"sucesso": False, "erro": msg_erro}), 500
 
         raw_bytes = base64.b64decode(dados["base64"])
         ext = dados.get("ext", ".xlsx")
