@@ -35,7 +35,7 @@
             margin-bottom: 28px;
         }
         .header-content {
-            max-width: 1180px;
+            max-width: 1280px;
             margin: 0 auto;
             display: flex;
             flex-wrap: wrap;
@@ -55,7 +55,7 @@
             font-weight: 600;
         }
 
-        .container { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+        .container { max-width: 1280px; margin: 0 auto; padding: 0 20px; }
 
         .card {
             background: var(--card-bg);
@@ -259,12 +259,17 @@
         .f-pill {
             padding: 7px 14px;
             border-radius: 8px;
-            border: 1px solid var(--navy-mid);
-            background: var(--navy-mid);
-            color: #ffffff;
+            border: 1px solid var(--border);
+            background: #f8fafc;
+            color: var(--text-main);
             font-size: 0.82rem;
             font-weight: 600;
-            cursor: default;
+            cursor: pointer;
+        }
+        .f-pill.active {
+            border-color: var(--navy-mid);
+            background: var(--navy-mid);
+            color: #ffffff;
         }
         .search-input {
             padding: 7px 12px;
@@ -275,18 +280,18 @@
         }
 
         .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.86rem; background: #ffffff; min-width: 1320px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; background: #ffffff; min-width: 1120px; }
         th {
             background: #f8fafc;
             color: var(--text-muted);
             font-weight: 700;
             text-align: left;
-            padding: 12px 14px;
+            padding: 11px 12px;
             border-bottom: 1px solid var(--border);
             white-space: nowrap;
         }
-        td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-        th:last-child, td:last-child { min-width: 300px; padding-right: 24px; white-space: nowrap; }
+        td { padding: 11px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        th:last-child, td:last-child { min-width: 220px; padding-right: 18px; white-space: nowrap; }
         tr:hover td { background: #f8fafc; }
 
         .badge-cfop {
@@ -318,16 +323,14 @@
             font-weight: 700;
             white-space: nowrap;
         }
+        .st-ok { background: var(--ok-bg); color: var(--ok-text); }
         .st-ausente { background: var(--warn-bg); color: var(--warn-text); }
-        .st-drive-ok { background: #dcfce7; color: #166534; }
-        .st-drive-no { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
         .drive-acoes {
             display: inline-flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
             flex-wrap: nowrap;
         }
-        .drive-acoes .status-pill,
         .drive-acoes .btn-drive {
             flex-shrink: 0;
         }
@@ -365,7 +368,6 @@
 
 <div class="container">
     <div class="card">
-        <!-- Seleção de Empresa, Ano, Mês e PDF do Livro -->
         <div class="setup-grid">
             <div class="field-box">
                 <label for="sel-empresa">1. Empresa</label>
@@ -422,7 +424,6 @@
             </div>
         </div>
 
-        <!-- Seleção da Planilha encontrada no Drive (pasta ENTRADAS > ANO) -->
         <div class="drive-planilha-box">
             <div class="drive-planilha-info">
                 <h4>Planilha Consolidada no Google Drive (ENTRADAS > ANO)</h4>
@@ -467,7 +468,6 @@
         <div class="erros-lote" id="erros-lote"></div>
     </div>
 
-    <!-- Painel de Resultados -->
     <div id="painel-resultados">
         <div class="resumo-barra">
             <div>
@@ -484,7 +484,6 @@
             </div>
         </div>
 
-        <!-- KPIs -->
         <div class="kpis">
             <div class="kpi-card">
                 <div class="kpi-label">Total Livro Fiscal (NF-e)</div>
@@ -504,11 +503,12 @@
             </div>
         </div>
 
-        <!-- Tabela -->
         <div class="card">
             <div class="filtros-tabela">
                 <div class="filter-pills" id="status-pills">
-                    <span class="f-pill">Ausente Planilha</span>
+                    <button type="button" class="f-pill active" data-st="TODOS" onclick="mudarFiltroStatus('TODOS', this)">OK + Ausente Planilha</button>
+                    <button type="button" class="f-pill" data-st="OK" onclick="mudarFiltroStatus('OK', this)">OK (Batem)</button>
+                    <button type="button" class="f-pill" data-st="AUSENTE_PLANILHA" onclick="mudarFiltroStatus('AUSENTE_PLANILHA', this)">Ausente Planilha</button>
                 </div>
                 <input type="text" class="search-input" id="busca-tabela" placeholder="Buscar Nota ou CFOP..." oninput="renderizarTabela()">
             </div>
@@ -560,6 +560,7 @@
     let notasNfeDrive = [];
     let registrosLivro = [];
     let registrosPlanilha = [];
+    let filtroStatusAtual = 'TODOS';
     let linhasAtuaisTabela = [];
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -844,6 +845,13 @@
         return candidatos[0];
     }
 
+    function mudarFiltroStatus(st, btn) {
+        filtroStatusAtual = st;
+        document.querySelectorAll('.f-pill').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        renderizarTabela();
+    }
+
     function formatarCFOP(cfop) {
         const codigo = String(cfop ?? '').replace(/\D/g, '');
         if (codigo.length === 4) {
@@ -904,25 +912,38 @@
             somaLivro += valLiv;
             somaPlan += valPla;
 
-            if (liv && !pla) {
-                qtdAusentesPlanilha++;
-                const arqDrive = buscarNotaNaPastaNfe(nota, empresa);
+            if (!liv) return; // Ignora AUSENTE_LIVRO
 
-                linhas.push({
-                    empresa,
-                    data,
-                    nota,
-                    cfop,
-                    valLiv,
-                    valPla,
-                    diff,
-                    status: 'AUSENTE_PLANILHA',
-                    diag: 'Consta no Livro Fiscal (PDF), mas não na Planilha do Drive',
-                    noDrive: Boolean(arqDrive),
-                    driveUrl: arqDrive ? arqDrive.url : '',
-                    driveNome: arqDrive ? arqDrive.nome : ''
-                });
+            let status = null;
+            let diag = '';
+
+            if (!pla) {
+                status = 'AUSENTE_PLANILHA';
+                diag = 'Consta no Livro Fiscal (PDF), mas não na Planilha do Drive';
+                qtdAusentesPlanilha++;
+            } else if (Math.abs(diff) <= 0.02) {
+                status = 'OK';
+                diag = 'Bate com a Planilha do Drive';
+            } else {
+                return;
             }
+
+            const arqDrive = buscarNotaNaPastaNfe(nota, empresa);
+
+            linhas.push({
+                empresa,
+                data,
+                nota,
+                cfop,
+                valLiv,
+                valPla,
+                diff,
+                status,
+                diag,
+                noDrive: Boolean(arqDrive),
+                driveUrl: arqDrive ? arqDrive.url : '',
+                driveNome: arqDrive ? arqDrive.nome : ''
+            });
         });
 
         document.getElementById('kpi-livro').textContent = formatarMoeda(somaLivro);
@@ -932,6 +953,7 @@
 
         const termoBusca = document.getElementById('busca-tabela').value.trim().toLowerCase();
         const linhasExibidas = linhas.filter(l => {
+            if (filtroStatusAtual !== 'TODOS' && l.status !== filtroStatusAtual) return false;
             if (termoBusca && !l.nota.toLowerCase().includes(termoBusca) && !l.cfop.includes(termoBusca)) {
                 return false;
             }
@@ -942,19 +964,21 @@
         const tbody = document.getElementById('tbody-resultados');
 
         if (linhasExibidas.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:#64748b;">Nenhum registro ausente na planilha encontrado.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:#64748b;">Nenhum registro encontrado para este filtro.</td></tr>`;
             return;
         }
 
         tbody.innerHTML = linhasExibidas.map(l => {
+            const stClass = l.status === 'OK' ? 'st-ok' : 'st-ausente';
+            const diffColor = Math.abs(l.diff) <= 0.02 ? '#166534' : '#b91c1c';
+
             const celulaDrive = l.noDrive
                 ? `<div class="drive-acoes">
-                       <span class="status-pill st-drive-ok">Na pasta NFE</span>
                        <a href="${escapeHtml(l.driveUrl)}" target="_blank" rel="noopener noreferrer" class="btn-drive" title="${escapeHtml(l.driveNome)}">
                            Abrir NF-e ↗
                        </a>
                    </div>`
-                : `<span class="status-pill st-drive-no">${l.nota === 'RESUMO' ? 'Não se aplica' : 'Ausente na NFE'}</span>`;
+                : `<span style="color:#64748b; font-size:0.78rem;">${l.nota === 'RESUMO' ? 'Não se aplica' : 'Sem PDF na NFE'}</span>`;
 
             return `
                 <tr>
@@ -964,8 +988,8 @@
                     <td><span class="badge-cfop">${escapeHtml(formatarCFOP(l.cfop))}</span></td>
                     <td style="font-weight:600;">${formatarMoeda(l.valLiv)}</td>
                     <td style="font-weight:600;">${formatarMoeda(l.valPla)}</td>
-                    <td style="font-weight:700; color:#b91c1c;">${formatarMoeda(l.diff)}</td>
-                    <td><span class="status-pill st-ausente">${escapeHtml(l.status)}</span></td>
+                    <td style="font-weight:700; color:${diffColor};">${formatarMoeda(l.diff)}</td>
+                    <td><span class="status-pill ${stClass}">${escapeHtml(l.status)}</span></td>
                     <td style="color:#475569; font-size:0.82rem;">${escapeHtml(l.diag)}</td>
                     <td>${celulaDrive}</td>
                 </tr>
