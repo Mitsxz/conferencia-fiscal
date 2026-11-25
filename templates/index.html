@@ -257,15 +257,15 @@
         }
         .filter-pills { display: flex; flex-wrap: wrap; gap: 6px; }
         .f-pill {
-            padding: 6px 12px;
+            padding: 7px 14px;
             border-radius: 8px;
-            border: 1px solid var(--border);
-            background: #f8fafc;
-            font-size: 0.8rem;
+            border: 1px solid var(--navy-mid);
+            background: var(--navy-mid);
+            color: #ffffff;
+            font-size: 0.82rem;
             font-weight: 600;
-            cursor: pointer;
+            cursor: default;
         }
-        .f-pill.active { background: var(--navy-mid); color: #ffffff; border-color: var(--navy-mid); }
         .search-input {
             padding: 7px 12px;
             border: 1px solid #cbd5e1;
@@ -275,7 +275,7 @@
         }
 
         .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.86rem; background: #ffffff; min-width: 1260px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.86rem; background: #ffffff; min-width: 1320px; }
         th {
             background: #f8fafc;
             color: var(--text-muted);
@@ -286,7 +286,7 @@
             white-space: nowrap;
         }
         td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-        th:last-child, td:last-child { min-width: 280px; padding-right: 20px; white-space: nowrap; }
+        th:last-child, td:last-child { min-width: 300px; padding-right: 24px; white-space: nowrap; }
         tr:hover td { background: #f8fafc; }
 
         .badge-cfop {
@@ -318,9 +318,7 @@
             font-weight: 700;
             white-space: nowrap;
         }
-        .st-ok { background: var(--ok-bg); color: var(--ok-text); }
         .st-ausente { background: var(--warn-bg); color: var(--warn-text); }
-        .st-div { background: var(--err-bg); color: var(--err-text); }
         .st-drive-ok { background: #dcfce7; color: #166534; }
         .st-drive-no { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
         .drive-acoes {
@@ -501,7 +499,7 @@
                 <div class="kpi-value" id="kpi-diff">R$ 0,00</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Divergências / Ausentes Planilha</div>
+                <div class="kpi-label">Ausentes na Planilha</div>
                 <div class="kpi-value" id="kpi-div" style="color: #b91c1c;">0</div>
             </div>
         </div>
@@ -510,10 +508,7 @@
         <div class="card">
             <div class="filtros-tabela">
                 <div class="filter-pills" id="status-pills">
-                    <button type="button" class="f-pill active" data-st="TODOS" onclick="mudarFiltroStatus('TODOS', this)">Resultado (OK + Ausente Planilha + Divergência)</button>
-                    <button type="button" class="f-pill" data-st="OK" onclick="mudarFiltroStatus('OK', this)">OK (Batem com Planilha)</button>
-                    <button type="button" class="f-pill" data-st="AUSENTE_PLANILHA" onclick="mudarFiltroStatus('AUSENTE_PLANILHA', this)">Ausente Planilha</button>
-                    <button type="button" class="f-pill" data-st="DIVERGENCIA_VALOR" onclick="mudarFiltroStatus('DIVERGENCIA_VALOR', this)">Divergência Valor</button>
+                    <span class="f-pill">Ausente Planilha</span>
                 </div>
                 <input type="text" class="search-input" id="busca-tabela" placeholder="Buscar Nota ou CFOP..." oninput="renderizarTabela()">
             </div>
@@ -561,13 +556,10 @@
         'SURGILOG_F06': { label: 'SURGILOG F06', aliases: ['SURGILOG F06'] }
     };
 
-    const STATUS_PERMITIDOS = new Set(['OK', 'AUSENTE_PLANILHA', 'DIVERGENCIA_VALOR']);
-
     let planilhasDisponiveisDrive = [];
     let notasNfeDrive = [];
     let registrosLivro = [];
     let registrosPlanilha = [];
-    let filtroStatusAtual = 'TODOS';
     let linhasAtuaisTabela = [];
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -852,13 +844,6 @@
         return candidatos[0];
     }
 
-    function mudarFiltroStatus(st, btn) {
-        filtroStatusAtual = st;
-        document.querySelectorAll('.f-pill').forEach(p => p.classList.remove('active'));
-        btn.classList.add('active');
-        renderizarTabela();
-    }
-
     function formatarCFOP(cfop) {
         const codigo = String(cfop ?? '').replace(/\D/g, '');
         if (codigo.length === 4) {
@@ -902,7 +887,7 @@
         const linhas = [];
         let somaLivro = 0;
         let somaPlan = 0;
-        let qtdProblemas = 0;
+        let qtdAusentesPlanilha = 0;
 
         todasChaves.forEach(chave => {
             const liv = mapaLivro.get(chave);
@@ -919,50 +904,34 @@
             somaLivro += valLiv;
             somaPlan += valPla;
 
-            let status = 'OK';
-            let diag = 'Valores conferem com a planilha';
+            if (liv && !pla) {
+                qtdAusentesPlanilha++;
+                const arqDrive = buscarNotaNaPastaNfe(nota, empresa);
 
-            if (!liv && pla) {
-                status = 'AUSENTE_LIVRO';
-                diag = 'Consta na Planilha do Drive, mas não no Livro Fiscal (PDF)';
-            } else if (liv && !pla) {
-                status = 'AUSENTE_PLANILHA';
-                diag = 'Consta no Livro Fiscal (PDF), mas não na Planilha do Drive';
-                qtdProblemas++;
-            } else if (Math.abs(diff) > 0.02) {
-                status = 'DIVERGENCIA_VALOR';
-                diag = `Diferença de ${formatarMoeda(diff)} entre Livro Fiscal e Planilha`;
-                qtdProblemas++;
+                linhas.push({
+                    empresa,
+                    data,
+                    nota,
+                    cfop,
+                    valLiv,
+                    valPla,
+                    diff,
+                    status: 'AUSENTE_PLANILHA',
+                    diag: 'Consta no Livro Fiscal (PDF), mas não na Planilha do Drive',
+                    noDrive: Boolean(arqDrive),
+                    driveUrl: arqDrive ? arqDrive.url : '',
+                    driveNome: arqDrive ? arqDrive.nome : ''
+                });
             }
-
-            if (!STATUS_PERMITIDOS.has(status)) return;
-
-            const arqDrive = buscarNotaNaPastaNfe(nota, empresa);
-
-            linhas.push({
-                empresa,
-                data,
-                nota,
-                cfop,
-                valLiv,
-                valPla,
-                diff,
-                status,
-                diag,
-                noDrive: Boolean(arqDrive),
-                driveUrl: arqDrive ? arqDrive.url : '',
-                driveNome: arqDrive ? arqDrive.nome : ''
-            });
         });
 
         document.getElementById('kpi-livro').textContent = formatarMoeda(somaLivro);
         document.getElementById('kpi-planilha').textContent = formatarMoeda(somaPlan);
         document.getElementById('kpi-diff').textContent = formatarMoeda(somaLivro - somaPlan);
-        document.getElementById('kpi-div').textContent = qtdProblemas;
+        document.getElementById('kpi-div').textContent = qtdAusentesPlanilha;
 
         const termoBusca = document.getElementById('busca-tabela').value.trim().toLowerCase();
         const linhasExibidas = linhas.filter(l => {
-            if (filtroStatusAtual !== 'TODOS' && l.status !== filtroStatusAtual) return false;
             if (termoBusca && !l.nota.toLowerCase().includes(termoBusca) && !l.cfop.includes(termoBusca)) {
                 return false;
             }
@@ -973,15 +942,11 @@
         const tbody = document.getElementById('tbody-resultados');
 
         if (linhasExibidas.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:#64748b;">Nenhum registro encontrado para este filtro.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:#64748b;">Nenhum registro ausente na planilha encontrado.</td></tr>`;
             return;
         }
 
         tbody.innerHTML = linhasExibidas.map(l => {
-            let stClass = 'st-ok';
-            if (l.status === 'DIVERGENCIA_VALOR') stClass = 'st-div';
-            else if (l.status === 'AUSENTE_PLANILHA') stClass = 'st-ausente';
-
             const celulaDrive = l.noDrive
                 ? `<div class="drive-acoes">
                        <span class="status-pill st-drive-ok">Na pasta NFE</span>
@@ -999,8 +964,8 @@
                     <td><span class="badge-cfop">${escapeHtml(formatarCFOP(l.cfop))}</span></td>
                     <td style="font-weight:600;">${formatarMoeda(l.valLiv)}</td>
                     <td style="font-weight:600;">${formatarMoeda(l.valPla)}</td>
-                    <td style="font-weight:700; color:${Math.abs(l.diff) > 0.02 ? '#b91c1c' : '#166534'};">${formatarMoeda(l.diff)}</td>
-                    <td><span class="status-pill ${stClass}">${escapeHtml(l.status)}</span></td>
+                    <td style="font-weight:700; color:#b91c1c;">${formatarMoeda(l.diff)}</td>
+                    <td><span class="status-pill st-ausente">${escapeHtml(l.status)}</span></td>
                     <td style="color:#475569; font-size:0.82rem;">${escapeHtml(l.diag)}</td>
                     <td>${celulaDrive}</td>
                 </tr>
