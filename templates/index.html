@@ -10,6 +10,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PDF.js via CDN para leitura nativa de livros fiscais em PDF no navegador -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -64,12 +66,21 @@
   <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex flex-col md:flex-row md:items-center md:justify-between py-3.5 gap-3">
-        <!-- Identidade do Sistema -->
+        <!-- Identidade do Sistema com Logo static/logo.png e Fallback -->
         <div class="flex items-center gap-3">
-          <div class="h-10 w-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm shrink-0">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+          <div class="h-11 w-11 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm shrink-0 overflow-hidden border border-slate-200/80 relative">
+            <img
+              id="logoHeaderImg"
+              src="static/logo.png"
+              alt="Logo Controle e Conferência Fiscal"
+              class="w-full h-full object-contain bg-white p-0.5"
+              onerror="tratarErroLogo(this, 'logoHeaderFallback')"
+            />
+            <span id="logoHeaderFallback" class="hidden w-full h-full items-center justify-center bg-blue-600 text-white">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </span>
           </div>
           <div>
             <div class="flex items-center gap-2 flex-wrap">
@@ -82,7 +93,7 @@
               </span>
             </div>
             <p class="text-xs text-slate-500">
-              Abas de empresas, DEPARA e REGISTRO_NOTAS integrados ao Google Drive
+              Abas de empresas, DEPARA e REGISTRO_NOTAS integrados ao Google Drive • Suporte a PDF, CSV e JSON
             </p>
           </div>
         </div>
@@ -399,13 +410,13 @@
         </div>
       </div>
 
-      <!-- Passo 3: Entrada do Livro Fiscal -->
+      <!-- Passo 3: Entrada do Livro Fiscal (PDF, CSV, TXT, TSV, JSON ou Texto Colado) -->
       <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
-            <h2 class="text-base font-bold text-slate-900">3. Livro Fiscal (CSV, TXT, Colar Linhas ou JSON)</h2>
+            <h2 class="text-base font-bold text-slate-900">3. Livro Fiscal (PDF, CSV, TXT, Colar Linhas ou JSON)</h2>
             <p class="text-xs text-slate-500">
-              Aceita colunas como <code class="bg-slate-100 px-1 py-0.5 rounded">empresa</code>, <code class="bg-slate-100 px-1 py-0.5 rounded">chave</code>, <code class="bg-slate-100 px-1 py-0.5 rounded">numero</code>, <code class="bg-slate-100 px-1 py-0.5 rounded">data</code> (ou mês), <code class="bg-slate-100 px-1 py-0.5 rounded">valor</code> e <code class="bg-slate-100 px-1 py-0.5 rounded">parceiro</code>.
+              Extrai automaticamente chaves de acesso de 44 dígitos, números de nota, datas, valores e empresas em PDFs com texto selecionável ou planilhas/textos colados.
             </p>
           </div>
 
@@ -414,8 +425,14 @@
               <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
-              Enviar CSV / TXT
-              <input id="inputArquivoLivro" type="file" accept=".csv,.txt,.tsv,.json" onchange="lerArquivoLivroFiscal(event)" class="hidden" />
+              Enviar PDF / CSV / TXT
+              <input
+                id="inputArquivoLivro"
+                type="file"
+                accept=".pdf,.csv,.tsv,.txt,.json"
+                onchange="lerArquivoLivroFiscal(event)"
+                class="hidden"
+              />
             </label>
 
             <button
@@ -439,10 +456,21 @@
           </div>
         </div>
 
+        <!-- Barra de Progresso de Extração de PDF -->
+        <div id="barraProgressoPdf" class="hidden rounded-xl bg-blue-50 border border-blue-200 p-3 space-y-2">
+          <div class="flex items-center justify-between text-xs font-semibold text-blue-800">
+            <span id="textoProgressoPdf">Extraindo texto do PDF...</span>
+            <span id="percentualProgressoPdf">0%</span>
+          </div>
+          <div class="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
+            <div id="fillProgressoPdf" class="h-full bg-blue-600 transition-all duration-200" style="width: 0%"></div>
+          </div>
+        </div>
+
         <textarea
           id="textareaLivroFiscal"
-          rows="6"
-          placeholder="Cole aqui as linhas do livro fiscal (CSV, ponto-e-vírgula, tabulação ou JSON). Ex:&#10;empresa;numero;chave;data;valor;fornecedor&#10;ALPINE;1482;35261101234567000190550010000014821123456789;10/11/2026;4850.00;MEDHOSPITALAR LTDA"
+          rows="7"
+          placeholder="Cole aqui as linhas do livro fiscal (CSV, ponto-e-vírgula, tabulação, JSON ou texto extraído de PDF). Ex:&#10;empresa;numero;chave;data;valor;fornecedor&#10;ALPINE;1482;35261101234567000190550010000014821123456789;10/11/2026;4850.00;MEDHOSPITALAR LTDA"
           class="w-full rounded-xl border border-slate-300 bg-slate-50 focus:bg-white p-3.5 text-xs sm:text-sm font-mono text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         ></textarea>
 
@@ -460,6 +488,7 @@
           </div>
 
           <button
+            id="btnConferirNotas"
             type="button"
             onclick="executarConferencia()"
             class="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition cursor-pointer"
@@ -595,17 +624,33 @@
   <!-- ===================================================================== -->
   <div id="modalFonteDados" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
-      <!-- Cabeçalho do Modal -->
-      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
-        <div>
-          <h3 class="text-base sm:text-lg font-bold text-slate-900">
-            Fonte de Dados (Planilha &amp; Google Apps Script)
-          </h3>
-          <p class="text-xs text-slate-500">
-            Use dados de demonstração, conecte a um Web App do Apps Script ou rode via <code class="bg-slate-100 px-1 rounded">google.script.run</code>
-          </p>
+      <!-- Cabeçalho do Modal com Logo static/logo.png e Fallback -->
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="h-10 w-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0 overflow-hidden border border-slate-200 relative">
+            <img
+              id="logoModalImg"
+              src="static/logo.png"
+              alt="Logo Fonte de Dados"
+              class="w-full h-full object-contain bg-white p-0.5"
+              onerror="tratarErroLogo(this, 'logoModalFallback')"
+            />
+            <span id="logoModalFallback" class="hidden w-full h-full items-center justify-center bg-blue-600 text-white">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+              </svg>
+            </span>
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-base sm:text-lg font-bold text-slate-900 truncate">
+              Fonte de Dados (Planilha &amp; Google Apps Script)
+            </h3>
+            <p class="text-xs text-slate-500 truncate">
+              Use dados de demonstração, conecte a um Web App do Apps Script ou rode via <code class="bg-slate-100 px-1 rounded">google.script.run</code>
+            </p>
+          </div>
         </div>
-        <button type="button" onclick="fecharModalFonteDados()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer">
+        <button type="button" onclick="fecharModalFonteDados()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -686,6 +731,26 @@
   <!-- LÓGICA JAVASCRIPT COMPLETA                                            -->
   <!-- ===================================================================== -->
   <script>
+    // -----------------------------------------------------------------------
+    // 0. CONFIGURAÇÃO DO PDF.JS WORKER E FALLBACK DE LOGO (static/logo.png)
+    // -----------------------------------------------------------------------
+    if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    // Fallback caso static/logo.png não exista ou falhe ao carregar no ambiente atual
+    function tratarErroLogo(imgEl, fallbackId) {
+      if (imgEl) {
+        imgEl.classList.add('hidden');
+      }
+      const fallbackEl = document.getElementById(fallbackId);
+      if (fallbackEl) {
+        fallbackEl.classList.remove('hidden');
+        fallbackEl.classList.add('flex');
+      }
+    }
+
     // -----------------------------------------------------------------------
     // 1. CONSTANTES DE DEPARA E CONFIGURAÇÃO DE ESTADO
     // -----------------------------------------------------------------------
@@ -1077,7 +1142,8 @@ function buscarNoRegistro(mapa, empresa, chave, numero) {
       empresasSelecionadas: new Set(['ALPINE', 'MEDIC', 'NEOSURGICAL', 'SALVADOR']),
       mesesSelecionados: new Set([11]), // Novembro por padrão
       resultadosConferencia: [],
-      filtroResultadoConf: 'TODOS'
+      filtroResultadoConf: 'TODOS',
+      extraindoPdf: false
     };
 
     // -----------------------------------------------------------------------
@@ -1109,7 +1175,6 @@ function buscarNoRegistro(mapa, empresa, chave, numero) {
       estado.empresas = Array.from(setEmpresas).sort();
       estado.notas = notasLimpa;
 
-      // Garante que empresas selecionadas existam na base atual
       const validas = new Set([...estado.empresasSelecionadas].filter(e => setEmpresas.has(e)));
       if (validas.size === 0 && estado.empresas.length > 0) {
         estado.empresas.slice(0, Math.min(4, estado.empresas.length)).forEach(e => validas.add(e));
@@ -1466,7 +1531,7 @@ function buscarNoRegistro(mapa, empresa, chave, numero) {
     }
 
     // -----------------------------------------------------------------------
-    // 5. ABA 2: CONFERÊNCIA COM LIVRO FISCAL (SELEÇÃO MÚLTIPLA + CRUZAMENTO)
+    // 5. ABA 2: CONFERÊNCIA COM LIVRO FISCAL (PDF + CSV + CRUZAMENTO)
     // -----------------------------------------------------------------------
     function renderizarChipsEmpresas() {
       const container = document.getElementById('containerChipsEmpresas');
@@ -1581,28 +1646,157 @@ function buscarNoRegistro(mapa, empresa, chave, numero) {
     function limparTextoLivro() {
       document.getElementById('textareaLivroFiscal').value = '';
       document.getElementById('inputArquivoLivro').value = '';
+      atualizarProgressoPdf(false, 0, '');
     }
 
-    function lerArquivoLivroFiscal(event) {
-      const file = event.target.files && event.target.files[0];
+    function atualizarProgressoPdf(visivel, percentual, mensagem) {
+      const box = document.getElementById('barraProgressoPdf');
+      const fill = document.getElementById('fillProgressoPdf');
+      const txt = document.getElementById('textoProgressoPdf');
+      const pct = document.getElementById('percentualProgressoPdf');
+
+      if (!visivel) {
+        box.classList.add('hidden');
+        return;
+      }
+      box.classList.remove('hidden');
+      const seguroPct = Math.max(0, Math.min(100, Math.round(percentual || 0)));
+      fill.style.width = `${seguroPct}%`;
+      pct.textContent = `${seguroPct}%`;
+      if (mensagem) txt.textContent = mensagem;
+    }
+
+    async function lerArquivoLivroFiscal(event) {
+      const inputEl = event.target;
+      const file = inputEl && inputEl.files && inputEl.files[0];
       if (!file) return;
+
+      const nomeLower = (file.name || '').toLowerCase();
+      const isPdf = nomeLower.endsWith('.pdf') || file.type === 'application/pdf';
+
+      if (isPdf) {
+        await processarArquivoPdfLivroFiscal(file);
+        inputEl.value = '';
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = function(e) {
         document.getElementById('textareaLivroFiscal').value = String(e.target.result || '');
         mostrarBanner(`Arquivo "${file.name}" carregado com sucesso.`, 'sucesso');
+        inputEl.value = '';
       };
       reader.onerror = function() {
         mostrarBanner('Erro ao ler o arquivo selecionado.', 'erro');
+        inputEl.value = '';
       };
       reader.readAsText(file, 'UTF-8');
     }
 
-    // Parser flexível para CSV (; , \t) ou JSON do livro fiscal
+    // Extrai texto de todas as páginas de um PDF usando PDF.js e agrupa por linha visual (Y)
+    async function processarArquivoPdfLivroFiscal(file) {
+      if (!window.pdfjsLib || typeof window.pdfjsLib.getDocument !== 'function') {
+        mostrarBanner('Biblioteca PDF.js não carregada no navegador. Verifique a conexão ou use CSV/TXT.', 'erro');
+        return;
+      }
+
+      estado.extraindoPdf = true;
+      const btnConf = document.getElementById('btnConferirNotas');
+      if (btnConf) btnConf.disabled = true;
+
+      atualizarProgressoPdf(true, 5, `Abrindo "${file.name}"...`);
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdfDoc = await loadingTask.promise;
+        const totalPaginas = pdfDoc.numPages || 1;
+        const linhasExtraidas = [];
+
+        for (let p = 1; p <= totalPaginas; p++) {
+          const pct = Math.round(((p - 1) / totalPaginas) * 90) + 5;
+          atualizarProgressoPdf(true, pct, `Extraindo página ${p} de ${totalPaginas}...`);
+
+          const page = await pdfDoc.getPage(p);
+          const textContent = await page.getTextContent();
+          const linhasPagina = reconstruirLinhasPorCoordenadaY(textContent.items || []);
+          if (linhasPagina.length > 0) {
+            linhasExtraidas.push(...linhasPagina);
+          }
+        }
+
+        const textoFinal = linhasExtraidas.join('\n').trim();
+        atualizarProgressoPdf(true, 100, 'Concluído');
+
+        if (!textoFinal) {
+          mostrarBanner(
+            `O PDF "${file.name}" não possui texto selecionável (parece ser escaneado/imagem). Exporte o livro fiscal em CSV/TXT ou use OCR antes de importar.`,
+            'alerta'
+          );
+          setTimeout(() => atualizarProgressoPdf(false, 0, ''), 2500);
+          return;
+        }
+
+        document.getElementById('textareaLivroFiscal').value = textoFinal;
+        mostrarBanner(
+          `PDF "${file.name}" lido (${totalPaginas} pág., ${linhasExtraidas.length} linhas extraídas). Clique em "Conferir Notas" para cruzar.`,
+          'sucesso'
+        );
+        setTimeout(() => atualizarProgressoPdf(false, 0, ''), 1800);
+      } catch (err) {
+        atualizarProgressoPdf(false, 0, '');
+        mostrarBanner(`Falha ao ler o PDF "${file.name}": ${err && err.message ? err.message : 'arquivo inválido ou protegido'}.`, 'erro');
+      } finally {
+        estado.extraindoPdf = false;
+        if (btnConf) btnConf.disabled = false;
+      }
+    }
+
+    // Reagrupa tokens de texto do PDF.js por posição vertical (Y) e ordena da esquerda para direita (X)
+    function reconstruirLinhasPorCoordenadaY(items) {
+      const tokens = [];
+      for (const item of items) {
+        if (!item || typeof item.str !== 'string') continue;
+        const str = item.str.trim();
+        if (!str) continue;
+        const tx = item.transform || [1, 0, 0, 1, 0, 0];
+        const x = Number(tx[4]) || 0;
+        const y = Number(tx[5]) || 0;
+        tokens.push({ str, x, y });
+      }
+
+      if (tokens.length === 0) return [];
+
+      // Ordena de cima para baixo (Y decrescente no sistema de coordenadas do PDF)
+      tokens.sort((a, b) => {
+        if (Math.abs(b.y - a.y) > 3.5) return b.y - a.y;
+        return a.x - b.x;
+      });
+
+      const grupos = [];
+      for (const tok of tokens) {
+        const ultimoGrupo = grupos[grupos.length - 1];
+        if (ultimoGrupo && Math.abs(ultimoGrupo.y - tok.y) <= 3.5) {
+          ultimoGrupo.tokens.push(tok);
+        } else {
+          grupos.push({ y: tok.y, tokens: [tok] });
+        }
+      }
+
+      return grupos
+        .map(g => {
+          g.tokens.sort((a, b) => a.x - b.x);
+          return g.tokens.map(t => t.str).join(' ').replace(/\s+/g, ' ').trim();
+        })
+        .filter(Boolean);
+    }
+
+    // Parser flexível para CSV (; , \t), JSON ou texto livre/PDF do livro fiscal
     function parsearLivroFiscal(textoBruto, anoPadrao) {
       const texto = String(textoBruto || '').trim();
       if (!texto) return [];
 
-      // Suporte a JSON array
+      // 1. Suporte a JSON array
       if (texto.startsWith('[')) {
         try {
           const arr = JSON.parse(texto);
@@ -1610,69 +1804,166 @@ function buscarNoRegistro(mapa, empresa, chave, numero) {
             return arr.map((obj, i) => normalizarItemLivro(obj, i, anoPadrao)).filter(Boolean);
           }
         } catch (err) {
-          // Segue para parser delimitado se não for JSON válido
+          // Segue para parser delimitado ou texto livre
         }
       }
 
       const linhas = texto.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
       if (linhas.length === 0) return [];
 
-      // Detecta delimitador predominante
+      // 2. Detecta estrutura tabular delimitada (; , \t)
       const primeira = linhas[0];
       const qtdPontoVirgula = (primeira.match(/;/g) || []).length;
       const qtdVirgula = (primeira.match(/,/g) || []).length;
       const qtdTab = (primeira.match(/\t/g) || []).length;
-      let delim = ';';
-      if (qtdTab > qtdPontoVirgula && qtdTab >= qtdVirgula) delim = '\t';
-      else if (qtdVirgula > qtdPontoVirgula) delim = ',';
 
-      const splitLinha = (linha) => linha.split(delim).map(c => c.replace(/^["']|["']$/g, '').trim());
-      const colsPrimeira = splitLinha(primeira).map(c => c.toLowerCase());
+      let delim = null;
+      if (qtdTab >= 1 && qtdTab >= qtdPontoVirgula && qtdTab >= qtdVirgula) delim = '\t';
+      else if (qtdPontoVirgula >= 1 && qtdPontoVirgula >= qtdVirgula) delim = ';';
+      else if (qtdVirgula >= 2) delim = ',';
 
-      // Identifica se a primeira linha é cabeçalho
-      const temCabecalho = colsPrimeira.some(c =>
-        ['empresa', 'chave', 'numero', 'número', 'nf', 'valor', 'data', 'mes', 'mês', 'fornecedor', 'cliente', 'parceiro'].includes(c)
-      );
+      if (delim) {
+        const splitLinha = (linha) => linha.split(delim).map(c => c.replace(/^["']|["']$/g, '').trim());
+        const colsPrimeira = splitLinha(primeira).map(c => c.toLowerCase());
 
-      let mapaIndices = {
-        empresa: 0,
-        numero: 1,
-        chave: 2,
-        data: 3,
-        valor: 4,
-        parceiro: 5
-      };
-      let inicioDados = 0;
+        const temCabecalho = colsPrimeira.some(c =>
+          ['empresa', 'chave', 'numero', 'número', 'nf', 'valor', 'data', 'mes', 'mês', 'fornecedor', 'cliente', 'parceiro'].includes(c)
+        );
 
-      if (temCabecalho) {
-        inicioDados = 1;
-        mapaIndices = {
-          empresa: acharIndiceColunaTexto(colsPrimeira, ['empresa', 'emp', 'filial']),
-          numero: acharIndiceColunaTexto(colsPrimeira, ['numero', 'número', 'nf', 'num_nf', 'nota']),
-          chave: acharIndiceColunaTexto(colsPrimeira, ['chave', 'chave_acesso', 'chave de acesso', 'nfe']),
-          data: acharIndiceColunaTexto(colsPrimeira, ['data', 'emissao', 'emissão', 'data_emissao', 'mes', 'mês', 'competencia']),
-          valor: acharIndiceColunaTexto(colsPrimeira, ['valor', 'vlr', 'total', 'valor_contabil']),
-          parceiro: acharIndiceColunaTexto(colsPrimeira, ['parceiro', 'fornecedor', 'cliente', 'nome', 'razao', 'razão'])
+        let mapaIndices = {
+          empresa: 0,
+          numero: 1,
+          chave: 2,
+          data: 3,
+          valor: 4,
+          parceiro: 5
         };
+        let inicioDados = 0;
+
+        if (temCabecalho) {
+          inicioDados = 1;
+          mapaIndices = {
+            empresa: acharIndiceColunaTexto(colsPrimeira, ['empresa', 'emp', 'filial']),
+            numero: acharIndiceColunaTexto(colsPrimeira, ['numero', 'número', 'nf', 'num_nf', 'nota']),
+            chave: acharIndiceColunaTexto(colsPrimeira, ['chave', 'chave_acesso', 'chave de acesso', 'nfe']),
+            data: acharIndiceColunaTexto(colsPrimeira, ['data', 'emissao', 'emissão', 'data_emissao', 'mes', 'mês', 'competencia']),
+            valor: acharIndiceColunaTexto(colsPrimeira, ['valor', 'vlr', 'total', 'valor_contabil']),
+            parceiro: acharIndiceColunaTexto(colsPrimeira, ['parceiro', 'fornecedor', 'cliente', 'nome', 'razao', 'razão'])
+          };
+        }
+
+        const itens = [];
+        for (let i = inicioDados; i < linhas.length; i++) {
+          const partes = splitLinha(linhas[i]);
+          if (partes.every(p => !p)) continue;
+
+          const registroObj = {
+            empresa: mapaIndices.empresa >= 0 ? partes[mapaIndices.empresa] : '',
+            numero: mapaIndices.numero >= 0 ? partes[mapaIndices.numero] : '',
+            chave: mapaIndices.chave >= 0 ? partes[mapaIndices.chave] : '',
+            data: mapaIndices.data >= 0 ? partes[mapaIndices.data] : '',
+            valor: mapaIndices.valor >= 0 ? partes[mapaIndices.valor] : '',
+            parceiro: mapaIndices.parceiro >= 0 ? partes[mapaIndices.parceiro] : ''
+          };
+
+          const norm = normalizarItemLivro(registroObj, i, anoPadrao);
+          if (norm) itens.push(norm);
+        }
+
+        if (itens.length > 0) return itens;
       }
 
+      // 3. Parser de texto livre / extraído de PDF: extrai chaves de 44 dígitos, datas, valores, números de NF e empresas
+      return parsearTextoLivreOuPdf(linhas, anoPadrao);
+    }
+
+    function parsearTextoLivreOuPdf(linhas, anoPadrao) {
       const itens = [];
-      for (let i = inicioDados; i < linhas.length; i++) {
-        const partes = splitLinha(linhas[i]);
-        if (partes.every(p => !p)) continue;
+      const empresasConhecidas = new Set(estado.empresas.map(e => e.toUpperCase()));
 
-        const registroObj = {
-          empresa: mapaIndices.empresa >= 0 ? partes[mapaIndices.empresa] : '',
-          numero: mapaIndices.numero >= 0 ? partes[mapaIndices.numero] : '',
-          chave: mapaIndices.chave >= 0 ? partes[mapaIndices.chave] : '',
-          data: mapaIndices.data >= 0 ? partes[mapaIndices.data] : '',
-          valor: mapaIndices.valor >= 0 ? partes[mapaIndices.valor] : '',
-          parceiro: mapaIndices.parceiro >= 0 ? partes[mapaIndices.parceiro] : ''
-        };
-
-        const norm = normalizarItemLivro(registroObj, i, anoPadrao);
-        if (norm) itens.push(norm);
+      // Junta o texto completo para localizar chaves de 44 dígitos mesmo que quebrem de linha no PDF
+      const textoUnificado = linhas.join(' ');
+      const digitosUnificados = textoUnificado.replace(/\D/g, '');
+      const chaves44Encontradas = [];
+      for (let i = 0; i <= digitosUnificados.length - 44; i++) {
+        const candidato = digitosUnificados.slice(i, i + 44);
+        // Modelo fiscal 55 (NF-e) ou 65 (NFC-e) fica nas posições 20..21
+        const modelo = candidato.slice(20, 22);
+        if (modelo === '55' || modelo === '65' || modelo === '57' || /^\d{44}$/.test(candidato)) {
+          chaves44Encontradas.push(candidato);
+          i += 43;
+        }
       }
+
+      const chavesJaAssociadas = new Set();
+
+      linhas.forEach((linha, idx) => {
+        const upperLinha = linha.toUpperCase();
+        const digitosLinha = linha.replace(/\D/g, '');
+
+        // Busca chave de 44 dígitos na linha ou nas chaves extraídas
+        let chave = '';
+        const matchChaveLinha = digitosLinha.match(/\d{44}/);
+        if (matchChaveLinha) {
+          chave = matchChaveLinha[0];
+          chavesJaAssociadas.add(chave);
+        }
+
+        // Busca empresa conhecida na linha
+        let empresa = '';
+        for (const emp of empresasConhecidas) {
+          if (upperLinha.includes(emp)) {
+            empresa = emp;
+            break;
+          }
+        }
+
+        // Busca data (DD/MM/AAAA ou DD/MM/AA)
+        const matchData = linha.match(/\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/);
+        const dataStr = matchData ? matchData[1] : '';
+
+        // Busca valores monetários (ex: 4.850,00 ou 4850.00)
+        const matchesValores = [...linha.matchAll(/\b\d{1,3}(?:\.\d{3})*,\d{2}\b|\b\d+\.\d{2}\b/g)].map(m => m[0]);
+        const valorRaw = matchesValores.length > 0 ? matchesValores[matchesValores.length - 1] : '';
+
+        // Busca número de nota explícito (ex: NF 001482, N° 1482, NUM 1482) ou número extraído da chave (posições 25..34)
+        let numero = '';
+        const matchNumExplicito = linha.match(/(?:NF[-e]?|N[º°o]?|NUM(?:ERO)?|NOTA)\s*[:#\-]?\s*0*([1-9]\d{0,8})\b/i);
+        if (matchNumExplicito) {
+          numero = matchNumExplicito[1];
+        } else if (chave && chave.length === 44) {
+          const numDaChave = chave.slice(25, 34).replace(/^0+/, '');
+          if (numDaChave) numero = numDaChave;
+        }
+
+        // Só cria item se houver chave de 44 dígitos, número explícito ou empresa + valor/data
+        if (chave || matchNumExplicito || (empresa && (dataStr || valorRaw))) {
+          const item = normalizarItemLivro({
+            empresa,
+            numero,
+            chave,
+            data: dataStr,
+            valor: valorRaw,
+            parceiro: linha.slice(0, 80)
+          }, idx, anoPadrao);
+          if (item) itens.push(item);
+        }
+      });
+
+      // Adiciona eventuais chaves de 44 dígitos encontradas que não entraram em linha isolada
+      chaves44Encontradas.forEach((ch, idx) => {
+        if (chavesJaAssociadas.has(ch)) return;
+        const numDaChave = ch.slice(25, 34).replace(/^0+/, '');
+        const item = normalizarItemLivro({
+          empresa: '',
+          numero: numDaChave,
+          chave: ch,
+          data: '',
+          valor: '',
+          parceiro: 'Extraída de PDF'
+        }, linhas.length + idx, anoPadrao);
+        if (item) itens.push(item);
+      });
 
       return itens;
     }
@@ -1689,14 +1980,12 @@ function buscarNoRegistro(mapa, empresa, chave, numero) {
       const s = limparErroCelula(rawData).toUpperCase();
       if (!s) return { mes: null, ano: anoPadrao };
 
-      // Verifica sigla de mês (JAN..DEZ)
       const mesSigla = MESES_DEPARA.find(m => s === m.sigla || s.startsWith(m.sigla + '/') || s.startsWith(m.sigla + '-'));
       if (mesSigla) {
         const matchAno = s.match(/(20\d{2})/);
         return { mes: mesSigla.num, ano: matchAno ? parseInt(matchAno[1], 10) : anoPadrao };
       }
 
-      // Data DD/MM/AAAA ou MM/AAAA ou AAAA-MM-DD
       const br = s.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
       if (br) {
         const m = parseInt(br[2], 10);
@@ -1720,14 +2009,26 @@ function buscarNoRegistro(mapa, empresa, chave, numero) {
       return { mes: null, ano: anoPadrao };
     }
 
+    function parseMoedaFlexivel(val) {
+      if (typeof val === 'number') return isNaN(val) ? 0 : val;
+      const limpo = limparErroCelula(val).replace(/[^0-9,.-]/g, '');
+      if (!limpo) return 0;
+      // Se tem vírgula e ponto, assume formato BR (1.234,56) ou remove separador de milhar
+      if (limpo.includes(',') && limpo.includes('.')) {
+        return parseFloat(limpo.replace(/\./g, '').replace(',', '.')) || 0;
+      }
+      if (limpo.includes(',')) {
+        return parseFloat(limpo.replace(',', '.')) || 0;
+      }
+      return parseFloat(limpo) || 0;
+    }
+
     function normalizarItemLivro(raw, idx, anoPadrao) {
       const empresa = limparErroCelula(raw.empresa).toUpperCase();
       const numero = limparErroCelula(raw.numero);
       const chave = limparErroCelula(raw.chave).replace(/\D/g, '');
       const parceiro = limparErroCelula(raw.parceiro) || 'Não informado';
-      const valorNum = typeof raw.valor === 'number'
-        ? (isNaN(raw.valor) ? 0 : raw.valor)
-        : (parseFloat(limparErroCelula(raw.valor).replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0);
+      const valorNum = parseMoedaFlexivel(raw.valor);
 
       const { mes, ano } = extrairMesAnoTexto(raw.data || raw.mes || '', anoPadrao);
 
@@ -1759,7 +2060,8 @@ function buscarNoRegistro(mapa, empresa, chave, numero) {
       notas.forEach(nota => {
         const emp = nota.empresa;
         const ch = nota.chave;
-        const numDig = (nota.numero || '').replace(/\D/g, '');
+        const numDig = (nota.numero || '').replace(/\D/g, '').replace(/^0+/, '');
+        const numBrutoDig = (nota.numero || '').replace(/\D/g, '');
         const numNorm = (nota.numero || '').trim().toUpperCase();
 
         if (ch) {
@@ -1769,6 +2071,10 @@ function buscarNoRegistro(mapa, empresa, chave, numero) {
         if (numDig) {
           registrar(`${emp}::NUM::${numDig}`, nota);
           registrar(`NUM::${numDig}`, nota);
+        }
+        if (numBrutoDig && numBrutoDig !== numDig) {
+          registrar(`${emp}::NUM::${numBrutoDig}`, nota);
+          registrar(`NUM::${numBrutoDig}`, nota);
         }
         if (numNorm && numNorm !== numDig) {
           registrar(`${emp}::NUMSTR::${numNorm}`, nota);
@@ -1782,15 +2088,18 @@ function buscarNoRegistro(mapa, empresa, chave, numero) {
     function localizarNotaNaPlanilha(indice, itemLivro) {
       const emp = itemLivro.empresa;
       const ch = itemLivro.chave;
-      const numDig = (itemLivro.numero || '').replace(/\D/g, '');
+      const numDig = (itemLivro.numero || '').replace(/\D/g, '').replace(/^0+/, '');
+      const numBrutoDig = (itemLivro.numero || '').replace(/\D/g, '');
       const numNorm = (itemLivro.numero || '').trim().toUpperCase();
 
       const candidatos = [
         ch ? `${emp}::CHAVE::${ch}` : '',
         numDig ? `${emp}::NUM::${numDig}` : '',
+        numBrutoDig ? `${emp}::NUM::${numBrutoDig}` : '',
         numNorm ? `${emp}::NUMSTR::${numNorm}` : '',
         ch ? `CHAVE::${ch}` : '',
         numDig ? `NUM::${numDig}` : '',
+        numBrutoDig ? `NUM::${numBrutoDig}` : '',
         numNorm ? `NUMSTR::${numNorm}` : ''
       ].filter(Boolean);
 
@@ -1804,6 +2113,11 @@ function buscarNoRegistro(mapa, empresa, chave, numero) {
 
     // Executa conferência cruzando múltiplas empresas e meses selecionados
     function executarConferencia() {
+      if (estado.extraindoPdf) {
+        mostrarBanner('Aguarde a extração do PDF terminar antes de conferir.', 'alerta');
+        return;
+      }
+
       if (estado.empresasSelecionadas.size === 0) {
         mostrarBanner('Selecione pelo menos uma empresa antes de conferir.', 'alerta');
         return;
@@ -1813,7 +2127,7 @@ function buscarNoRegistro(mapa, empresa, chave, numero) {
       const itensLivroBrutos = parsearLivroFiscal(textoLivro, BASE_DEMO.anoReferencia);
 
       if (itensLivroBrutos.length === 0) {
-        mostrarBanner('Informe ou carregue as linhas do Livro Fiscal antes de clicar em Conferir Notas.', 'alerta');
+        mostrarBanner('Informe ou carregue as linhas do Livro Fiscal (PDF, CSV, TXT ou texto colado) antes de clicar em Conferir Notas.', 'alerta');
         return;
       }
 
@@ -1821,7 +2135,6 @@ function buscarNoRegistro(mapa, empresa, chave, numero) {
       const filtrarMeses = estado.mesesSelecionados.size > 0;
       const incluirSoPlanilha = document.getElementById('chkIncluirSomentePlanilha').checked;
 
-      // Filtra itens do livro pelas empresas e meses selecionados
       const itensLivroFiltrados = itensLivroBrutos.filter(item => {
         const bateEmpresa = item.empresa === 'NAO_INFORMADA' || estado.empresasSelecionadas.has(item.empresa);
         if (!bateEmpresa) return false;
@@ -2117,7 +2430,6 @@ function buscarNoRegistro(mapa, empresa, chave, numero) {
         return;
       }
 
-      // Modo WEBAPP: tenta google.script.run se disponível, senão fetch na URL informada
       if (typeof google !== 'undefined' && google.script && google.script.run) {
         atualizarIndicadoresFonte('Carregando via Apps Script...');
         google.script.run
