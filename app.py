@@ -149,24 +149,40 @@ def processar_pdf_livro(file_bytes, modo_operacao="notas"):
                 if not l_clean:
                     continue
 
+                l_up = normalizar_texto(l_clean)
+                if any(p in l_up for p in ["TOTAL", "SUBTOTAL", "TRANSPORTE", "RESUMO", "CFOP", "PAGINA", "FOLHA", "EMISSAO"]):
+                    if "RESUMO" in l_up or "TOTAL" in l_up or "SUBTOTAL" in l_up:
+                        continue
+
                 datas_linha = re.findall(r"\b(\d{2}/\d{2}/\d{4})\b", l_clean)
                 if datas_linha:
                     data_atual = datas_linha[0]
 
-                m_cfop = re.search(r"\b([123][.\-]?\d{3})\b", l_clean)
-                valores_linha = re.findall(r"\b\d{1,3}(?:\.\d{3})*,\d{2}\b", l_clean)
+                # Remove datas completas antes de procurar CFOP para evitar capturar o ano (ex.: 2026)
+                linha_sem_datas = re.sub(r"\b\d{2}/\d{2}/\d{4}\b", " ", l_clean)
+                valores_linha = re.findall(r"\b\d{1,3}(?:\.\d{3})*,\d{2}\b", linha_sem_datas)
+
+                # Procura CFOP de entrada (1.xxx, 2.xxx, 3.xxx) com separador explícito ou fora de valores monetários
+                m_cfop = re.search(r"(?<![\d.,])([123])[.\-](\d{3})(?![\d.,])", linha_sem_datas)
+                if not m_cfop:
+                    # Fallback: CFOP de 4 dígitos sem ponto/traço que não seja ano (2020-2035)
+                    for cand in re.finditer(r"(?<![\d.,])([123]\d{3})(?![\d.,])", linha_sem_datas):
+                        cod = cand.group(1)
+                        if not (2020 <= int(cod) <= 2035):
+                            m_cfop = cand
+                            break
 
                 if m_cfop and valores_linha:
-                    cfop = limpar_cfop(m_cfop.group(1))
-                    l_up = normalizar_texto(l_clean)
-                    if any(p in l_up for p in ["TOTAL", "SUBTOTAL", "TRANSPORTE", "RESUMO"]):
-                        continue
-
-                    antes_cfop = l_clean[:m_cfop.start()]
-                    antes_sem_datas = re.sub(r"\d{2}/\d{2}/\d{4}", " ", antes_cfop)
-                    nums_candidatos = re.findall(r"\b0*(\d{1,9})\b", antes_sem_datas)
+                    cfop = limpar_cfop(m_cfop.group(0))
+                    antes_cfop = linha_sem_datas[:m_cfop.start()]
+                    # Remove valores monetários da parte anterior ao CFOP
+                    antes_sem_valores = re.sub(r"\b\d{1,3}(?:\.\d{3})*,\d{2}\b", " ", antes_cfop)
+                    nums_candidatos = re.findall(r"\b0*(\d{1,9})\b", antes_sem_valores)
                     nums_filtrados = [n for n in nums_candidatos if n not in ("55", "1", "01", "0")]
-                    nota = (nums_filtrados[-1] if nums_filtrados else (nums_candidatos[-1] if nums_candidatos else "")).lstrip("0")
+
+                    # Prioriza números maiores (ex.: número da NF-e de 3 a 9 dígitos) se existirem
+                    nums_nota = [n for n in nums_filtrados if len(n) >= 2]
+                    nota = (nums_nota[-1] if nums_nota else (nums_filtrados[-1] if nums_filtrados else "")).lstrip("0")
 
                     if nota and len(nota) <= 9:
                         val_contabil = parse_valor_br(valores_linha[0])
