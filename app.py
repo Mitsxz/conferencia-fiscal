@@ -24,15 +24,18 @@ def normalizar_texto(txt):
         return ""
     s = unicodedata.normalize("NFD", str(txt))
     s = "".join(c for c in s if unicodedata.category(c) != "Mn")
-    return s.upper().strip()
+    return re.sub(r"\s+", " ", s.upper()).strip()
 
 
 def limpar_numero_nota(val):
     if val is None:
         return ""
-    s = str(val).strip()
-    if s.endswith(".0"):
-        s = s[:-2]
+    if isinstance(val, float) and val.is_integer():
+        s = str(int(val))
+    else:
+        s = str(val).strip()
+        if re.fullmatch(r"\d+\.0+", s):
+            s = s.split(".")[0]
     digits = re.sub(r"\D", "", s).lstrip("0")
     return digits or "0"
 
@@ -40,9 +43,10 @@ def limpar_numero_nota(val):
 def limpar_cfop(val):
     if val is None:
         return ""
-    s = str(val).strip()
-    if s.endswith(".0"):
-        s = s[:-2]
+    if isinstance(val, float) and val.is_integer():
+        s = str(int(val))
+    else:
+        s = str(val).strip()
     digits = re.sub(r"\D", "", s)
     return digits[:4] if len(digits) >= 4 else digits
 
@@ -79,12 +83,15 @@ def formatar_data_str(val):
     s = str(val).strip()
     if not s or s.lower() in ("nan", "nat", "none"):
         return "-"
-    m_iso = re.match(r"^(\d{4})-(\d{2})-(\d{2})", s)
+    m_iso = re.match(r"^(\d{4})[-/](\d{1,2})[-/](\d{1,2})", s)
     if m_iso:
-        return f"{m_iso.group(3)}/{m_iso.group(2)}/{m_iso.group(1)}"
-    m_br = re.match(r"^(\d{2})[/.-](\d{2})[/.-](\d{4})", s)
+        return f"{int(m_iso.group(3)):02d}/{int(m_iso.group(2)):02d}/{m_iso.group(1)}"
+    m_br = re.match(r"^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})", s)
     if m_br:
-        return f"{m_br.group(1)}/{m_br.group(2)}/{m_br.group(3)}"
+        ano = m_br.group(3)
+        if len(ano) == 2:
+            ano = "20" + ano
+        return f"{int(m_br.group(1)):02d}/{int(m_br.group(2)):02d}/{ano}"
     return s
 
 
@@ -96,10 +103,10 @@ def extrair_cnpj_e_empresa(texto):
     cnpj_limpo = re.sub(r"\D", "", cnpj_fmt)
 
     empresa_det = ""
-    for linha in texto.splitlines()[:25]:
+    for linha in texto.splitlines()[:30]:
         l_norm = normalizar_texto(linha)
         if any(k in l_norm for k in ["LTDA", "EIRELI", "S/A", "S.A", "ME", "EPP", "COMERCIO", "INDUSTRIA", "SERVICOS", "HOSPITALAR", "MEDICO", "MEDICOS"]):
-            empresa_det = re.sub(r"\s+", " ", l_norm).strip()
+            empresa_det = l_norm
             break
 
     return cnpj_limpo, cnpj_fmt, empresa_det
@@ -187,18 +194,23 @@ def processar_pdf_livro(file_bytes, modo_operacao="notas"):
 # EXTRAÇÃO DE PLANILHA (.XLSX, .CSV, .ODS) SEM PANDAS (OPENPYXL PURO)
 # ==============================================================================
 def encontrar_cabecalho_linhas(linhas):
-    palavras_chave = ["NOTA", "NF", "NUMERO", "DOCUMENTO", "CFOP", "VALOR", "TOTAL", "CONTABIL", "DATA", "ENTRADA", "EMISSAO"]
+    palavras_chave = [
+        "NOTA", "NFE", "NF-E", "NF", "NUMERO", "DOCUMENTO", "DOC",
+        "CFOP", "VALOR", "VLR", "TOTAL", "CONTABIL", "DATA", "DT", "ENTRADA", "EMISSAO"
+    ]
     melhor_idx = 0
     melhor_score = -1
 
-    for idx in range(min(25, len(linhas))):
-        vals = [normalizar_texto(v) for v in linhas[idx]]
-        score = sum(1 for v in vals if any(k in v for k in palavras_chave))
+    for idx in range(min(50, len(linhas))):
+        vals = [normalizar_texto(v) for v in linhas[idx] if v is not None and str(v).strip() != ""]
+        if not vals:
+            continue
+        score = sum(1 for v in vals if any(re.search(r"\b" + re.escape(k) + r"\b", v) or k in v for k in palavras_chave))
         if score > melhor_score:
             melhor_score = score
             melhor_idx = idx
 
-    return melhor_idx if melhor_score >= 2 else 0
+    return melhor_idx if melhor_score >= 1 else 0
 
 
 def mapear_indices_colunas(headers):
@@ -213,18 +225,18 @@ def mapear_indices_colunas(headers):
         if not cn:
             continue
 
-        if idx_nota is None and any(k in cn for k in ["NOTA", "NFE", "NF-E", "NUM DOC", "NUMERO", "N. DOC", "DOCUMENTO", "DOC."]):
-            if "CHAVE" not in cn and "SERIE" not in cn and "DATA" not in cn:
+        if idx_nota is None and any(k in cn for k in ["NOTA", "NFE", "NF-E", "NUM DOC", "N DOC", "NUMERO", "DOCUMENTO", "DOC"]):
+            if not any(x in cn for x in ["CHAVE", "SERIE", "DATA", "DT", "VALOR", "VLR", "CFOP"]):
                 idx_nota = i
 
         if idx_cfop is None and "CFOP" in cn:
             idx_cfop = i
 
-        if idx_valor is None and any(k in cn for k in ["VALOR CONTABIL", "VLR CONTABIL", "VALOR TOTAL", "VLR TOTAL", "TOTAL NF", "VALOR NF", "VALOR DOCUMENTO", "VALOR"]):
+        if idx_valor is None and any(k in cn for k in ["VALOR CONTABIL", "VLR CONTABIL", "VALOR TOTAL", "VLR TOTAL", "TOTAL NF", "VALOR NF", "VALOR DOCUMENTO", "VLR DOC", "VALOR", "VLR"]):
             if not any(x in cn for x in ["ICMS", "IPI", "PIS", "COFINS", "BASE", "DESCONTO", "FRETE", "UNIT"]):
                 idx_valor = i
 
-        if idx_data is None and any(k in cn for k in ["DATA ENTRADA", "DT ENTRADA", "ENTRADA", "LANCAMENTO", "DATA"]):
+        if idx_data is None and any(k in cn for k in ["DATA ENTRADA", "DT ENTRADA", "DT. ENTRADA", "ENTRADA", "LANCAMENTO", "DATA", "DT"]):
             if "EMISSAO" not in cn:
                 idx_data = i
 
@@ -234,7 +246,7 @@ def mapear_indices_colunas(headers):
     if idx_valor is None:
         for i, c in enumerate(headers):
             cn = normalizar_texto(c)
-            if "VALOR" in cn or "TOTAL" in cn:
+            if "VALOR" in cn or "VLR" in cn or "TOTAL" in cn:
                 idx_valor = i
                 break
 
@@ -249,8 +261,12 @@ def ler_todas_abas_linhas(file_bytes, filename):
     abas = {}
 
     if ext == ".csv":
-        texto = file_bytes.decode("utf-8", errors="replace")
-        sep = ";" if texto.count(";") >= texto.count(",") else ","
+        try:
+            texto = file_bytes.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            texto = file_bytes.decode("latin-1", errors="replace")
+        primeiras_linhas = "\n".join(texto.splitlines()[:10])
+        sep = ";" if primeiras_linhas.count(";") >= primeiras_linhas.count(",") else ","
         reader = csv.reader(io.StringIO(texto), delimiter=sep)
         abas["CSV"] = [list(row) for row in reader]
     elif ext == ".ods":
@@ -288,6 +304,7 @@ def processar_planilha_bytes(file_bytes, filename, modo_operacao="notas"):
     abas = ler_todas_abas_linhas(file_bytes, filename)
     registros = []
     texto_cab = ""
+    abas_info = []
 
     for sheet_name, linhas in abas.items():
         if not linhas:
@@ -295,53 +312,65 @@ def processar_planilha_bytes(file_bytes, filename, modo_operacao="notas"):
 
         idx_cab = encontrar_cabecalho_linhas(linhas)
         for r in range(idx_cab):
-            linha_txt = " ".join(str(x) for x in linhas[r] if x is not None).strip()
+            linha_txt = " ".join(str(x) for x in linhas[r] if x is not None and str(x).strip() != "").strip()
             if linha_txt:
                 texto_cab += linha_txt + "\n"
 
         headers = [str(x).strip() if x is not None else f"COL_{i}" for i, x in enumerate(linhas[idx_cab])]
         idx_nota, idx_cfop, idx_valor, idx_data, idx_emissao = mapear_indices_colunas(headers)
 
-        if idx_valor is None or (idx_nota is None and idx_cfop is None):
-            continue
+        antes_qtd = len(registros)
 
-        for row in linhas[idx_cab + 1:]:
-            if not row:
-                continue
-
-            def pegar(idx):
-                return row[idx] if (idx is not None and idx < len(row)) else None
-
-            val_num = parse_valor_br(pegar(idx_valor))
-            cfop_str = limpar_cfop(pegar(idx_cfop)) if idx_cfop is not None else ""
-            nota_str = limpar_numero_nota(pegar(idx_nota)) if idx_nota is not None else "RESUMO"
-            data_str = formatar_data_str(pegar(idx_data)) if idx_data is not None else "-"
-            emissao_str = formatar_data_str(pegar(idx_emissao)) if idx_emissao is not None else data_str
-
-            linha_concat = " ".join(normalizar_texto(v) for v in row if v is not None)
-            if any(t in linha_concat for t in ["TOTAL GERAL", "SUBTOTAL", "TOTAIS"]):
-                continue
-
-            if modo_operacao == "resumo_cfop":
-                if not cfop_str or val_num == 0:
+        if idx_valor is not None and (idx_nota is not None or idx_cfop is not None):
+            for row in linhas[idx_cab + 1:]:
+                if not row:
                     continue
-                registros.append({
-                    "data": data_str,
-                    "data_emissao": emissao_str,
-                    "nota": "RESUMO",
-                    "cfop": cfop_str,
-                    "valor": val_num
-                })
-            else:
-                if not nota_str or nota_str == "0":
+
+                def pegar(idx):
+                    return row[idx] if (idx is not None and idx < len(row)) else None
+
+                val_num = parse_valor_br(pegar(idx_valor))
+                cfop_str = limpar_cfop(pegar(idx_cfop)) if idx_cfop is not None else ""
+                nota_str = limpar_numero_nota(pegar(idx_nota)) if idx_nota is not None else "RESUMO"
+                data_str = formatar_data_str(pegar(idx_data)) if idx_data is not None else "-"
+                emissao_str = formatar_data_str(pegar(idx_emissao)) if idx_emissao is not None else data_str
+
+                linha_concat = " ".join(normalizar_texto(v) for v in row if v is not None)
+                if any(t in linha_concat for t in ["TOTAL GERAL", "SUBTOTAL", "TOTAIS"]):
                     continue
-                registros.append({
-                    "data": data_str,
-                    "data_emissao": emissao_str,
-                    "nota": nota_str,
-                    "cfop": cfop_str,
-                    "valor": val_num
-                })
+
+                if modo_operacao == "resumo_cfop":
+                    if not cfop_str or val_num == 0:
+                        continue
+                    registros.append({
+                        "data": data_str,
+                        "data_emissao": emissao_str,
+                        "nota": "RESUMO",
+                        "cfop": cfop_str,
+                        "valor": val_num
+                    })
+                else:
+                    if not nota_str or nota_str == "0":
+                        continue
+                    registros.append({
+                        "data": data_str,
+                        "data_emissao": emissao_str,
+                        "nota": nota_str,
+                        "cfop": cfop_str,
+                        "valor": val_num
+                    })
+
+        abas_info.append({
+            "aba": sheet_name,
+            "linha_cabecalho": idx_cab + 1,
+            "colunas_mapeadas": {
+                "nota": headers[idx_nota] if idx_nota is not None and idx_nota < len(headers) else None,
+                "cfop": headers[idx_cfop] if idx_cfop is not None and idx_cfop < len(headers) else None,
+                "valor": headers[idx_valor] if idx_valor is not None and idx_valor < len(headers) else None,
+                "data": headers[idx_data] if idx_data is not None and idx_data < len(headers) else None,
+            },
+            "registros_extraidos": len(registros) - antes_qtd
+        })
 
     cnpj_limpo, cnpj_fmt, empresa_det = extrair_cnpj_e_empresa(texto_cab)
     return {
@@ -350,6 +379,7 @@ def processar_planilha_bytes(file_bytes, filename, modo_operacao="notas"):
         "cnpj_formatado": cnpj_fmt,
         "empresa_detectada": empresa_det,
         "cabecalho_texto": texto_cab[:2500],
+        "abas_info": abas_info,
         "registros": registros
     }
 
