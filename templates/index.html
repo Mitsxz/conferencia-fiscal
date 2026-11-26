@@ -138,12 +138,12 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div class="md:col-span-2">
             <label for="filtroBuscaNotas" class="block text-xs font-semibold text-slate-600 mb-1">
-              Buscar por Número, Chave de Acesso (44 dígitos), Parceiro, Status ou ID
+              Buscar por CFOP, Número da Nota, Chave de Acesso (44 dígitos), Parceiro ou Status
             </label>
             <input
               id="filtroBuscaNotas"
               type="text"
-              placeholder="Ex.: 000123, 3526..., fornecedor, ALPINE, desconsiderada..."
+              placeholder="Ex.: 1.102, 31.671, 3526..., fornecedor, ALPINE, desconsiderada..."
               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -224,7 +224,8 @@
             <thead class="bg-slate-50 text-xs uppercase text-slate-500 font-semibold">
               <tr>
                 <th class="px-3 py-3 text-left">Empresa</th>
-                <th class="px-3 py-3 text-left">Número / Série</th>
+                <th class="px-3 py-3 text-left">CFOP</th>
+                <th class="px-3 py-3 text-left">Nº Nota</th>
                 <th class="px-3 py-3 text-left">Chave de Acesso</th>
                 <th class="px-3 py-3 text-left">Data</th>
                 <th class="px-3 py-3 text-left">Parceiro</th>
@@ -398,7 +399,8 @@
               <tr>
                 <th class="px-3 py-3 text-left">Status Conferência</th>
                 <th class="px-3 py-3 text-left">Empresa</th>
-                <th class="px-3 py-3 text-left">Número</th>
+                <th class="px-3 py-3 text-left">CFOP</th>
+                <th class="px-3 py-3 text-left">Nº Nota</th>
                 <th class="px-3 py-3 text-left">Chave de Acesso</th>
                 <th class="px-3 py-3 text-left">Data</th>
                 <th class="px-3 py-3 text-right">Valor</th>
@@ -407,7 +409,7 @@
             </thead>
             <tbody id="tbodyResultadoConferencia" class="divide-y divide-slate-100">
               <tr>
-                <td colspan="7" class="px-4 py-10 text-center text-slate-400 text-sm">
+                <td colspan="8" class="px-4 py-10 text-center text-slate-400 text-sm">
                   Selecione as empresas e meses, informe o livro fiscal e clique em <strong>Conferir Notas Agora</strong>.
                 </td>
               </tr>
@@ -546,7 +548,10 @@
       "",
       "function obterDadosConsolidadosPlanilha() {",
       "  const ss = SpreadsheetApp.getActiveSpreadsheet();",
-      "  const ignorarAbas = new Set(['DEPARA', 'REGISTRO_NOTAS', 'PARAMETROS', 'CONFIG', 'LOG', 'RESUMO']);",
+      "  const ignorarAbas = new Set([",
+      "    'DEPARA', 'REGISTRO_NOTAS', 'LOG_AUDITORIA', 'PAGINA29', 'PÁGINA29',",
+      "    'PARAMETROS', 'CONFIG', 'LOG', 'RESUMO'",
+      "  ]);",
       "  const registroMap = new Map();",
       "  const empresasDetectadas = new Set();",
       "",
@@ -574,7 +579,7 @@
       "    const idxId = acharColuna(headers, ['ID', 'IDENTIFICADOR', 'CHAVE']);",
       "    const idxEmp = acharColuna(headers, ['EMPRESA', 'UNIDADE', 'FILIAL']);",
       "    const idxArq = acharColuna(headers, ['URL ARQUIVO', 'LINK ARQUIVO', 'ARQUIVO']);",
-      "    const idxPasta = acharColuna(headers, ['URL PASTA', 'LINK PASTA', 'PASTA']);",
+      "    const idxPasta = acharColuna(headers, ['URL PASTA', 'LINK PASTA', 'LINK DA PASTA', 'PASTA']);",
       "    const idxData = acharColuna(headers, ['DATA/HORA', 'DATA HORA', 'DATA']);",
       "",
       "    const urlsArqExtra = idxArq >= 0 ? extrairLinksColuna(registroSheet, regData.length, idxArq) : [];",
@@ -602,7 +607,8 @@
       "  ss.getSheets().forEach(sheet => {",
       "    const nomeAba = String(sheet.getName() || '').trim();",
       "    const nomeUpper = nomeAba.toUpperCase();",
-      "    if (ignorarAbas.has(nomeUpper)) return;",
+      "    const nomeNorm = normalizarCabecalho(nomeAba);",
+      "    if (ignorarAbas.has(nomeUpper) || ignorarAbas.has(nomeNorm)) return;",
       "",
       "    const lastRow = sheet.getLastRow();",
       "    const lastCol = sheet.getLastColumn();",
@@ -614,16 +620,16 @@
       "",
       "    const headers = infoCab.headers;",
       "    const colChave = acharColuna(headers, ['CHAVE DE ACESSO DA NFE', 'CHAVE DE ACESSO', 'CHAVE NFE', 'CHAVE NF-E', 'CHAVE']);",
-      "    const colNumero = acharColuna(headers, ['NUMERO DA NF', 'NUMERO NF', 'N. NF', 'N NF', 'NUMERO', 'DOCUMENTO', 'NOTA FISCAL', 'NF', 'NRO']);",
+      "    const colNumero = acharColunaNumeroNota(headers);",
       "    const colSerie = acharColuna(headers, ['SERIE']);",
-      "    const colCfop = acharColuna(headers, ['CFOP']);",
-      "    const colData = acharColuna(headers, ['DATA DE EMISSAO', 'DATA EMISSAO', 'DATA DE ENTRADA', 'DATA ENTRADA', 'EMISSAO', 'ENTRADA', 'DATA']);",
-      "    const colParceiro = acharColuna(headers, ['DESTINATARIO/REMETENTE', 'DESTINATARIO / REMETENTE', 'DESTINATARIO', 'REMETENTE', 'EMITENTE', 'FORNECEDOR', 'CLIENTE', 'NOME / RAZAO SOCIAL', 'RAZAO SOCIAL', 'PARCEIRO', 'NOME']);",
+      "    const colCfop = acharColuna(headers, ['CFOP', 'CODIGO']);",
+      "    const colData = acharColuna(headers, ['DATA ENTRADA', 'DATA DE ENTRADA', 'DATA EMISSAO', 'DATA DE EMISSAO', 'ENTRADA', 'EMISSAO', 'DATA']);",
+      "    const colParceiro = acharColuna(headers, ['NOME', 'DESTINATARIO/REMETENTE', 'DESTINATARIO / REMETENTE', 'DESTINATARIO', 'REMETENTE', 'EMITENTE', 'FORNECEDOR', 'CLIENTE', 'NOME / RAZAO SOCIAL', 'RAZAO SOCIAL', 'PARCEIRO']);",
       "    const colCnpj = acharColuna(headers, ['CNPJ/CPF', 'CPF/CNPJ', 'CNPJ']);",
-      "    const colValor = acharColuna(headers, ['VALOR CONTABIL', 'VALOR TOTAL', 'VALOR DA MERCADORIA', 'VALOR MERCADORIA', 'VALOR NF', 'VLR CONTABIL', 'VALOR']);",
-      "    const colStatus = acharColuna(headers, ['STATUS FISCAL', 'STATUS', 'SITUACAO FISCAL', 'SITUACAO']);",
-      "    const colUrlArq = acharColuna(headers, ['URL ARQUIVO', 'LINK ARQUIVO', 'LINK ANEXO', 'ANEXO', 'LINK DRIVE', 'ARQUIVO', 'LINK']);",
-      "    const colUrlPasta = acharColuna(headers, ['URL PASTA', 'LINK PASTA', 'PASTA DRIVE', 'PASTA']);",
+      "    const colValor = acharColuna(headers, ['VALOR CONTABIL', 'VALOR TOTAL', 'VALOR MERCADORIA', 'VALOR DA MERCADORIA', 'VALOR NF', 'VLR CONTABIL', 'VALOR']);",
+      "    const colStatus = acharColuna(headers, ['STATUS FISCAL', 'STATUS', 'SITUACAO FISCAL']);",
+      "    const colUrlArq = acharColuna(headers, ['LINK ANEXO', 'URL ARQUIVO', 'LINK ARQUIVO', 'ANEXO', 'LINK DRIVE', 'ARQUIVO']);",
+      "    const colUrlPasta = acharColuna(headers, ['LINK DA PASTA', 'URL PASTA', 'LINK PASTA', 'PASTA DRIVE', 'PASTA']);",
       "",
       "    if (colChave < 0 && colNumero < 0 && colParceiro < 0 && colValor < 0 && colStatus < 0) return;",
       "    empresasDetectadas.add(nomeUpper);",
@@ -639,9 +645,13 @@
       "      const chaveBruta = colChave >= 0 ? String(row[colChave] || '').trim() : '';",
       "      const chaveLimpa = limparErro(chaveBruta);",
       "      const chaveDigitos = chaveLimpa.replace(/\\D/g, '');",
-      "      const numero = colNumero >= 0 ? limparErro(row[colNumero]) : '';",
-      "      const serie = colSerie >= 0 ? limparErro(row[colSerie]) : '';",
-      "      const cfop = colCfop >= 0 ? limparErro(row[colCfop]) : '';",
+      "      let numero = colNumero >= 0 ? formatarInteiroLimpo(row[colNumero]) : '';",
+      "      // Fallback pela chave de 44 dígitos (posições 25 a 34 = número da NF) caso a célula esteja vazia",
+      "      if (!numero && chaveDigitos.length === 44) {",
+      "        numero = chaveDigitos.slice(25, 34).replace(/^0+/, '') || '0';",
+      "      }",
+      "      const serie = colSerie >= 0 ? formatarInteiroLimpo(row[colSerie]) : '';",
+      "      const cfop = colCfop >= 0 ? formatarInteiroLimpo(row[colCfop]) : '';",
       "      const parceiro = colParceiro >= 0 ? limparErro(row[colParceiro]) : '';",
       "      const cnpj = colCnpj >= 0 ? limparErro(row[colCnpj]) : '';",
       "      const valor = colValor >= 0 ? parseValor(row[colValor]) : 0;",
@@ -702,7 +712,7 @@
       "}",
       "",
       "function detectarLinhaCabecalho(data) {",
-      "  const palavras = ['CHAVE', 'CFOP', 'DESTINATARIO', 'REMETENTE', 'FORNECEDOR', 'VALOR', 'STATUS', 'EMISSAO', 'ENTRADA', 'NUMERO', 'DOCUMENTO'];",
+      "  const palavras = ['CHAVE', 'CFOP', 'CODIGO', 'NUMERO NOTA', 'FORNECEDOR', 'VALOR', 'STATUS', 'EMISSAO', 'ENTRADA', 'NOME'];",
       "  let melhorLinha = -1;",
       "  let maiorPts = 0;",
       "  let melhoresHeaders = [];",
@@ -721,6 +731,34 @@
       "  return { headerRowIdx: melhorLinha, headers: melhoresHeaders };",
       "}",
       "",
+      "/**",
+      " * Localiza especificamente a coluna do Número da Nota Fiscal (ex.: \"Numero nota\"),",
+      " * evitando confundir com a coluna \"Numero\" do endereço (que vem logo após \"Logradouro\").",
+      " */",
+      "function acharColunaNumeroNota(headers) {",
+      "  const prioritarios = [",
+      "    'NUMERO NOTA', 'NUMERO DA NOTA', 'NUMERO DA NF', 'NUMERO NF',",
+      "    'N. NF', 'N NF', 'NOTA FISCAL', 'NUM NOTA', 'NRO NOTA', 'DOCUMENTO', 'NF'",
+      "  ];",
+      "  for (let i = 0; i < prioritarios.length; i++) {",
+      "    const idx = headers.indexOf(prioritarios[i]);",
+      "    if (idx !== -1) return idx;",
+      "  }",
+      "  const idxContemNota = headers.findIndex(h => h && h.includes('NUMERO') && h.includes('NOTA'));",
+      "  if (idxContemNota !== -1) return idxContemNota;",
+      "",
+      "  // Só aceita coluna chamada apenas \"NUMERO\" se NÃO for endereço (depois de LOGRADOURO/RUA/ENDERECO)",
+      "  for (let c = 0; c < headers.length; c++) {",
+      "    if (headers[c] === 'NUMERO') {",
+      "      const ant = c > 0 ? headers[c - 1] : '';",
+      "      const prox = c + 1 < headers.length ? headers[c + 1] : '';",
+      "      const pareceEndereco = /LOGRADOURO|ENDERECO|RUA|BAIRRO|CIDADE/.test(ant + ' ' + prox);",
+      "      if (!pareceEndereco) return c;",
+      "    }",
+      "  }",
+      "  return -1;",
+      "}",
+      "",
       "function acharColuna(headers, candidatos) {",
       "  const cands = candidatos.map(normalizarCabecalho);",
       "  for (let i = 0; i < cands.length; i++) {",
@@ -735,10 +773,24 @@
       "  return -1;",
       "}",
       "",
+      "function formatarInteiroLimpo(val) {",
+      "  if (val === null || val === undefined || val === '') return '';",
+      "  if (typeof val === 'number') {",
+      "    return isFinite(val) ? String(Math.round(val)) : '';",
+      "  }",
+      "  const s = limparErro(val);",
+      "  if (!s) return '';",
+      "  // Remove separadores de milhar como \"31.671\" ou \"31,671\" quando forem inteiros",
+      "  if (/^\\d{1,3}([.,]\\d{3})+$/.test(s)) {",
+      "    return s.replace(/[.,]/g, '');",
+      "  }",
+      "  return s;",
+      "}",
+      "",
       "function ehCabecalhoRepetidoOuTotal(parceiro, numero, status, chave, cfop, row) {",
       "  const pNorm = normalizarCabecalho(parceiro);",
       "  const sNorm = normalizarCabecalho(status);",
-      "  if (sNorm === 'STATUS FISCAL' || pNorm.includes('DESTINATARIO/REMETENTE')) return true;",
+      "  if (sNorm === 'STATUS FISCAL' || pNorm === 'NOME' || pNorm.includes('DESTINATARIO/REMETENTE')) return true;",
       "  if (!numero && !chave && !status && !cfop) {",
       "    const txt = normalizarCabecalho(row.join(' '));",
       "    if (/^(SUB)?TOTAL(\\s+GERAL)?\\b/.test(txt) || (pNorm && /^(SUB)?TOTAL/.test(pNorm))) return true;",
@@ -872,8 +924,8 @@
       {
         id: "35260112345678000199550010000010211000010210",
         empresa: "ALPINE",
+        cfop: "1102",
         numero: "1021",
-        serie: "1",
         chave: "35260112345678000199550010000010211000010210",
         data: "12/01/2026",
         parceiro: "Hospital Santa Clara LTDA",
@@ -885,8 +937,8 @@
       {
         id: "35260198765432000111550010000010221000010225",
         empresa: "MEDIC",
+        cfop: "1102",
         numero: "1022",
-        serie: "1",
         chave: "35260198765432000111550010000010221000010225",
         data: "18/01/2026",
         parceiro: "Cirúrgica Paulista SA",
@@ -898,8 +950,8 @@
       {
         id: "NUM_1023_NEO",
         empresa: "NEOSURGICAL",
+        cfop: "1303",
         numero: "1023",
-        serie: "2",
         chave: "",
         data: "05/02/2026",
         parceiro: "MedSupply Brasil",
@@ -911,8 +963,8 @@
       {
         id: "35260244556677000188550010000010241000010249",
         empresa: "SALVADOR",
+        cfop: "1906",
         numero: "1024",
-        serie: "1",
         chave: "35260244556677000188550010000010241000010249",
         data: "21/02/2026",
         parceiro: "Clínica São Lucas",
@@ -993,8 +1045,21 @@
       return Object.assign({}, n, {
         id: n.id || ((n.empresa || "NOTA") + "_" + (idx + 1)),
         empresa: String(n.empresa || "").trim().toUpperCase(),
-        numero: String(n.numero || "").trim(),
-        serie: String(n.serie || "").trim(),
+        cfop: String(n.cfop || n.codigo || "").replace(/\D/g, ""),
+        numero: (function () {
+          const numBruto = String(n.numero || "").trim().replace(/^(\d{1,3})([.,]\d{3})+$/, function (m) {
+            return m.replace(/[.,]/g, "");
+          });
+          const chDig = String(n.chave || "").replace(/\D/g, "");
+          if (chDig.length === 44) {
+            const numChave = chDig.slice(25, 34).replace(/^0+/, "") || "0";
+            // Se o backend antigo mandou número de endereço diferente da chave ou vazio, prevalece o da chave
+            if (!numBruto || numBruto !== numChave) {
+              return numChave;
+            }
+          }
+          return numBruto;
+        })(),
         chave: String(n.chave || "").trim(),
         data: dataFinal,
         parceiro: String(n.parceiro || "").trim(),
@@ -1005,6 +1070,25 @@
         urlPasta: urlPasta,
         linkDrive: linkDrive
       });
+    }
+
+    function formatarCfop(cfop) {
+      const limpo = String(cfop || "").replace(/\D/g, "");
+      if (!limpo) return "-";
+      if (limpo.length === 4) {
+        return limpo.charAt(0) + "." + limpo.slice(1);
+      }
+      return limpo;
+    }
+
+    function formatarNumeroNota(num) {
+      const texto = String(num || "").trim();
+      if (!texto) return "-";
+      const limpo = texto.replace(/\D/g, "");
+      if (limpo && /^\d+$/.test(texto)) {
+        return Number(limpo).toLocaleString("pt-BR");
+      }
+      return texto;
     }
 
     function formatarMoeda(valor) {
@@ -1237,8 +1321,9 @@
 
         if (busca) {
           const alvo = [
-            n.empresa, n.numero, n.chave, n.parceiro,
-            n.id, n.statusFiscal, n.statusOriginal, n.cfop
+            n.empresa, n.numero, formatarNumeroNota(n.numero),
+            n.cfop, formatarCfop(n.cfop),
+            n.chave, n.parceiro, n.id, n.statusFiscal, n.statusOriginal
           ].join(" ").toLowerCase();
           if (!alvo.includes(busca)) return false;
         }
@@ -1263,7 +1348,7 @@
 
       const tbody = document.getElementById("tbodyNotasPlanilha");
       if (filtradas.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-slate-400">Nenhuma nota encontrada com os filtros atuais.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="px-4 py-8 text-center text-slate-400">Nenhuma nota encontrada com os filtros atuais.</td></tr>';
         return;
       }
 
@@ -1271,7 +1356,6 @@
         const chaveCurta = n.chave
           ? (n.chave.length > 20 ? (n.chave.slice(0, 10) + "..." + n.chave.slice(-6)) : n.chave)
           : "-";
-        const serieHtml = n.serie ? ' <span class="text-xs text-slate-400">/ ' + escapeHtml(n.serie) + '</span>' : "";
         const tituloStatus = n.statusOriginal && n.statusOriginal !== n.statusFiscal
           ? "Origem: " + n.statusOriginal
           : (n.statusFiscal || "");
@@ -1279,10 +1363,11 @@
         return (
           '<tr class="hover:bg-slate-50">' +
             '<td class="px-3 py-2.5 font-semibold text-slate-800 whitespace-nowrap">' + escapeHtml(n.empresa || "-") + '</td>' +
-            '<td class="px-3 py-2.5 whitespace-nowrap">' + escapeHtml(n.numero || "-") + serieHtml + '</td>' +
+            '<td class="px-3 py-2.5 font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">' + escapeHtml(formatarCfop(n.cfop)) + '</td>' +
+            '<td class="px-3 py-2.5 font-medium text-slate-900 whitespace-nowrap">' + escapeHtml(formatarNumeroNota(n.numero)) + '</td>' +
             '<td class="px-3 py-2.5 font-mono text-xs text-slate-600 whitespace-nowrap" title="' + escapeHtml(n.chave || "") + '">' + escapeHtml(chaveCurta) + '</td>' +
             '<td class="px-3 py-2.5 whitespace-nowrap text-slate-600">' + escapeHtml(n.data || "-") + '</td>' +
-            '<td class="px-3 py-2.5 text-slate-700 max-w-[240px] xl:max-w-md truncate" title="' + escapeHtml(n.parceiro || "") + '">' + escapeHtml(n.parceiro || "-") + '</td>' +
+            '<td class="px-3 py-2.5 text-slate-700 max-w-[230px] xl:max-w-md truncate" title="' + escapeHtml(n.parceiro || "") + '">' + escapeHtml(n.parceiro || "-") + '</td>' +
             '<td class="px-3 py-2.5 text-right font-medium whitespace-nowrap">' + formatarMoeda(n.valor) + '</td>' +
             '<td class="px-3 py-2.5 text-xs" title="' + escapeHtml(tituloStatus) + '">' + escapeHtml(n.statusFiscal || "-") + '</td>' +
             '<td class="px-3 py-2.5 text-center whitespace-nowrap">' + renderizarBotoesDrive(n) + '</td>' +
@@ -1453,6 +1538,7 @@
             statusCode: temLink ? "NO_DRIVE" : "SEM_LINK_DRIVE",
             statusLabel: temLink ? "🟢 Localizada" : "🟡 Na Planilha (Sem Link)",
             empresa: match.empresa || emp,
+            cfop: match.cfop || "",
             numero: match.numero || item.numero || "-",
             chave: match.chave || item.chave || "",
             data: match.data || item.data || "-",
@@ -1466,6 +1552,7 @@
             statusCode: "FALTANDO_PLANILHA",
             statusLabel: "🔴 Não Localizada na Planilha",
             empresa: emp || "-",
+            cfop: "",
             numero: item.numero || "-",
             chave: item.chave || "",
             data: item.data || "-",
@@ -1483,6 +1570,7 @@
             statusCode: "APENAS_PLANILHA",
             statusLabel: "🟠 Só na Planilha (Não no Livro)",
             empresa: n.empresa || "-",
+            cfop: n.cfop || "",
             numero: n.numero || "-",
             chave: n.chave || "",
             data: n.data || "-",
@@ -1516,7 +1604,7 @@
       const visiveis = todos.filter(function (r) {
         if (filtroStatus !== "TODOS" && r.statusCode !== filtroStatus) return false;
         if (busca) {
-          const alvo = [r.statusLabel, r.empresa, r.numero, r.chave, r.data].join(" ").toLowerCase();
+          const alvo = [r.statusLabel, r.empresa, r.cfop, formatarCfop(r.cfop), r.numero, formatarNumeroNota(r.numero), r.chave, r.data].join(" ").toLowerCase();
           if (!alvo.includes(busca)) return false;
         }
         return true;
@@ -1524,7 +1612,7 @@
 
       const tbody = document.getElementById("tbodyResultadoConferencia");
       if (visiveis.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">Nenhum item corresponde ao filtro selecionado.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-slate-400">Nenhum item corresponde ao filtro selecionado.</td></tr>';
         return;
       }
 
@@ -1534,7 +1622,8 @@
           '<tr class="hover:bg-slate-50">' +
             '<td class="px-3 py-2.5 text-xs font-semibold whitespace-nowrap">' + escapeHtml(r.statusLabel) + '</td>' +
             '<td class="px-3 py-2.5 font-semibold text-slate-800 whitespace-nowrap">' + escapeHtml(r.empresa) + '</td>' +
-            '<td class="px-3 py-2.5 whitespace-nowrap">' + escapeHtml(r.numero) + '</td>' +
+            '<td class="px-3 py-2.5 font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">' + escapeHtml(formatarCfop(r.cfop)) + '</td>' +
+            '<td class="px-3 py-2.5 font-medium text-slate-900 whitespace-nowrap">' + escapeHtml(formatarNumeroNota(r.numero)) + '</td>' +
             '<td class="px-3 py-2.5 font-mono text-xs text-slate-600 whitespace-nowrap" title="' + escapeHtml(r.chave) + '">' + escapeHtml(chaveCurta) + '</td>' +
             '<td class="px-3 py-2.5 whitespace-nowrap text-slate-600">' + escapeHtml(r.data) + '</td>' +
             '<td class="px-3 py-2.5 text-right font-medium whitespace-nowrap">' + formatarMoeda(r.valor) + '</td>' +
@@ -1550,11 +1639,12 @@
         mostrarAlerta("Não há resultado de conferência para exportar.", "warn");
         return;
       }
-      const cab = ["Status", "Empresa", "Numero", "Chave", "Data", "Valor", "URL Arquivo", "URL Pasta"];
+      const cab = ["Status", "Empresa", "CFOP", "Numero Nota", "Chave", "Data", "Valor", "URL Arquivo", "URL Pasta"];
       const linhas = lista.map(function (r) {
         return [
           r.statusLabel,
           r.empresa,
+          formatarCfop(r.cfop),
           r.numero,
           r.chave,
           r.data,
