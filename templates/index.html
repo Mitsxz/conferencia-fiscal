@@ -737,12 +737,22 @@
       "      const urlPasta = (colUrlPasta >= 0 ? limparUrl(row[colUrlPasta]) : '') || urlsPastaExtra[r] || (matchReg ? matchReg.urlPasta : '');",
       "      const linkDrive = urlArquivo || urlPasta || '';",
       "",
+      "      const temDriveGs = /drive\\.google\\.com/i.test(linkDrive);",
+      "      const temEmailGs = /mail\\.google\\.com/i.test(urlArquivo) || /mail\\.google\\.com/i.test(urlPasta) || /achou\\s*e-?mail/i.test(statusOriginal);",
       "      const veioDoGmail = /gmail/i.test(statusOriginal);",
       "      let statusFinal = statusOriginal;",
-      "      if (veioDoGmail && linkDrive) {",
-      "        statusFinal = '🟢 Localizada';",
-      "      } else if (!statusFinal) {",
-      "        statusFinal = linkDrive ? '🟢 Localizada no Drive' : 'Sem status';",
+      "      let statusCorGs = 'VERMELHO';",
+      "      if (temDriveGs) {",
+      "        statusCorGs = 'VERDE';",
+      "        if (veioDoGmail) statusFinal = '🟢 Localizada';",
+      "        else if (!statusFinal) statusFinal = '🟢 Localizada no Drive';",
+      "      } else if (temEmailGs) {",
+      "        statusCorGs = 'AMARELO';",
+      "        statusFinal = '🟡 Achou e-mail, nota não validada';",
+      "        if (!urlPasta) urlPasta = 'https://consultadanfe.com/';",
+      "      } else {",
+      "        statusCorGs = 'VERMELHO';",
+      "        statusFinal = /desconsider/i.test(statusOriginal) ? '🔴 Não localizada (Desconsiderada)' : ('🔴 ' + (statusOriginal.split('|')[0].trim() || 'Não localizada'));",
       "      }",
       "",
       "      notas.push({",
@@ -761,6 +771,7 @@
       "        valor: valor,",
       "        statusOriginal: statusOriginal,",
       "        statusFiscal: statusFinal,",
+      "        statusCor: statusCorGs,",
       "        urlArquivo: urlArquivo,",
       "        urlPasta: urlPasta,",
       "        linkDrive: linkDrive",
@@ -1123,23 +1134,72 @@
       return true;
     }
 
+    function ehLinkDrive(u) {
+      return /drive\.google\.com/i.test(String(u || ""));
+    }
+    function ehLinkGmail(u) {
+      return /mail\.google\.com/i.test(String(u || ""));
+    }
+    function ehLinkDanfe(u) {
+      return /consultadanfe\.com/i.test(String(u || ""));
+    }
+
     function normalizarNota(n, idx) {
       const empresaUpper = String(n.empresa || "").trim().toUpperCase();
       const chRaw = String(n.chave || "").trim();
       const chDig = chRaw.replace(/\D/g, "");
 
-      const urlArquivo = extrairUrlValida(n.urlArquivo);
-      const urlPasta = extrairUrlValida(n.urlPasta);
-      const linkDrive = urlArquivo || urlPasta || extrairUrlValida(n.linkDrive);
+      const rawArq = extrairUrlValida(n.urlArquivo);
+      const rawPasta = extrairUrlValida(n.urlPasta);
+      const rawLink = extrairUrlValida(n.linkDrive);
+
+      const urlDriveArq = ehLinkDrive(rawArq) ? rawArq : (ehLinkDrive(rawLink) ? rawLink : "");
+      const urlDrivePasta = ehLinkDrive(rawPasta) ? rawPasta : "";
+      const temDrive = Boolean(urlDriveArq || urlDrivePasta);
+
+      let urlEmail = "";
+      if (ehLinkGmail(rawArq)) urlEmail = rawArq;
+      else if (ehLinkGmail(rawPasta)) urlEmail = rawPasta;
+      else if (ehLinkGmail(rawLink)) urlEmail = rawLink;
+
+      let urlDanfe = "";
+      if (ehLinkDanfe(rawPasta)) urlDanfe = rawPasta;
+      else if (ehLinkDanfe(rawArq)) urlDanfe = rawArq;
+      else if (ehLinkDanfe(rawLink)) urlDanfe = rawLink;
 
       const statusOriginal = String(n.statusOriginal || n.statusFiscal || "").trim();
+      const achouEmailPorStatus = /achou\s*e-?mail/i.test(statusOriginal) || Boolean(urlEmail);
       const veioDoGmail = /gmail/i.test(statusOriginal) || /gmail/i.test(String(n.statusFiscal || ""));
 
-      let statusExibicao = String(n.statusFiscal || statusOriginal || "").trim();
-      if (veioDoGmail && linkDrive) {
-        statusExibicao = "🟢 Localizada";
-      } else if (!statusExibicao) {
-        statusExibicao = linkDrive ? "🟢 Localizada no Drive" : "Sem status";
+      let statusCor = "VERMELHO";
+      let statusExibicao = "";
+
+      if (temDrive) {
+        statusCor = "VERDE";
+        if (veioDoGmail) {
+          statusExibicao = "🟢 Localizada";
+        } else {
+          statusExibicao = statusOriginal && !/desconsider/i.test(statusOriginal)
+            ? statusOriginal.replace(/^[🔴🟠🟡🟢🤖⚠️]+\s*/, "🟢 ")
+            : "🟢 Localizada no Drive";
+        }
+      } else if (achouEmailPorStatus) {
+        statusCor = "AMARELO";
+        if (!urlDanfe) urlDanfe = "https://consultadanfe.com/";
+        statusExibicao = "🟡 Achou e-mail, nota não validada";
+      } else {
+        statusCor = "VERMELHO";
+        if (!urlDanfe && /consulta\s*danfe/i.test(statusOriginal)) {
+          urlDanfe = "https://consultadanfe.com/";
+        }
+        if (/desconsider/i.test(statusOriginal)) {
+          statusExibicao = "🔴 Não localizada (Desconsiderada)";
+        } else if (statusOriginal) {
+          const limpoSt = statusOriginal.replace(/^[🔴🟠🟡🟢🤖⚠️]+\s*/, "").split("|")[0].trim();
+          statusExibicao = "🔴 " + (limpoSt || "Não localizada");
+        } else {
+          statusExibicao = "🔴 Não localizada";
+        }
       }
 
       const cfopResolvido = resolverCfopNota(n, chDig);
@@ -1172,9 +1232,14 @@
         ehEntradaDestinatario: ehEntrada,
         statusOriginal: statusOriginal,
         statusFiscal: statusExibicao,
-        urlArquivo: urlArquivo,
-        urlPasta: urlPasta,
-        linkDrive: linkDrive
+        statusCor: statusCor,
+        urlArquivo: urlDriveArq || rawArq || "",
+        urlPasta: urlDrivePasta || (ehLinkDanfe(rawPasta) ? rawPasta : ""),
+        urlDriveArq: urlDriveArq,
+        urlDrivePasta: urlDrivePasta,
+        urlEmail: urlEmail,
+        urlDanfe: urlDanfe,
+        linkDrive: urlDriveArq || urlDrivePasta || urlEmail || urlDanfe || "" 
       });
     }
 
@@ -1395,27 +1460,52 @@
       sincronizarControlesEmpresa();
     }
 
+    function renderizarBadgeStatus(nota) {
+      const txt = String(nota.statusFiscal || "-");
+      if (nota.statusCor === "VERDE") {
+        return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">' + escapeHtml(txt) + '</span>';
+      }
+      if (nota.statusCor === "AMARELO") {
+        return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300">' + escapeHtml(txt) + '</span>';
+      }
+      return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">' + escapeHtml(txt) + '</span>';
+    }
+
     function renderizarBotoesDrive(nota) {
-      const arq = extrairUrlValida(nota.urlArquivo);
-      const pasta = extrairUrlValida(nota.urlPasta);
-      const linkPrincipal = arq || pasta || extrairUrlValida(nota.linkDrive);
+      const driveArq = extrairUrlValida(nota.urlDriveArq) || (ehLinkDrive(nota.urlArquivo) ? extrairUrlValida(nota.urlArquivo) : "");
+      const drivePasta = extrairUrlValida(nota.urlDrivePasta) || (ehLinkDrive(nota.urlPasta) ? extrairUrlValida(nota.urlPasta) : "");
+      const emailUrl = extrairUrlValida(nota.urlEmail) || (ehLinkGmail(nota.urlArquivo) ? extrairUrlValida(nota.urlArquivo) : "") || (ehLinkGmail(nota.urlPasta) ? extrairUrlValida(nota.urlPasta) : "");
+      const danfeUrl = extrairUrlValida(nota.urlDanfe) || (ehLinkDanfe(nota.urlPasta) ? extrairUrlValida(nota.urlPasta) : "") || (ehLinkDanfe(nota.urlArquivo) ? extrairUrlValida(nota.urlArquivo) : "");
 
-      if (!linkPrincipal) {
-        return '<span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">Sem link</span>';
-      }
-
-      const botoes = [];
-      botoes.push(
-        '<a href="' + escapeHtml(linkPrincipal) + '" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition">Abrir no Drive</a>'
-      );
-
-      if (arq && pasta && arq !== pasta) {
-        botoes.push(
-          '<a href="' + escapeHtml(pasta) + '" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-900 text-white transition">Pasta</a>'
+      const linkDrivePrincipal = driveArq || drivePasta;
+      if (linkDrivePrincipal) {
+        const botoesDrive = [];
+        botoesDrive.push(
+          '<a href="' + escapeHtml(linkDrivePrincipal) + '" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition">Abrir no Drive</a>'
         );
+        if (driveArq && drivePasta && driveArq !== drivePasta) {
+          botoesDrive.push(
+            '<a href="' + escapeHtml(drivePasta) + '" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-900 text-white transition">Pasta</a>'
+          );
+        }
+        return '<div class="inline-flex flex-wrap items-center justify-center gap-1.5">' + botoesDrive.join("") + '</div>';
       }
 
-      return '<div class="inline-flex flex-wrap items-center justify-center gap-1.5">' + botoes.join("") + '</div>';
+      if (nota.statusCor === "AMARELO" || emailUrl) {
+        const botoesEmailDanfe = [];
+        if (emailUrl) {
+          botoesEmailDanfe.push(
+            '<a href="' + escapeHtml(emailUrl) + '" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-400 hover:bg-amber-500 text-slate-950 border border-amber-500/50 transition">Abrir E-mail</a>'
+          );
+        }
+        const destinoDanfe = danfeUrl || "https://consultadanfe.com/";
+        botoesEmailDanfe.push(
+          '<a href="' + escapeHtml(destinoDanfe) + '" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition">Consulta DANFE</a>'
+        );
+        return '<div class="inline-flex flex-wrap items-center justify-center gap-1.5">' + botoesEmailDanfe.join("") + '</div>';
+      }
+
+      return '<span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">Sem link</span>';
     }
 
     function renderizarNotasPlanilha() {
@@ -1438,7 +1528,7 @@
           const mNota = extrairMesDaData(n.data) || (n.mes ? String(n.mes).padStart(2, "0") : "");
           if (mNota !== mesFilter) return false;
         }
-        const temLink = Boolean(extrairUrlValida(n.urlArquivo) || extrairUrlValida(n.urlPasta) || extrairUrlValida(n.linkDrive));
+        const temLink = Boolean(extrairUrlValida(n.urlDriveArq) || extrairUrlValida(n.urlDrivePasta));
         if (driveFilter === "COM_LINK" && !temLink) return false;
         if (driveFilter === "SEM_LINK" && temLink) return false;
 
@@ -1454,7 +1544,7 @@
       });
 
       const comDrive = filtradas.filter(function (n) {
-        return Boolean(extrairUrlValida(n.urlArquivo) || extrairUrlValida(n.urlPasta) || extrairUrlValida(n.linkDrive));
+        return Boolean(extrairUrlValida(n.urlDriveArq) || extrairUrlValida(n.urlDrivePasta));
       }).length;
       const somaValor = filtradas.reduce(function (acc, n) {
         return acc + Number(n.valor || 0);
@@ -1493,7 +1583,7 @@
             '<td class="px-3 py-2.5 whitespace-nowrap text-slate-600">' + escapeHtml(n.data || "-") + '</td>' +
             '<td class="px-3 py-2.5 text-slate-700 max-w-[230px] xl:max-w-md truncate" title="' + escapeHtml(n.parceiro || "") + '">' + escapeHtml(n.parceiro || "-") + '</td>' +
             '<td class="px-3 py-2.5 text-right font-medium whitespace-nowrap">' + formatarMoeda(n.valor) + '</td>' +
-            '<td class="px-3 py-2.5 text-xs" title="' + escapeHtml(tituloStatus) + '">' + escapeHtml(n.statusFiscal || "-") + '</td>' +
+            '<td class="px-3 py-2.5 text-xs whitespace-nowrap" title="' + escapeHtml(tituloStatus) + '">' + renderizarBadgeStatus(n) + '</td>' +
             '<td class="px-3 py-2.5 text-center whitespace-nowrap">' + renderizarBotoesDrive(n) + '</td>' +
           '</tr>'
         );
