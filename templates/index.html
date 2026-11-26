@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Controle Fiscal & Conferência com Livro Fiscal</title>
+  <title>Controle Fiscal &amp; Conferência com Livro Fiscal</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>
@@ -53,7 +53,7 @@
         </div>
         <div>
           <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">
-            Controle Fiscal & Conferência com Livro Fiscal
+            Controle Fiscal &amp; Conferência com Livro Fiscal
           </h1>
           <p id="statusConexaoTexto" class="text-xs text-slate-500">
             Link da planilha configurado por padrão • Conectando...
@@ -190,7 +190,6 @@
               <option value="11">11 - NOV</option>
               <option value="12">12 - DEZ</option>
             </select>
-            <!-- Desmarcado por padrão para exibir TODAS as notas -->
             <label class="inline-flex items-center gap-1.5 text-xs text-slate-600 ml-2 cursor-pointer">
               <input id="ocultarDesconsideradasNotas" type="checkbox" class="rounded border-slate-300" />
               Ocultar desconsideradas
@@ -432,7 +431,7 @@
             </span>
           </div>
           <div>
-            <h2 class="text-base font-bold text-slate-900">Fonte de Dados da Planilha & Apps Script</h2>
+            <h2 class="text-base font-bold text-slate-900">Fonte de Dados da Planilha &amp; Apps Script</h2>
             <p class="text-xs text-slate-500">
               A URL do Web App já vem configurada por padrão no código.
             </p>
@@ -514,6 +513,10 @@
 
   <script>
     const CODE_GS_TEMPLATE = [
+      "/**",
+      " * Code.gs - Consolida abas de empresas, DEPARA e REGISTRO_NOTAS",
+      " * retornando 100% das notas da planilha (incluindo desconsideradas, sem link ou com erro de fórmula).",
+      " */",
       "function doGet(e) {",
       "  try {",
       "    const payload = obterDadosConsolidadosPlanilha();",
@@ -523,12 +526,16 @@
       "        atualizadoEm: payload.atualizadoEm,",
       "        anoReferencia: payload.anoReferencia,",
       "        empresas: payload.empresas,",
-      "        notas: payload.notas",
+      "        notas: payload.notas,",
+      "        data: payload",
       "      }))",
       "      .setMimeType(ContentService.MimeType.JSON);",
       "  } catch (err) {",
       "    return ContentService",
-      "      .createTextOutput(JSON.stringify({ ok: false, error: err && err.message ? err.message : String(err) }))",
+      "      .createTextOutput(JSON.stringify({",
+      "        ok: false,",
+      "        error: err && err.message ? err.message : String(err)",
+      "      }))",
       "      .setMimeType(ContentService.MimeType.JSON);",
       "  }",
       "}",
@@ -539,6 +546,7 @@
       "  const registroMap = new Map();",
       "  const empresasDetectadas = new Set();",
       "",
+      "  // 1. Lê ano de referência na DEPARA (padrão 2026)",
       "  let anoReferencia = 2026;",
       "  const abaDepara = ss.getSheetByName('DEPARA');",
       "  if (abaDepara) {",
@@ -554,6 +562,7 @@
       "    }",
       "  }",
       "",
+      "  // 2. Indexa REGISTRO_NOTAS (suporta chave 44 dígitos, NUM_<numero>_<cnpj> e HASH_...)",
       "  const registroSheet = ss.getSheetByName('REGISTRO_NOTAS');",
       "  if (registroSheet && registroSheet.getLastRow() > 1) {",
       "    const regData = registroSheet.getDataRange().getValues();",
@@ -575,10 +584,16 @@
       "      const urlArquivo = limparUrl(idxArq >= 0 ? row[idxArq] : '') || urlsArqExtra[i] || '';",
       "      const urlPasta = limparUrl(idxPasta >= 0 ? row[idxPasta] : '') || urlsPastaExtra[i] || '';",
       "      const dataHora = idxData >= 0 ? formatarData(row[idxData], anoReferencia) : '';",
-      "      indexarChave(registroMap, idRaw, emp, { empresa: emp, urlArquivo: urlArquivo, urlPasta: urlPasta, dataHora: dataHora });",
+      "      indexarChave(registroMap, idRaw, emp, {",
+      "        empresa: emp,",
+      "        urlArquivo: urlArquivo,",
+      "        urlPasta: urlPasta,",
+      "        dataHora: dataHora",
+      "      });",
       "    }",
       "  }",
       "",
+      "  // 3. Percorre todas as abas de empresas sem descartar linhas válidas",
       "  const notas = [];",
       "  ss.getSheets().forEach(sheet => {",
       "    const nomeAba = String(sheet.getName() || '').trim();",
@@ -934,11 +949,11 @@
     function escapeHtml(str) {
       const val = (str === null || str === undefined) ? "" : String(str);
       return val
-        .replace(/&/g, "&")
-        .replace(/\x3c/g, "<")
-        .replace(/\x3e/g, ">")
-        .replace(/"/g, """)
-        .replace(/'/g, "'");
+        .replace(/&/g, "&amp;")
+        .replace(/\x3c/g, "&lt;")
+        .replace(/\x3e/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     }
 
     function extrairUrlValida(val) {
@@ -1304,6 +1319,10 @@
       return textoFinal;
     }
 
+    function escaparRegex(texto) {
+      return String(texto || "").replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+    }
+
     function parsearLivroFiscal(texto) {
       const linhas = String(texto || "")
         .replace(/\r/g, "")
@@ -1319,8 +1338,7 @@
         let empresaDetectada = "";
         for (let i = 0; i < estado.empresas.length; i++) {
           const emp = estado.empresas[i];
-          const empEscapada = emp.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
-          const reEmp = new RegExp("(^|[^A-Z0-9_])" + empEscapada + "([^A-Z0-9_]|$)", "i");
+          const reEmp = new RegExp("(^|[^A-Z0-9_])" + escaparRegex(emp) + "([^A-Z0-9_]|$)", "i");
           if (reEmp.test(linha)) {
             empresaDetectada = emp;
             break;
