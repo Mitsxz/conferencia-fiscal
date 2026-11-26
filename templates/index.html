@@ -512,345 +512,342 @@
     </div>
   </div>
 
-  <!-- Armazena o Code.gs de forma segura sem interferir no parser de <script> -->
-  <textarea id="templateCodeGs" class="hidden" readonly>
-function doGet(e) {
-  try {
-    const payload = obterDadosConsolidadosPlanilha();
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        ok: true,
-        atualizadoEm: payload.atualizadoEm,
-        anoReferencia: payload.anoReferencia,
-        empresas: payload.empresas,
-        notas: payload.notas
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ ok: false, error: err && err.message ? err.message : String(err) }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function obterDadosConsolidadosPlanilha() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const ignorarAbas = new Set(['DEPARA', 'REGISTRO_NOTAS', 'PARAMETROS', 'CONFIG', 'LOG', 'RESUMO']);
-  const registroMap = new Map();
-  const empresasDetectadas = new Set();
-
-  let anoReferencia = 2026;
-  const abaDepara = ss.getSheetByName('DEPARA');
-  if (abaDepara) {
-    const valsDepara = abaDepara.getDataRange().getValues();
-    outer: for (let r = 0; r < valsDepara.length; r++) {
-      for (let c = 0; c < valsDepara[r].length; c++) {
-        const cellStr = String(valsDepara[r][c] || '').trim();
-        if (/^20\d{2}$/.test(cellStr)) {
-          anoReferencia = parseInt(cellStr, 10);
-          break outer;
-        }
-      }
-    }
-  }
-
-  const registroSheet = ss.getSheetByName('REGISTRO_NOTAS');
-  if (registroSheet && registroSheet.getLastRow() > 1) {
-    const regData = registroSheet.getDataRange().getValues();
-    const headers = regData[0].map(normalizarCabecalho);
-    const idxId = acharColuna(headers, ['ID', 'IDENTIFICADOR', 'CHAVE']);
-    const idxEmp = acharColuna(headers, ['EMPRESA', 'UNIDADE', 'FILIAL']);
-    const idxArq = acharColuna(headers, ['URL ARQUIVO', 'LINK ARQUIVO', 'ARQUIVO']);
-    const idxPasta = acharColuna(headers, ['URL PASTA', 'LINK PASTA', 'PASTA']);
-    const idxData = acharColuna(headers, ['DATA/HORA', 'DATA HORA', 'DATA']);
-
-    const urlsArqExtra = idxArq >= 0 ? extrairLinksColuna(registroSheet, regData.length, idxArq) : [];
-    const urlsPastaExtra = idxPasta >= 0 ? extrairLinksColuna(registroSheet, regData.length, idxPasta) : [];
-
-    for (let i = 1; i < regData.length; i++) {
-      const row = regData[i];
-      const idRaw = idxId >= 0 ? limparErro(row[idxId]) : '';
-      if (!idRaw) continue;
-      const emp = idxEmp >= 0 ? String(row[idxEmp] || '').trim().toUpperCase() : '';
-      const urlArquivo = limparUrl(idxArq >= 0 ? row[idxArq] : '') || urlsArqExtra[i] || '';
-      const urlPasta = limparUrl(idxPasta >= 0 ? row[idxPasta] : '') || urlsPastaExtra[i] || '';
-      const dataHora = idxData >= 0 ? formatarData(row[idxData], anoReferencia) : '';
-      indexarChave(registroMap, idRaw, emp, { empresa: emp, urlArquivo: urlArquivo, urlPasta: urlPasta, dataHora: dataHora });
-    }
-  }
-
-  const notas = [];
-  ss.getSheets().forEach(sheet => {
-    const nomeAba = String(sheet.getName() || '').trim();
-    const nomeUpper = nomeAba.toUpperCase();
-    if (ignorarAbas.has(nomeUpper)) return;
-
-    const lastRow = sheet.getLastRow();
-    const lastCol = sheet.getLastColumn();
-    if (lastRow < 2 || lastCol < 1) return;
-
-    const data = sheet.getRange(1, 1, lastRow, lastCol).getValues();
-    const infoCab = detectarLinhaCabecalho(data);
-    if (!infoCab) return;
-
-    const headers = infoCab.headers;
-    const colChave = acharColuna(headers, ['CHAVE DE ACESSO DA NFE', 'CHAVE DE ACESSO', 'CHAVE NFE', 'CHAVE NF-E', 'CHAVE']);
-    const colNumero = acharColuna(headers, ['NUMERO DA NF', 'NUMERO NF', 'N. NF', 'N NF', 'NUMERO', 'DOCUMENTO', 'NOTA FISCAL', 'NF', 'NRO']);
-    const colSerie = acharColuna(headers, ['SERIE']);
-    const colCfop = acharColuna(headers, ['CFOP']);
-    const colData = acharColuna(headers, ['DATA DE EMISSAO', 'DATA EMISSAO', 'DATA DE ENTRADA', 'DATA ENTRADA', 'EMISSAO', 'ENTRADA', 'DATA']);
-    const colParceiro = acharColuna(headers, ['DESTINATARIO/REMETENTE', 'DESTINATARIO / REMETENTE', 'DESTINATARIO', 'REMETENTE', 'EMITENTE', 'FORNECEDOR', 'CLIENTE', 'NOME / RAZAO SOCIAL', 'RAZAO SOCIAL', 'PARCEIRO', 'NOME']);
-    const colCnpj = acharColuna(headers, ['CNPJ/CPF', 'CPF/CNPJ', 'CNPJ']);
-    const colValor = acharColuna(headers, ['VALOR CONTABIL', 'VALOR TOTAL', 'VALOR DA MERCADORIA', 'VALOR MERCADORIA', 'VALOR NF', 'VLR CONTABIL', 'VALOR']);
-    const colStatus = acharColuna(headers, ['STATUS FISCAL', 'STATUS', 'SITUACAO FISCAL', 'SITUACAO']);
-    const colUrlArq = acharColuna(headers, ['URL ARQUIVO', 'LINK ARQUIVO', 'LINK ANEXO', 'ANEXO', 'LINK DRIVE', 'ARQUIVO', 'LINK']);
-    const colUrlPasta = acharColuna(headers, ['URL PASTA', 'LINK PASTA', 'PASTA DRIVE', 'PASTA']);
-
-    if (colChave < 0 && colNumero < 0 && colParceiro < 0 && colValor < 0 && colStatus < 0) return;
-    empresasDetectadas.add(nomeUpper);
-
-    const urlsArqExtra = colUrlArq >= 0 ? extrairLinksColuna(sheet, data.length, colUrlArq) : [];
-    const urlsPastaExtra = colUrlPasta >= 0 ? extrairLinksColuna(sheet, data.length, colUrlPasta) : [];
-
-    for (let r = infoCab.headerRowIdx + 1; r < data.length; r++) {
-      const row = data[r];
-      const temAlgumValor = row.some(cel => cel !== null && cel !== undefined && String(cel).trim() !== '');
-      if (!temAlgumValor) continue;
-
-      const chaveBruta = colChave >= 0 ? String(row[colChave] || '').trim() : '';
-      const chaveLimpa = limparErro(chaveBruta);
-      const chaveDigitos = chaveLimpa.replace(/\D/g, '');
-      const numero = colNumero >= 0 ? limparErro(row[colNumero]) : '';
-      const serie = colSerie >= 0 ? limparErro(row[colSerie]) : '';
-      const cfop = colCfop >= 0 ? limparErro(row[colCfop]) : '';
-      const parceiro = colParceiro >= 0 ? limparErro(row[colParceiro]) : '';
-      const cnpj = colCnpj >= 0 ? limparErro(row[colCnpj]) : '';
-      const valor = colValor >= 0 ? parseValor(row[colValor]) : 0;
-      const statusOriginal = colStatus >= 0 ? limparErro(row[colStatus]) : '';
-      const dataStr = colData >= 0 ? formatarData(row[colData], anoReferencia) : '';
-
-      if (ehCabecalhoRepetidoOuTotal(parceiro, numero, statusOriginal, chaveLimpa, cfop, row)) continue;
-
-      const temCampoNota = Boolean(
-        chaveBruta || numero || parceiro || statusOriginal || cfop || valor > 0 ||
-        dataStr || urlsArqExtra[r] || urlsPastaExtra[r]
-      );
-      if (!temCampoNota) continue;
-
-      const matchReg = buscarNoRegistro(registroMap, nomeUpper, chaveLimpa, numero, cnpj);
-      const urlArquivo = (colUrlArq >= 0 ? limparUrl(row[colUrlArq]) : '') || urlsArqExtra[r] || (matchReg ? matchReg.urlArquivo : '');
-      const urlPasta = (colUrlPasta >= 0 ? limparUrl(row[colUrlPasta]) : '') || urlsPastaExtra[r] || (matchReg ? matchReg.urlPasta : '');
-      const linkDrive = urlArquivo || urlPasta || '';
-
-      const veioDoGmail = /gmail/i.test(statusOriginal);
-      let statusFinal = statusOriginal;
-      if (veioDoGmail && linkDrive) {
-        statusFinal = '🟢 Localizada';
-      } else if (!statusFinal) {
-        statusFinal = linkDrive ? '🟢 Localizada no Drive' : 'Sem status';
-      }
-
-      notas.push({
-        id: nomeUpper + '_L' + (r + 1),
-        linhaPlanilha: r + 1,
-        empresa: nomeUpper,
-        numero: numero,
-        serie: serie,
-        cfop: cfop,
-        chave: chaveDigitos || chaveLimpa,
-        data: dataStr,
-        parceiro: parceiro || 'Não informado',
-        valor: valor,
-        statusOriginal: statusOriginal,
-        statusFiscal: statusFinal,
-        urlArquivo: urlArquivo,
-        urlPasta: urlPasta,
-        linkDrive: linkDrive
-      });
-    }
-  });
-
-  return {
-    atualizadoEm: new Date().toISOString(),
-    anoReferencia: anoReferencia,
-    empresas: Array.from(empresasDetectadas).sort(),
-    notas: notas
-  };
-}
-
-function normalizarCabecalho(h) {
-  return String(h || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
-}
-
-function detectarLinhaCabecalho(data) {
-  const palavras = ['CHAVE', 'CFOP', 'DESTINATARIO', 'REMETENTE', 'FORNECEDOR', 'VALOR', 'STATUS', 'EMISSAO', 'ENTRADA', 'NUMERO', 'DOCUMENTO'];
-  let melhorLinha = -1;
-  let maiorPts = 0;
-  let melhoresHeaders = [];
-  const lim = Math.min(data.length, 15);
-  for (let r = 0; r < lim; r++) {
-    const normRow = data[r].map(normalizarCabecalho);
-    let pts = 0;
-    normRow.forEach(col => { if (col && palavras.some(p => col.includes(p))) pts++; });
-    if (pts > maiorPts) {
-      maiorPts = pts;
-      melhorLinha = r;
-      melhoresHeaders = normRow;
-    }
-  }
-  if (melhorLinha === -1 || maiorPts < 2) return null;
-  return { headerRowIdx: melhorLinha, headers: melhoresHeaders };
-}
-
-function acharColuna(headers, candidatos) {
-  const cands = candidatos.map(normalizarCabecalho);
-  for (let i = 0; i < cands.length; i++) {
-    const idx = headers.indexOf(cands[i]);
-    if (idx !== -1) return idx;
-  }
-  for (let i = 0; i < cands.length; i++) {
-    if (cands[i].length < 4) continue;
-    const idx = headers.findIndex(h => h && h.includes(cands[i]));
-    if (idx !== -1) return idx;
-  }
-  return -1;
-}
-
-function ehCabecalhoRepetidoOuTotal(parceiro, numero, status, chave, cfop, row) {
-  const pNorm = normalizarCabecalho(parceiro);
-  const sNorm = normalizarCabecalho(status);
-  if (sNorm === 'STATUS FISCAL' || pNorm.includes('DESTINATARIO/REMETENTE')) return true;
-  if (!numero && !chave && !status && !cfop) {
-    const txt = normalizarCabecalho(row.join(' '));
-    if (/^(SUB)?TOTAL(\s+GERAL)?\b/.test(txt) || (pNorm && /^(SUB)?TOTAL/.test(pNorm))) return true;
-  }
-  return false;
-}
-
-function extrairLinksColuna(sheet, numRows, colIdx) {
-  const res = new Array(numRows).fill('');
-  try {
-    const formulas = sheet.getRange(1, colIdx + 1, numRows, 1).getFormulas();
-    for (let i = 0; i < formulas.length; i++) {
-      const f = formulas[i][0];
-      if (f) {
-        const m = f.match(/https?:\/\/[^\s"');]+/i);
-        if (m) res[i] = m[0].trim();
-      }
-    }
-  } catch (e) {}
-  try {
-    const richVals = sheet.getRange(1, colIdx + 1, numRows, 1).getRichTextValues();
-    for (let i = 0; i < richVals.length; i++) {
-      if (res[i]) continue;
-      const rt = richVals[i][0];
-      if (!rt) continue;
-      let link = rt.getLinkUrl();
-      if (!link) {
-        const runs = rt.getRuns();
-        for (let k = 0; k < runs.length; k++) {
-          if (runs[k].getLinkUrl()) { link = runs[k].getLinkUrl(); break; }
-        }
-      }
-      if (link && /^https?:\/\//i.test(link)) res[i] = link.trim();
-    }
-  } catch (e) {}
-  return res;
-}
-
-function limparErro(val) {
-  if (val === null || val === undefined) return '';
-  const s = String(val).trim();
-  if (!s || s.startsWith('#') || s.toUpperCase().startsWith('ERR:')) return '';
-  return s;
-}
-
-function limparUrl(val) {
-  const s = limparErro(val);
-  if (!s) return '';
-  const m = s.match(/https?:\/\/[^\s"']+/i);
-  return m ? m[0] : '';
-}
-
-function formatarData(val, anoPadrao) {
-  if (!val) return '';
-  if (Object.prototype.toString.call(val) === '[object Date]' && !isNaN(val.getTime())) {
-    const dd = String(val.getDate()).padStart(2, '0');
-    const mm = String(val.getMonth() + 1).padStart(2, '0');
-    const yyyy = val.getFullYear();
-    return dd + '/' + mm + '/' + yyyy;
-  }
-  const s = limparErro(val);
-  const m = s.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
-  if (m) {
-    const dd = m[1].padStart(2, '0');
-    const mm = String(parseInt(m[2], 10)).padStart(2, '0');
-    let yyyy = m[3] ? parseInt(m[3], 10) : (anoPadrao || 2026);
-    if (yyyy < 100) yyyy += 2000;
-    return dd + '/' + mm + '/' + yyyy;
-  }
-  return s;
-}
-
-function parseValor(val) {
-  if (typeof val === 'number') return isFinite(val) ? val : 0;
-  const s = limparErro(val);
-  if (!s) return 0;
-  const limpo = s.replace(/[^0-9,.-]/g, '').replace(/\.(?=.*,)/g, '').replace(',', '.');
-  const num = parseFloat(limpo);
-  return isNaN(num) ? 0 : num;
-}
-
-function indexarChave(map, idRaw, emp, entry) {
-  const norm = String(idRaw).trim().toUpperCase();
-  const chaves = new Set([norm]);
-  const dig = norm.replace(/\D/g, '');
-  if (dig.length === 44) chaves.add(dig);
-
-  const matchNum = norm.match(/^NUM_0*(\d+)(?:_(\d+))?/);
-  if (matchNum) {
-    chaves.add('NUM_' + matchNum[1]);
-    if (matchNum[2]) chaves.add('NUM_' + matchNum[1] + '_' + matchNum[2]);
-  } else if (/^\d+$/.test(norm)) {
-    chaves.add(norm.replace(/^0+/, '') || norm);
-  }
-
-  chaves.forEach(k => {
-    if (!k) return;
-    if (emp) {
-      const kEmp = emp + '::' + k;
-      const atualEmp = map.get(kEmp);
-      if (!atualEmp || (!atualEmp.urlArquivo && entry.urlArquivo)) map.set(kEmp, entry);
-    }
-    const atual = map.get(k);
-    if (!atual || (!atual.urlArquivo && entry.urlArquivo)) map.set(k, entry);
-  });
-}
-
-function buscarNoRegistro(map, emp, chave, numero, cnpj) {
-  const candidatos = [];
-  if (chave) {
-    const cNorm = chave.trim().toUpperCase();
-    const cDig = cNorm.replace(/\D/g, '');
-    candidatos.push(emp + '::' + cNorm, emp + '::' + cDig, cNorm, cDig);
-  }
-  if (numero) {
-    const nDig = String(numero).replace(/\D/g, '').replace(/^0+/, '');
-    const cnpjDig = String(cnpj || '').replace(/\D/g, '');
-    if (nDig) {
-      if (cnpjDig) candidatos.push(emp + '::NUM_' + nDig + '_' + cnpjDig, 'NUM_' + nDig + '_' + cnpjDig);
-      candidatos.push(emp + '::NUM_' + nDig, emp + '::' + nDig, 'NUM_' + nDig);
-    }
-  }
-  for (let i = 0; i < candidatos.length; i++) {
-    if (candidatos[i] && map.has(candidatos[i])) return map.get(candidatos[i]);
-  }
-  return null;
-}
-  </textarea>
-
   <script>
-    const CODE_GS_TEMPLATE = document.getElementById("templateCodeGs").value.trim();
+    const CODE_GS_TEMPLATE = [
+      "function doGet(e) {",
+      "  try {",
+      "    const payload = obterDadosConsolidadosPlanilha();",
+      "    return ContentService",
+      "      .createTextOutput(JSON.stringify({",
+      "        ok: true,",
+      "        atualizadoEm: payload.atualizadoEm,",
+      "        anoReferencia: payload.anoReferencia,",
+      "        empresas: payload.empresas,",
+      "        notas: payload.notas",
+      "      }))",
+      "      .setMimeType(ContentService.MimeType.JSON);",
+      "  } catch (err) {",
+      "    return ContentService",
+      "      .createTextOutput(JSON.stringify({ ok: false, error: err && err.message ? err.message : String(err) }))",
+      "      .setMimeType(ContentService.MimeType.JSON);",
+      "  }",
+      "}",
+      "",
+      "function obterDadosConsolidadosPlanilha() {",
+      "  const ss = SpreadsheetApp.getActiveSpreadsheet();",
+      "  const ignorarAbas = new Set(['DEPARA', 'REGISTRO_NOTAS', 'PARAMETROS', 'CONFIG', 'LOG', 'RESUMO']);",
+      "  const registroMap = new Map();",
+      "  const empresasDetectadas = new Set();",
+      "",
+      "  let anoReferencia = 2026;",
+      "  const abaDepara = ss.getSheetByName('DEPARA');",
+      "  if (abaDepara) {",
+      "    const valsDepara = abaDepara.getDataRange().getValues();",
+      "    outer: for (let r = 0; r < valsDepara.length; r++) {",
+      "      for (let c = 0; c < valsDepara[r].length; c++) {",
+      "        const cellStr = String(valsDepara[r][c] || '').trim();",
+      "        if (/^20\\d{2}$/.test(cellStr)) {",
+      "          anoReferencia = parseInt(cellStr, 10);",
+      "          break outer;",
+      "        }",
+      "      }",
+      "    }",
+      "  }",
+      "",
+      "  const registroSheet = ss.getSheetByName('REGISTRO_NOTAS');",
+      "  if (registroSheet && registroSheet.getLastRow() > 1) {",
+      "    const regData = registroSheet.getDataRange().getValues();",
+      "    const headers = regData[0].map(normalizarCabecalho);",
+      "    const idxId = acharColuna(headers, ['ID', 'IDENTIFICADOR', 'CHAVE']);",
+      "    const idxEmp = acharColuna(headers, ['EMPRESA', 'UNIDADE', 'FILIAL']);",
+      "    const idxArq = acharColuna(headers, ['URL ARQUIVO', 'LINK ARQUIVO', 'ARQUIVO']);",
+      "    const idxPasta = acharColuna(headers, ['URL PASTA', 'LINK PASTA', 'PASTA']);",
+      "    const idxData = acharColuna(headers, ['DATA/HORA', 'DATA HORA', 'DATA']);",
+      "",
+      "    const urlsArqExtra = idxArq >= 0 ? extrairLinksColuna(registroSheet, regData.length, idxArq) : [];",
+      "    const urlsPastaExtra = idxPasta >= 0 ? extrairLinksColuna(registroSheet, regData.length, idxPasta) : [];",
+      "",
+      "    for (let i = 1; i < regData.length; i++) {",
+      "      const row = regData[i];",
+      "      const idRaw = idxId >= 0 ? limparErro(row[idxId]) : '';",
+      "      if (!idRaw) continue;",
+      "      const emp = idxEmp >= 0 ? String(row[idxEmp] || '').trim().toUpperCase() : '';",
+      "      const urlArquivo = limparUrl(idxArq >= 0 ? row[idxArq] : '') || urlsArqExtra[i] || '';",
+      "      const urlPasta = limparUrl(idxPasta >= 0 ? row[idxPasta] : '') || urlsPastaExtra[i] || '';",
+      "      const dataHora = idxData >= 0 ? formatarData(row[idxData], anoReferencia) : '';",
+      "      indexarChave(registroMap, idRaw, emp, { empresa: emp, urlArquivo: urlArquivo, urlPasta: urlPasta, dataHora: dataHora });",
+      "    }",
+      "  }",
+      "",
+      "  const notas = [];",
+      "  ss.getSheets().forEach(sheet => {",
+      "    const nomeAba = String(sheet.getName() || '').trim();",
+      "    const nomeUpper = nomeAba.toUpperCase();",
+      "    if (ignorarAbas.has(nomeUpper)) return;",
+      "",
+      "    const lastRow = sheet.getLastRow();",
+      "    const lastCol = sheet.getLastColumn();",
+      "    if (lastRow < 2 || lastCol < 1) return;",
+      "",
+      "    const data = sheet.getRange(1, 1, lastRow, lastCol).getValues();",
+      "    const infoCab = detectarLinhaCabecalho(data);",
+      "    if (!infoCab) return;",
+      "",
+      "    const headers = infoCab.headers;",
+      "    const colChave = acharColuna(headers, ['CHAVE DE ACESSO DA NFE', 'CHAVE DE ACESSO', 'CHAVE NFE', 'CHAVE NF-E', 'CHAVE']);",
+      "    const colNumero = acharColuna(headers, ['NUMERO DA NF', 'NUMERO NF', 'N. NF', 'N NF', 'NUMERO', 'DOCUMENTO', 'NOTA FISCAL', 'NF', 'NRO']);",
+      "    const colSerie = acharColuna(headers, ['SERIE']);",
+      "    const colCfop = acharColuna(headers, ['CFOP']);",
+      "    const colData = acharColuna(headers, ['DATA DE EMISSAO', 'DATA EMISSAO', 'DATA DE ENTRADA', 'DATA ENTRADA', 'EMISSAO', 'ENTRADA', 'DATA']);",
+      "    const colParceiro = acharColuna(headers, ['DESTINATARIO/REMETENTE', 'DESTINATARIO / REMETENTE', 'DESTINATARIO', 'REMETENTE', 'EMITENTE', 'FORNECEDOR', 'CLIENTE', 'NOME / RAZAO SOCIAL', 'RAZAO SOCIAL', 'PARCEIRO', 'NOME']);",
+      "    const colCnpj = acharColuna(headers, ['CNPJ/CPF', 'CPF/CNPJ', 'CNPJ']);",
+      "    const colValor = acharColuna(headers, ['VALOR CONTABIL', 'VALOR TOTAL', 'VALOR DA MERCADORIA', 'VALOR MERCADORIA', 'VALOR NF', 'VLR CONTABIL', 'VALOR']);",
+      "    const colStatus = acharColuna(headers, ['STATUS FISCAL', 'STATUS', 'SITUACAO FISCAL', 'SITUACAO']);",
+      "    const colUrlArq = acharColuna(headers, ['URL ARQUIVO', 'LINK ARQUIVO', 'LINK ANEXO', 'ANEXO', 'LINK DRIVE', 'ARQUIVO', 'LINK']);",
+      "    const colUrlPasta = acharColuna(headers, ['URL PASTA', 'LINK PASTA', 'PASTA DRIVE', 'PASTA']);",
+      "",
+      "    if (colChave < 0 && colNumero < 0 && colParceiro < 0 && colValor < 0 && colStatus < 0) return;",
+      "    empresasDetectadas.add(nomeUpper);",
+      "",
+      "    const urlsArqExtra = colUrlArq >= 0 ? extrairLinksColuna(sheet, data.length, colUrlArq) : [];",
+      "    const urlsPastaExtra = colUrlPasta >= 0 ? extrairLinksColuna(sheet, data.length, colUrlPasta) : [];",
+      "",
+      "    for (let r = infoCab.headerRowIdx + 1; r < data.length; r++) {",
+      "      const row = data[r];",
+      "      const temAlgumValor = row.some(cel => cel !== null && cel !== undefined && String(cel).trim() !== '');",
+      "      if (!temAlgumValor) continue;",
+      "",
+      "      const chaveBruta = colChave >= 0 ? String(row[colChave] || '').trim() : '';",
+      "      const chaveLimpa = limparErro(chaveBruta);",
+      "      const chaveDigitos = chaveLimpa.replace(/\\D/g, '');",
+      "      const numero = colNumero >= 0 ? limparErro(row[colNumero]) : '';",
+      "      const serie = colSerie >= 0 ? limparErro(row[colSerie]) : '';",
+      "      const cfop = colCfop >= 0 ? limparErro(row[colCfop]) : '';",
+      "      const parceiro = colParceiro >= 0 ? limparErro(row[colParceiro]) : '';",
+      "      const cnpj = colCnpj >= 0 ? limparErro(row[colCnpj]) : '';",
+      "      const valor = colValor >= 0 ? parseValor(row[colValor]) : 0;",
+      "      const statusOriginal = colStatus >= 0 ? limparErro(row[colStatus]) : '';",
+      "      const dataStr = colData >= 0 ? formatarData(row[colData], anoReferencia) : '';",
+      "",
+      "      if (ehCabecalhoRepetidoOuTotal(parceiro, numero, statusOriginal, chaveLimpa, cfop, row)) continue;",
+      "",
+      "      const temCampoNota = Boolean(",
+      "        chaveBruta || numero || parceiro || statusOriginal || cfop || valor > 0 ||",
+      "        dataStr || urlsArqExtra[r] || urlsPastaExtra[r]",
+      "      );",
+      "      if (!temCampoNota) continue;",
+      "",
+      "      const matchReg = buscarNoRegistro(registroMap, nomeUpper, chaveLimpa, numero, cnpj);",
+      "      const urlArquivo = (colUrlArq >= 0 ? limparUrl(row[colUrlArq]) : '') || urlsArqExtra[r] || (matchReg ? matchReg.urlArquivo : '');",
+      "      const urlPasta = (colUrlPasta >= 0 ? limparUrl(row[colUrlPasta]) : '') || urlsPastaExtra[r] || (matchReg ? matchReg.urlPasta : '');",
+      "      const linkDrive = urlArquivo || urlPasta || '';",
+      "",
+      "      const veioDoGmail = /gmail/i.test(statusOriginal);",
+      "      let statusFinal = statusOriginal;",
+      "      if (veioDoGmail && linkDrive) {",
+      "        statusFinal = '🟢 Localizada';",
+      "      } else if (!statusFinal) {",
+      "        statusFinal = linkDrive ? '🟢 Localizada no Drive' : 'Sem status';",
+      "      }",
+      "",
+      "      notas.push({",
+      "        id: nomeUpper + '_L' + (r + 1),",
+      "        linhaPlanilha: r + 1,",
+      "        empresa: nomeUpper,",
+      "        numero: numero,",
+      "        serie: serie,",
+      "        cfop: cfop,",
+      "        chave: chaveDigitos || chaveLimpa,",
+      "        data: dataStr,",
+      "        parceiro: parceiro || 'Não informado',",
+      "        valor: valor,",
+      "        statusOriginal: statusOriginal,",
+      "        statusFiscal: statusFinal,",
+      "        urlArquivo: urlArquivo,",
+      "        urlPasta: urlPasta,",
+      "        linkDrive: linkDrive",
+      "      });",
+      "    }",
+      "  });",
+      "",
+      "  return {",
+      "    atualizadoEm: new Date().toISOString(),",
+      "    anoReferencia: anoReferencia,",
+      "    empresas: Array.from(empresasDetectadas).sort(),",
+      "    notas: notas",
+      "  };",
+      "}",
+      "",
+      "function normalizarCabecalho(h) {",
+      "  return String(h || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim().toUpperCase();",
+      "}",
+      "",
+      "function detectarLinhaCabecalho(data) {",
+      "  const palavras = ['CHAVE', 'CFOP', 'DESTINATARIO', 'REMETENTE', 'FORNECEDOR', 'VALOR', 'STATUS', 'EMISSAO', 'ENTRADA', 'NUMERO', 'DOCUMENTO'];",
+      "  let melhorLinha = -1;",
+      "  let maiorPts = 0;",
+      "  let melhoresHeaders = [];",
+      "  const lim = Math.min(data.length, 15);",
+      "  for (let r = 0; r < lim; r++) {",
+      "    const normRow = data[r].map(normalizarCabecalho);",
+      "    let pts = 0;",
+      "    normRow.forEach(col => { if (col && palavras.some(p => col.includes(p))) pts++; });",
+      "    if (pts > maiorPts) {",
+      "      maiorPts = pts;",
+      "      melhorLinha = r;",
+      "      melhoresHeaders = normRow;",
+      "    }",
+      "  }",
+      "  if (melhorLinha === -1 || maiorPts < 2) return null;",
+      "  return { headerRowIdx: melhorLinha, headers: melhoresHeaders };",
+      "}",
+      "",
+      "function acharColuna(headers, candidatos) {",
+      "  const cands = candidatos.map(normalizarCabecalho);",
+      "  for (let i = 0; i < cands.length; i++) {",
+      "    const idx = headers.indexOf(cands[i]);",
+      "    if (idx !== -1) return idx;",
+      "  }",
+      "  for (let i = 0; i < cands.length; i++) {",
+      "    if (cands[i].length < 4) continue;",
+      "    const idx = headers.findIndex(h => h && h.includes(cands[i]));",
+      "    if (idx !== -1) return idx;",
+      "  }",
+      "  return -1;",
+      "}",
+      "",
+      "function ehCabecalhoRepetidoOuTotal(parceiro, numero, status, chave, cfop, row) {",
+      "  const pNorm = normalizarCabecalho(parceiro);",
+      "  const sNorm = normalizarCabecalho(status);",
+      "  if (sNorm === 'STATUS FISCAL' || pNorm.includes('DESTINATARIO/REMETENTE')) return true;",
+      "  if (!numero && !chave && !status && !cfop) {",
+      "    const txt = normalizarCabecalho(row.join(' '));",
+      "    if (/^(SUB)?TOTAL(\\s+GERAL)?\\b/.test(txt) || (pNorm && /^(SUB)?TOTAL/.test(pNorm))) return true;",
+      "  }",
+      "  return false;",
+      "}",
+      "",
+      "function extrairLinksColuna(sheet, numRows, colIdx) {",
+      "  const res = new Array(numRows).fill('');",
+      "  try {",
+      "    const formulas = sheet.getRange(1, colIdx + 1, numRows, 1).getFormulas();",
+      "    for (let i = 0; i < formulas.length; i++) {",
+      "      const f = formulas[i][0];",
+      "      if (f) {",
+      "        const m = f.match(/https?:\\/\\/[^\\s\"');]+/i);",
+      "        if (m) res[i] = m[0].trim();",
+      "      }",
+      "    }",
+      "  } catch (e) {}",
+      "  try {",
+      "    const richVals = sheet.getRange(1, colIdx + 1, numRows, 1).getRichTextValues();",
+      "    for (let i = 0; i < richVals.length; i++) {",
+      "      if (res[i]) continue;",
+      "      const rt = richVals[i][0];",
+      "      if (!rt) continue;",
+      "      let link = rt.getLinkUrl();",
+      "      if (!link) {",
+      "        const runs = rt.getRuns();",
+      "        for (let k = 0; k < runs.length; k++) {",
+      "          if (runs[k].getLinkUrl()) { link = runs[k].getLinkUrl(); break; }",
+      "        }",
+      "      }",
+      "      if (link && /^https?:\\/\\//i.test(link)) res[i] = link.trim();",
+      "    }",
+      "  } catch (e) {}",
+      "  return res;",
+      "}",
+      "",
+      "function limparErro(val) {",
+      "  if (val === null || val === undefined) return '';",
+      "  const s = String(val).trim();",
+      "  if (!s || s.startsWith('#') || s.toUpperCase().startsWith('ERR:')) return '';",
+      "  return s;",
+      "}",
+      "",
+      "function limparUrl(val) {",
+      "  const s = limparErro(val);",
+      "  if (!s) return '';",
+      "  const m = s.match(/https?:\\/\\/[^\\s\"']+/i);",
+      "  return m ? m[0] : '';",
+      "}",
+      "",
+      "function formatarData(val, anoPadrao) {",
+      "  if (!val) return '';",
+      "  if (Object.prototype.toString.call(val) === '[object Date]' && !isNaN(val.getTime())) {",
+      "    const dd = String(val.getDate()).padStart(2, '0');",
+      "    const mm = String(val.getMonth() + 1).padStart(2, '0');",
+      "    const yyyy = val.getFullYear();",
+      "    return dd + '/' + mm + '/' + yyyy;",
+      "  }",
+      "  const s = limparErro(val);",
+      "  const m = s.match(/(\\d{1,2})[\\/\\-](\\d{1,2})(?:[\\/\\-](\\d{2,4}))?/);",
+      "  if (m) {",
+      "    const dd = m[1].padStart(2, '0');",
+      "    const mm = String(parseInt(m[2], 10)).padStart(2, '0');",
+      "    let yyyy = m[3] ? parseInt(m[3], 10) : (anoPadrao || 2026);",
+      "    if (yyyy < 100) yyyy += 2000;",
+      "    return dd + '/' + mm + '/' + yyyy;",
+      "  }",
+      "  return s;",
+      "}",
+      "",
+      "function parseValor(val) {",
+      "  if (typeof val === 'number') return isFinite(val) ? val : 0;",
+      "  const s = limparErro(val);",
+      "  if (!s) return 0;",
+      "  const limpo = s.replace(/[^0-9,.-]/g, '').replace(/\\.(?=.*,)/g, '').replace(',', '.');",
+      "  const num = parseFloat(limpo);",
+      "  return isNaN(num) ? 0 : num;",
+      "}",
+      "",
+      "function indexarChave(map, idRaw, emp, entry) {",
+      "  const norm = String(idRaw).trim().toUpperCase();",
+      "  const chaves = new Set([norm]);",
+      "  const dig = norm.replace(/\\D/g, '');",
+      "  if (dig.length === 44) chaves.add(dig);",
+      "",
+      "  const matchNum = norm.match(/^NUM_0*(\\d+)(?:_(\\d+))?/);",
+      "  if (matchNum) {",
+      "    chaves.add('NUM_' + matchNum[1]);",
+      "    if (matchNum[2]) chaves.add('NUM_' + matchNum[1] + '_' + matchNum[2]);",
+      "  } else if (/^\\d+$/.test(norm)) {",
+      "    chaves.add(norm.replace(/^0+/, '') || norm);",
+      "  }",
+      "",
+      "  chaves.forEach(k => {",
+      "    if (!k) return;",
+      "    if (emp) {",
+      "      const kEmp = emp + '::' + k;",
+      "      const atualEmp = map.get(kEmp);",
+      "      if (!atualEmp || (!atualEmp.urlArquivo && entry.urlArquivo)) map.set(kEmp, entry);",
+      "    }",
+      "    const atual = map.get(k);",
+      "    if (!atual || (!atual.urlArquivo && entry.urlArquivo)) map.set(k, entry);",
+      "  });",
+      "}",
+      "",
+      "function buscarNoRegistro(map, emp, chave, numero, cnpj) {",
+      "  const candidatos = [];",
+      "  if (chave) {",
+      "    const cNorm = chave.trim().toUpperCase();",
+      "    const cDig = cNorm.replace(/\\D/g, '');",
+      "    candidatos.push(emp + '::' + cNorm, emp + '::' + cDig, cNorm, cDig);",
+      "  }",
+      "  if (numero) {",
+      "    const nDig = String(numero).replace(/\\D/g, '').replace(/^0+/, '');",
+      "    const cnpjDig = String(cnpj || '').replace(/\\D/g, '');",
+      "    if (nDig) {",
+      "      if (cnpjDig) candidatos.push(emp + '::NUM_' + nDig + '_' + cnpjDig, 'NUM_' + nDig + '_' + cnpjDig);",
+      "      candidatos.push(emp + '::NUM_' + nDig, emp + '::' + nDig, 'NUM_' + nDig);",
+      "    }",
+      "  }",
+      "  for (let i = 0; i < candidatos.length; i++) {",
+      "    if (candidatos[i] && map.has(candidatos[i])) return map.get(candidatos[i]);",
+      "  }",
+      "  return null;",
+      "}"
+    ].join("\n");
 
     const DADOS_DEMO = [
       {
@@ -938,8 +935,8 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       const val = (str === null || str === undefined) ? "" : String(str);
       return val
         .replace(/&/g, "&")
-        .replace(/</g, "<")
-        .replace(/>/g, ">")
+        .replace(/\x3c/g, "<")
+        .replace(/\x3e/g, ">")
         .replace(/"/g, """)
         .replace(/'/g, "'");
     }
@@ -1048,10 +1045,10 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       const urlAtiva = (estado.webappUrl || FIXED_WEBAPP_URL || "").trim();
 
       if (estado.modo === "demo" || !urlAtiva) {
-        estado.notas = DADOS_DEMO.map((n, i) => normalizarNota(n, i));
-        estado.empresas = Array.from(new Set(estado.notas.map(n => n.empresa))).filter(Boolean).sort();
+        estado.notas = DADOS_DEMO.map(function (n, i) { return normalizarNota(n, i); });
+        estado.empresas = Array.from(new Set(estado.notas.map(function (n) { return n.empresa; }))).filter(Boolean).sort();
         if (estado.empresasSelecionadas.size === 0) {
-          estado.empresas.forEach(e => estado.empresasSelecionadas.add(e));
+          estado.empresas.forEach(function (e) { estado.empresasSelecionadas.add(e); });
         }
         statusEl.textContent = "Modo Demonstração • Dados locais carregados";
         mostrarAlerta("Exibindo dados de demonstração. Configure ou conecte o Web App para ler sua planilha real.", "info");
@@ -1075,16 +1072,19 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
 
         const payload = json.notas ? json : (json.data || {});
         const listaBruta = Array.isArray(payload.notas) ? payload.notas : [];
-        estado.notas = listaBruta.map((n, i) => normalizarNota(n, i));
+        estado.notas = listaBruta.map(function (n, i) { return normalizarNota(n, i); });
 
-        const setEmp = new Set(Array.isArray(payload.empresas) ? payload.empresas.map(e => String(e).trim().toUpperCase()) : []);
-        estado.notas.forEach(n => {
+        const listaEmpresas = Array.isArray(payload.empresas)
+          ? payload.empresas.map(function (e) { return String(e).trim().toUpperCase(); })
+          : [];
+        const setEmp = new Set(listaEmpresas);
+        estado.notas.forEach(function (n) {
           if (n.empresa) setEmp.add(n.empresa);
         });
         estado.empresas = Array.from(setEmp).filter(Boolean).sort();
 
         if (estado.empresasSelecionadas.size === 0) {
-          estado.empresas.forEach(e => estado.empresasSelecionadas.add(e));
+          estado.empresas.forEach(function (e) { estado.empresasSelecionadas.add(e); });
         }
 
         statusEl.textContent = "Conectado à planilha • " + estado.notas.length + " notas carregadas";
@@ -1093,10 +1093,10 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
         renderizarNotasPlanilha();
       } catch (err) {
         console.error(err);
-        estado.notas = DADOS_DEMO.map((n, i) => normalizarNota(n, i));
-        estado.empresas = Array.from(new Set(estado.notas.map(n => n.empresa))).filter(Boolean).sort();
+        estado.notas = DADOS_DEMO.map(function (n, i) { return normalizarNota(n, i); });
+        estado.empresas = Array.from(new Set(estado.notas.map(function (n) { return n.empresa; }))).filter(Boolean).sort();
         if (estado.empresasSelecionadas.size === 0) {
-          estado.empresas.forEach(e => estado.empresasSelecionadas.add(e));
+          estado.empresas.forEach(function (e) { estado.empresasSelecionadas.add(e); });
         }
         statusEl.textContent = "Falha na conexão com Web App • Exibindo exemplo";
         mostrarAlerta(
@@ -1112,22 +1112,24 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       const selectFiltro = document.getElementById("filtroEmpresaNotas");
       const valorAtual = selectFiltro.value;
       selectFiltro.innerHTML = '<option value="">Todas as empresas</option>' +
-        estado.empresas.map(emp => '<option value="' + escapeHtml(emp) + '">' + escapeHtml(emp) + '</option>').join("");
+        estado.empresas.map(function (emp) {
+          return '<option value="' + escapeHtml(emp) + '">' + escapeHtml(emp) + '</option>';
+        }).join("");
       if (estado.empresas.includes(valorAtual)) {
         selectFiltro.value = valorAtual;
       }
 
       const containerEmp = document.getElementById("containerEmpresasConferencia");
-      containerEmp.innerHTML = estado.empresas.map((emp, idx) => {
+      containerEmp.innerHTML = estado.empresas.map(function (emp, idx) {
         const ativa = estado.empresasSelecionadas.has(emp);
         const cls = ativa
           ? "bg-blue-600 text-white border-blue-600"
           : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100";
-        return '<button type="button" data-emp-idx="' + idx + '" onclick="toggleEmpresaPorIndice(' + idx + ')" class="px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer ' + cls + '">' + escapeHtml(emp) + '</button>';
+        return '<button type="button" onclick="toggleEmpresaPorIndice(' + idx + ')" class="px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer ' + cls + '">' + escapeHtml(emp) + '</button>';
       }).join("");
 
       const containerMes = document.getElementById("containerMesesConferencia");
-      containerMes.innerHTML = MESES.map(m => {
+      containerMes.innerHTML = MESES.map(function (m) {
         const ativo = estado.mesesSelecionados.has(m.code);
         const cls = ativo
           ? "bg-slate-900 text-white border-slate-900"
@@ -1149,7 +1151,9 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
 
     function selecionarTodasEmpresas(marcar) {
       estado.empresasSelecionadas.clear();
-      if (marcar) estado.empresas.forEach(e => estado.empresasSelecionadas.add(e));
+      if (marcar) {
+        estado.empresas.forEach(function (e) { estado.empresasSelecionadas.add(e); });
+      }
       sincronizarControlesEmpresa();
     }
 
@@ -1164,7 +1168,9 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
 
     function selecionarTodosMeses(marcar) {
       estado.mesesSelecionados.clear();
-      if (marcar) MESES.forEach(m => estado.mesesSelecionados.add(m.code));
+      if (marcar) {
+        MESES.forEach(function (m) { estado.mesesSelecionados.add(m.code); });
+      }
       sincronizarControlesEmpresa();
     }
 
@@ -1198,7 +1204,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       const mesFilter = document.getElementById("filtroMesNotas").value;
       const ocultarDesc = document.getElementById("ocultarDesconsideradasNotas").checked;
 
-      const filtradas = estado.notas.filter(n => {
+      const filtradas = estado.notas.filter(function (n) {
         const statusStr = String(n.statusFiscal || "") + " " + String(n.statusOriginal || "");
         if (ocultarDesc && statusStr.toLowerCase().includes("desconsider")) return false;
         if (empresa && String(n.empresa || "").toUpperCase() !== empresa) return false;
@@ -1220,8 +1226,12 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
         return true;
       });
 
-      const comDrive = filtradas.filter(n => Boolean(extrairUrlValida(n.urlArquivo) || extrairUrlValida(n.urlPasta) || extrairUrlValida(n.linkDrive))).length;
-      const somaValor = filtradas.reduce((acc, n) => acc + Number(n.valor || 0), 0);
+      const comDrive = filtradas.filter(function (n) {
+        return Boolean(extrairUrlValida(n.urlArquivo) || extrairUrlValida(n.urlPasta) || extrairUrlValida(n.linkDrive));
+      }).length;
+      const somaValor = filtradas.reduce(function (acc, n) {
+        return acc + Number(n.valor || 0);
+      }, 0);
 
       document.getElementById("metricTotalNotas").textContent =
         filtradas.length === estado.notas.length
@@ -1238,7 +1248,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
         return;
       }
 
-      tbody.innerHTML = filtradas.map(n => {
+      tbody.innerHTML = filtradas.map(function (n) {
         const chaveCurta = n.chave
           ? (n.chave.length > 20 ? (n.chave.slice(0, 10) + "..." + n.chave.slice(-6)) : n.chave)
           : "-";
@@ -1278,7 +1288,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
         progEl.textContent = "Extraindo texto do PDF: página " + p + " de " + pdf.numPages + "...";
         const page = await pdf.getPage(p);
         const content = await page.getTextContent();
-        const strings = content.items.map(item => item.str).filter(Boolean);
+        const strings = content.items.map(function (item) { return item.str; }).filter(Boolean);
         paginasTexto.push(strings.join(" "));
       }
 
@@ -1298,18 +1308,19 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       const linhas = String(texto || "")
         .replace(/\r/g, "")
         .split("\n")
-        .map(l => l.trim())
+        .map(function (l) { return l.trim(); })
         .filter(Boolean);
 
       const itens = [];
-      linhas.forEach((linha, idx) => {
+      linhas.forEach(function (linha, idx) {
         const chaves44 = linha.match(/\d{44}/g) || [];
-        const partes = linha.split(/[;|\t,]/).map(s => s.trim());
+        const partes = linha.split(/[;|\t,]/).map(function (s) { return s.trim(); });
 
         let empresaDetectada = "";
         for (let i = 0; i < estado.empresas.length; i++) {
           const emp = estado.empresas[i];
-          const reEmp = new RegExp("(^|[^A-Z0-9_])" + emp.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&") + "([^A-Z0-9_]|$)", "i");
+          const empEscapada = emp.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+          const reEmp = new RegExp("(^|[^A-Z0-9_])" + empEscapada + "([^A-Z0-9_]|$)", "i");
           if (reEmp.test(linha)) {
             empresaDetectada = emp;
             break;
@@ -1320,4 +1331,334 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
         const dataStr = dataMatch ? dataMatch[1] : "";
 
         let valorNum = 0;
-        const moedaMatch = linha.match(/R\$\s*([\d.]+,\d{2})|(\d
+        const moedaMatch = linha.match(/R\$\s*([\d.]+,\d{2})|(\d{1,3}(?:\.\d{3})*,\d{2})/);
+        if (moedaMatch) {
+          const bruto = (moedaMatch[1] || moedaMatch[2]).replace(/\./g, "").replace(",", ".");
+          valorNum = parseFloat(bruto) || 0;
+        }
+
+        let numero = "";
+        const semChaves = linha.replace(/\d{44}/g, " ");
+        const numMatch = semChaves.match(/(?:NF[-e]?|N[º°.]?|NUM(?:ERO)?)\s*[:#\-]?\s*0*(\d{1,9})/i);
+        if (numMatch) {
+          numero = numMatch[1];
+        } else if (partes.length > 1) {
+          const candParte = partes.find(function (p) { return /^\d{1,9}$/.test(p.replace(/^0+/, "") || p); });
+          if (candParte) numero = candParte.replace(/^0+/, "") || candParte;
+        } else {
+          const tokensNum = semChaves.match(/\d{2,8}/g) || [];
+          const candidato = tokensNum.find(function (t) { return !/^\d{8}$/.test(t); });
+          if (candidato) numero = candidato.replace(/^0+/, "") || candidato;
+        }
+
+        if (chaves44.length > 0 || numero) {
+          itens.push({
+            linha: idx + 1,
+            raw: linha,
+            empresa: empresaDetectada,
+            numero: numero,
+            chave: chaves44[0] || "",
+            data: dataStr,
+            valor: valorNum
+          });
+        }
+      });
+
+      return itens;
+    }
+
+    function executarConferencia() {
+      const empresasAlvo = estado.empresasSelecionadas;
+      const mesesAlvo = estado.mesesSelecionados;
+      const textoLivro = document.getElementById("textoLivroFiscal").value;
+
+      if (empresasAlvo.size === 0) {
+        mostrarAlerta("Selecione pelo menos uma empresa para a conferência.", "warn");
+        return;
+      }
+
+      const notasBase = estado.notas.filter(function (n) {
+        const emp = String(n.empresa || "").trim().toUpperCase();
+        if (!empresasAlvo.has(emp)) return false;
+        if (mesesAlvo.size > 0) {
+          const mesNota = extrairMesDaData(n.data);
+          if (mesNota && !mesesAlvo.has(mesNota)) return false;
+        }
+        return true;
+      });
+
+      const itensLivro = parsearLivroFiscal(textoLivro).filter(function (item) {
+        if (item.empresa && !empresasAlvo.has(item.empresa)) return false;
+        if (mesesAlvo.size > 0 && item.data) {
+          const mesItem = extrairMesDaData(item.data);
+          if (mesItem && !mesesAlvo.has(mesItem)) return false;
+        }
+        return true;
+      });
+
+      const mapaPorChave = new Map();
+      const mapaPorEmpNum = new Map();
+
+      notasBase.forEach(function (n) {
+        const emp = String(n.empresa || "").toUpperCase();
+        const ch = String(n.chave || "").replace(/\D/g, "");
+        const num = String(n.numero || "").replace(/^0+/, "");
+        if (ch) mapaPorChave.set(ch, n);
+        if (emp && num) mapaPorEmpNum.set(emp + "::" + num, n);
+      });
+
+      const usadasPlanilha = new Set();
+      const resultados = [];
+
+      itensLivro.forEach(function (item) {
+        const ch = String(item.chave || "").replace(/\D/g, "");
+        const num = String(item.numero || "").replace(/^0+/, "");
+        const emp = item.empresa || Array.from(empresasAlvo)[0] || "";
+
+        let match = null;
+        if (ch && mapaPorChave.has(ch)) {
+          match = mapaPorChave.get(ch);
+        } else if (emp && num && mapaPorEmpNum.has(emp + "::" + num)) {
+          match = mapaPorEmpNum.get(emp + "::" + num);
+        } else if (num) {
+          match = notasBase.find(function (n) { return String(n.numero || "").replace(/^0+/, "") === num; }) || null;
+        }
+
+        if (match) {
+          usadasPlanilha.add(match);
+          const temLink = Boolean(extrairUrlValida(match.urlArquivo) || extrairUrlValida(match.urlPasta) || extrairUrlValida(match.linkDrive));
+          resultados.push({
+            statusCode: temLink ? "NO_DRIVE" : "SEM_LINK_DRIVE",
+            statusLabel: temLink ? "🟢 Localizada" : "🟡 Na Planilha (Sem Link)",
+            empresa: match.empresa || emp,
+            numero: match.numero || item.numero || "-",
+            chave: match.chave || item.chave || "",
+            data: match.data || item.data || "-",
+            valor: Number(match.valor || item.valor || 0),
+            urlArquivo: match.urlArquivo || "",
+            urlPasta: match.urlPasta || "",
+            linkDrive: match.linkDrive || ""
+          });
+        } else {
+          resultados.push({
+            statusCode: "FALTANDO_PLANILHA",
+            statusLabel: "🔴 Não Localizada na Planilha",
+            empresa: emp || "-",
+            numero: item.numero || "-",
+            chave: item.chave || "",
+            data: item.data || "-",
+            valor: Number(item.valor || 0),
+            urlArquivo: "",
+            urlPasta: "",
+            linkDrive: ""
+          });
+        }
+      });
+
+      notasBase.forEach(function (n) {
+        if (!usadasPlanilha.has(n)) {
+          resultados.push({
+            statusCode: "APENAS_PLANILHA",
+            statusLabel: "🟠 Só na Planilha (Não no Livro)",
+            empresa: n.empresa || "-",
+            numero: n.numero || "-",
+            chave: n.chave || "",
+            data: n.data || "-",
+            valor: Number(n.valor || 0),
+            urlArquivo: n.urlArquivo || "",
+            urlPasta: n.urlPasta || "",
+            linkDrive: n.linkDrive || ""
+          });
+        }
+      });
+
+      estado.resultadosConferencia = resultados;
+      renderizarResultadoConferencia();
+      mostrarAlerta("Conferência concluída: " + resultados.length + " registro(s) consolidado(s).", "success");
+    }
+
+    function renderizarResultadoConferencia() {
+      const todos = estado.resultadosConferencia;
+      const noDrive = todos.filter(function (r) { return r.statusCode === "NO_DRIVE"; }).length;
+      const semLinkOuFaltando = todos.filter(function (r) { return r.statusCode === "SEM_LINK_DRIVE" || r.statusCode === "FALTANDO_PLANILHA"; }).length;
+      const apenasPlanilha = todos.filter(function (r) { return r.statusCode === "APENAS_PLANILHA"; }).length;
+
+      document.getElementById("confMetricTotal").textContent = todos.length;
+      document.getElementById("confMetricNoDrive").textContent = noDrive;
+      document.getElementById("confMetricFaltando").textContent = semLinkOuFaltando;
+      document.getElementById("confMetricApenasPlanilha").textContent = apenasPlanilha;
+
+      const filtroStatus = document.getElementById("filtroStatusConferencia").value;
+      const busca = (document.getElementById("filtroBuscaConferencia").value || "").trim().toLowerCase();
+
+      const visiveis = todos.filter(function (r) {
+        if (filtroStatus !== "TODOS" && r.statusCode !== filtroStatus) return false;
+        if (busca) {
+          const alvo = [r.statusLabel, r.empresa, r.numero, r.chave, r.data].join(" ").toLowerCase();
+          if (!alvo.includes(busca)) return false;
+        }
+        return true;
+      });
+
+      const tbody = document.getElementById("tbodyResultadoConferencia");
+      if (visiveis.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">Nenhum item corresponde ao filtro selecionado.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = visiveis.map(function (r) {
+        const chaveCurta = r.chave ? (r.chave.length > 20 ? (r.chave.slice(0, 10) + "..." + r.chave.slice(-6)) : r.chave) : "-";
+        return (
+          '<tr class="hover:bg-slate-50">' +
+            '<td class="px-4 py-3 text-xs font-semibold whitespace-nowrap">' + escapeHtml(r.statusLabel) + '</td>' +
+            '<td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">' + escapeHtml(r.empresa) + '</td>' +
+            '<td class="px-4 py-3 whitespace-nowrap">' + escapeHtml(r.numero) + '</td>' +
+            '<td class="px-4 py-3 font-mono text-xs text-slate-600" title="' + escapeHtml(r.chave) + '">' + escapeHtml(chaveCurta) + '</td>' +
+            '<td class="px-4 py-3 whitespace-nowrap text-slate-600">' + escapeHtml(r.data) + '</td>' +
+            '<td class="px-4 py-3 text-right font-medium whitespace-nowrap">' + formatarMoeda(r.valor) + '</td>' +
+            '<td class="px-4 py-3 text-center whitespace-nowrap">' + renderizarBotoesDrive(r) + '</td>' +
+          '</tr>'
+        );
+      }).join("");
+    }
+
+    function exportarCsvConferencia() {
+      const lista = estado.resultadosConferencia;
+      if (!lista || lista.length === 0) {
+        mostrarAlerta("Não há resultado de conferência para exportar.", "warn");
+        return;
+      }
+      const cab = ["Status", "Empresa", "Numero", "Chave", "Data", "Valor", "URL Arquivo", "URL Pasta"];
+      const linhas = lista.map(function (r) {
+        return [
+          r.statusLabel,
+          r.empresa,
+          r.numero,
+          r.chave,
+          r.data,
+          Number(r.valor || 0).toFixed(2).replace(".", ","),
+          r.urlArquivo,
+          r.urlPasta
+        ].map(function (v) { return '"' + String(v || "").replace(/"/g, '""') + '"'; }).join(";");
+      });
+
+      const csv = "\uFEFF" + [cab.join(";")].concat(linhas).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "conferencia-livro-fiscal-" + new Date().toISOString().slice(0, 10) + ".csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function atualizarContadorLinhasLivro() {
+      const linhas = document.getElementById("textoLivroFiscal").value
+        .replace(/\r/g, "")
+        .split("\n")
+        .map(function (l) { return l.trim(); })
+        .filter(Boolean).length;
+      document.getElementById("resumoTextoLivro").textContent = linhas + " linha(s) carregada(s) no livro fiscal";
+    }
+
+    // Eventos
+    document.getElementById("btnAtualizarDados").addEventListener("click", carregarDadosPlanilha);
+    document.getElementById("filtroBuscaNotas").addEventListener("input", renderizarNotasPlanilha);
+    document.getElementById("filtroEmpresaNotas").addEventListener("change", renderizarNotasPlanilha);
+    document.getElementById("filtroDriveNotas").addEventListener("change", renderizarNotasPlanilha);
+    document.getElementById("filtroMesNotas").addEventListener("change", renderizarNotasPlanilha);
+    document.getElementById("ocultarDesconsideradasNotas").addEventListener("change", renderizarNotasPlanilha);
+
+    document.getElementById("btnLimparFiltrosNotas").addEventListener("click", function () {
+      document.getElementById("filtroBuscaNotas").value = "";
+      document.getElementById("filtroEmpresaNotas").value = "";
+      document.getElementById("filtroDriveNotas").value = "TODAS";
+      document.getElementById("filtroMesNotas").value = "";
+      document.getElementById("ocultarDesconsideradasNotas").checked = false;
+      renderizarNotasPlanilha();
+    });
+
+    document.getElementById("textoLivroFiscal").addEventListener("input", atualizarContadorLinhasLivro);
+    document.getElementById("btnLimparLivro").addEventListener("click", function () {
+      document.getElementById("textoLivroFiscal").value = "";
+      document.getElementById("progressoArquivoLivro").classList.add("hidden");
+      atualizarContadorLinhasLivro();
+    });
+
+    document.getElementById("btnCarregarExemploLivro").addEventListener("click", function () {
+      document.getElementById("textoLivroFiscal").value = [
+        "ALPINE; NF 1021; 35260112345678000199550010000010211000010210; 12/01/2026; 14.850,00",
+        "MEDIC; NF 1022; 35260198765432000111550010000010221000010225; 18/01/2026; 8.320,50",
+        "ALPINE; NF 9999; 35260111111111000122550010000099991000009999; 25/01/2026; 3.150,00"
+      ].join("\n");
+      atualizarContadorLinhasLivro();
+    });
+
+    document.getElementById("inputArquivoLivro").addEventListener("change", async function (e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        if (file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf") {
+          const textoExtraido = await extrairTextoPdf(file);
+          const textarea = document.getElementById("textoLivroFiscal");
+          textarea.value = textarea.value.trim()
+            ? (textarea.value.trim() + "\n" + textoExtraido)
+            : textoExtraido;
+        } else {
+          const texto = await file.text();
+          document.getElementById("textoLivroFiscal").value = texto;
+        }
+        atualizarContadorLinhasLivro();
+      } catch (err) {
+        mostrarAlerta("Erro ao ler arquivo: " + err.message, "error");
+      } finally {
+        e.target.value = "";
+      }
+    });
+
+    document.getElementById("btnExecutarConferencia").addEventListener("click", executarConferencia);
+    document.getElementById("filtroStatusConferencia").addEventListener("change", renderizarResultadoConferencia);
+    document.getElementById("filtroBuscaConferencia").addEventListener("input", renderizarResultadoConferencia);
+    document.getElementById("btnExportarCsvConferencia").addEventListener("click", exportarCsvConferencia);
+
+    // Modal Fonte de Dados
+    const modal = document.getElementById("modalFonteDados");
+    document.getElementById("btnAbrirFonteDados").addEventListener("click", function () {
+      document.getElementById("selectModoFonte").value = estado.modo;
+      document.getElementById("inputWebAppUrl").value = estado.webappUrl || FIXED_WEBAPP_URL;
+      modal.classList.remove("hidden");
+    });
+    document.getElementById("btnFecharModal").addEventListener("click", function () {
+      modal.classList.add("hidden");
+    });
+    document.getElementById("btnCancelarModal").addEventListener("click", function () {
+      modal.classList.add("hidden");
+    });
+    document.getElementById("btnRestaurarUrlPadrao").addEventListener("click", function () {
+      document.getElementById("inputWebAppUrl").value = FIXED_WEBAPP_URL;
+    });
+    document.getElementById("btnCopiarCodeGs").addEventListener("click", async function () {
+      try {
+        await navigator.clipboard.writeText(CODE_GS_TEMPLATE);
+        mostrarAlerta("Código Code.gs copiado para a área de transferência!", "success");
+      } catch (e) {
+        mostrarAlerta("Não foi possível copiar automaticamente; selecione e copie o código manualmente.", "warn");
+      }
+    });
+    document.getElementById("btnSalvarFonteDados").addEventListener("click", function () {
+      const novoModo = document.getElementById("selectModoFonte").value;
+      const novaUrl = (document.getElementById("inputWebAppUrl").value || FIXED_WEBAPP_URL).trim();
+      estado.modo = novoModo;
+      estado.webappUrl = novaUrl;
+      localStorage.setItem(STORAGE_KEY_MODE, novoModo);
+      localStorage.setItem(STORAGE_KEY_URL, novaUrl);
+      modal.classList.add("hidden");
+      carregarDadosPlanilha();
+    });
+
+    // Inicialização
+    sincronizarControlesEmpresa();
+    carregarDadosPlanilha();
+  </script>
+</body>
+</html>
