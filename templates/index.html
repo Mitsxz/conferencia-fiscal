@@ -56,10 +56,121 @@
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
+  <!-- Tela de Login Corporativo (OTP 6 Dígitos) -->
+  <div
+    id="telaLoginOtp"
+    class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+    style="background: radial-gradient(circle at top, #1346a5 0%, #0b2559 48%, #051129 100%);"
+  >
+    <div class="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/30 max-w-md w-full p-7 sm:p-8 space-y-6">
+      <div class="text-center space-y-2">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-slate-950 border border-blue-400/30 shadow-lg flex items-center justify-center overflow-hidden">
+          <img
+            src="static/logo.png"
+            alt="Logo"
+            class="w-full h-full object-contain p-2"
+            onerror="this.style.display='none'; document.getElementById('loginLogoFallback').style.display='flex';"
+          />
+          <span id="loginLogoFallback" style="display:none;" class="w-full h-full items-center justify-center text-cyan-300 font-extrabold text-lg">
+            CF
+          </span>
+        </div>
+        <h2 class="text-xl font-extrabold text-slate-900 tracking-tight">Controle Fiscal</h2>
+        <p class="text-xs text-slate-500 leading-relaxed">
+          Acesso exclusivo para colaboradores com e-mail<br />
+          <strong class="text-blue-700">@medic.com.br</strong> ou <strong class="text-blue-700">@surgilog.com.br</strong>
+        </p>
+      </div>
+
+      <div id="boxMensagemLogin" class="hidden rounded-xl border px-3.5 py-2.5 text-xs font-medium"></div>
+
+      <!-- Etapa 1: Solicitar Código por E-mail -->
+      <form id="formEtapaEmail" class="space-y-4" onsubmit="event.preventDefault(); solicitarCodigoAcesso();">
+        <div>
+          <label for="inputEmailCorporativo" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+            Seu E-mail Corporativo
+          </label>
+          <input
+            id="inputEmailCorporativo"
+            type="email"
+            required
+            autocomplete="email"
+            placeholder="nome@medic.com.br ou nome@surgilog.com.br"
+            class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
+          />
+        </div>
+        <button
+          id="btnEnviarCodigoOtp"
+          type="submit"
+          class="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold text-sm shadow-md transition cursor-pointer"
+        >
+          Receber Código de 6 Dígitos
+        </button>
+      </form>
+
+      <!-- Etapa 2: Validar Código de 6 Dígitos -->
+      <form id="formEtapaCodigo" class="hidden space-y-4" onsubmit="event.preventDefault(); validarCodigoAcesso();">
+        <div class="rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5 flex items-center justify-between gap-2">
+          <div class="truncate">
+            <span class="block text-[11px] text-slate-400 font-semibold uppercase">Enviado para</span>
+            <span id="labelEmailDestinoOtp" class="text-xs font-bold text-slate-800 truncate"></span>
+          </div>
+          <button
+            type="button"
+            onclick="voltarParaEtapaEmail()"
+            class="text-xs font-semibold text-blue-600 hover:underline shrink-0 cursor-pointer"
+          >
+            Trocar e-mail
+          </button>
+        </div>
+
+        <div>
+          <label for="inputCodigoOtp" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5 text-center">
+            Digite o Código de 6 Dígitos
+          </label>
+          <input
+            id="inputCodigoOtp"
+            type="text"
+            inputmode="numeric"
+            maxlength="6"
+            pattern="[0-9]{6}"
+            required
+            autocomplete="one-time-code"
+            placeholder="000000"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-center text-2xl font-extrabold tracking-[0.45em] font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
+          />
+        </div>
+
+        <button
+          id="btnConfirmarCodigoOtp"
+          type="submit"
+          class="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-sm shadow-md transition cursor-pointer"
+        >
+          Confirmar e Entrar
+        </button>
+
+        <div class="text-center pt-1">
+          <button
+            id="btnReenviarCodigoOtp"
+            type="button"
+            onclick="solicitarCodigoAcesso(true)"
+            class="text-xs font-medium text-slate-500 hover:text-blue-600 transition cursor-pointer"
+          >
+            Não recebeu? Reenviar código
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     const FIXED_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxFae1FnWxiULCK0LKvXN61W__D1ImiDGOfTHFUmO7sujfkgPkapsrcIDtcM_LrLJAYeg/exec";
     const STORAGE_KEY_URL = "controle_fiscal_webapp_url_v3";
     const STORAGE_KEY_MODE = "controle_fiscal_mode_v3";
+    const STORAGE_KEY_AUTH_TOKEN = "controle_fiscal_otp_token_v1";
+    const STORAGE_KEY_AUTH_EMAIL = "controle_fiscal_otp_email_v1";
+    const STORAGE_KEY_AUTH_EXP = "controle_fiscal_otp_exp_v1";
+    const DOMINIOS_LOGIN_PERMITIDOS = ["medic.com.br", "surgilog.com.br"];
   </script>
 
   <!-- Cabeçalho com Degradê Azul Horizontal -->
@@ -87,8 +198,11 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-2.5">
-        <button
+            <div class="flex flex-wrap items-center gap-2.5">
+        <span
+          id="badgeUsuarioLogado"
+          class="hidden px-2.5 py-1.5 rounded-lg bg-slate-950/45 border border-white/15 text-xs font-semibold text-cyan-200"
+        ></span>   <button
           id="btnAtualizarDados"
           type="button"
           class="px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg border border-white/25 bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm shadow-sm transition cursor-pointer"
@@ -101,6 +215,14 @@
           class="px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-slate-950/75 hover:bg-slate-950 text-white border border-cyan-300/35 shadow-md transition cursor-pointer"
         >
           Fonte de Dados / Apps Script
+        </button>
+        <button
+          id="btnSairConta"
+          type="button"
+          onclick="encerrarSessaoUsuario()"
+          class="hidden px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-rose-600/85 hover:bg-rose-600 text-white border border-rose-300/30 shadow-sm transition cursor-pointer"
+        >
+          Sair
         </button>
       </div>
     </div>
@@ -563,9 +685,18 @@
     };
 
     var CODE_GS_TEMPLATE = `/**
- * Code.gs - Consolida abas de empresas, DEPARA e REGISTRO_NOTAS
- * identificando CFOP (Codigo), Numero nota e se a nota é Entrada onde a empresa da aba é destinatária.
+ * Code.gs - Controle Fiscal & Conferência com Livro Fiscal
+ * Com autenticação própria por código de 6 dígitos no e-mail (@medic.com.br e @surgilog.com.br)
+ * e sessão segura por token (7 dias).
  */
+const DOMINIOS_PERMITIDOS = [
+  'medic.com.br',
+  'surgilog.com.br'
+];
+
+const TEMPO_EXPIRACAO_OTP_SEGUNDOS = 600; // 10 minutos no CacheService
+const DIAS_VALIDADE_SESSAO = 7;
+
 const CNPJS_PROPRIOS_ABA = {
   'ALPINE': ['42168779000107'],
   'MEDIC': ['08049999000175'],
@@ -582,27 +713,228 @@ const CNPJS_PROPRIOS_ABA = {
   'RENOVA': ['31047312000184']
 };
 
+function responderJson(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function emailEhPermitido(email) {
+  const limpo = String(email || '').trim().toLowerCase();
+  if (!limpo || limpo.indexOf('@') === -1) return false;
+  const partes = limpo.split('@');
+  if (partes.length !== 2 || !partes[0]) return false;
+  const dominio = partes[1];
+  return DOMINIOS_PERMITIDOS.indexOf(dominio) !== -1;
+}
+
+function enviarCodigoOtp(emailRaw) {
+  const email = String(emailRaw || '').trim().toLowerCase();
+  if (!emailEhPermitido(email)) {
+    return responderJson({
+      ok: false,
+      authError: true,
+      error: 'Acesso permitido somente para e-mails @medic.com.br ou @surgilog.com.br.'
+    });
+  }
+
+  const cache = CacheService.getScriptCache();
+  const chaveRate = 'OTP_RATE_' + email;
+  if (cache.get(chaveRate)) {
+    return responderJson({
+      ok: false,
+      error: 'Aguarde 30 segundos antes de solicitar um novo código.'
+    });
+  }
+
+  const codigo = String(Math.floor(100000 + Math.random() * 900000));
+  const payloadOtp = JSON.stringify({
+    codigo: codigo,
+    tentativas: 0,
+    criadoEm: Date.now()
+  });
+
+  cache.put('OTP_CODE_' + email, payloadOtp, TEMPO_EXPIRACAO_OTP_SEGUNDOS);
+  cache.put(chaveRate, '1', 30);
+
+  const assunto = 'Código de Acesso: ' + codigo + ' - Controle Fiscal';
+  const corpoHtml =
+    '<div style="font-family:Segoe UI,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:14px;background:#ffffff;color:#0f172a;">' +
+      '<h2 style="margin:0 0 8px 0;color:#0b2559;font-size:18px;">Controle Fiscal &amp; Conferência</h2>' +
+      '<p style="margin:0 0 16px 0;font-size:14px;color:#475569;">Use o código de 6 dígitos abaixo para entrar no painel:</p>' +
+      '<div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:12px;padding:16px;text-align:center;font-size:30px;font-weight:800;letter-spacing:8px;color:#0f172a;">' +
+        codigo +
+      '</div>' +
+      '<p style="margin:16px 0 0 0;font-size:12px;color:#64748b;">Este código expira em 10 minutos. Se você não solicitou este acesso, ignore este e-mail.</p>' +
+    '</div>';
+
+  MailApp.sendEmail({
+    to: email,
+    subject: assunto,
+    body: 'Seu código de acesso ao Controle Fiscal é: ' + codigo + ' (válido por 10 minutos).',
+    htmlBody: corpoHtml,
+    name: 'Controle Fiscal'
+  });
+
+  return responderJson({
+    ok: true,
+    mensagem: 'Código de 6 dígitos enviado para ' + email
+  });
+}
+
+function verificarCodigoOtp(emailRaw, codigoRaw) {
+  const email = String(emailRaw || '').trim().toLowerCase();
+  const codigoDigitado = String(codigoRaw || '').replace(/\\D/g, '');
+
+  if (!emailEhPermitido(email)) {
+    return responderJson({
+      ok: false,
+      authError: true,
+      error: 'Domínio de e-mail não autorizado.'
+    });
+  }
+
+  if (codigoDigitado.length !== 6) {
+    return responderJson({
+      ok: false,
+      error: 'Informe os 6 dígitos do código enviado.'
+    });
+  }
+
+  const cache = CacheService.getScriptCache();
+  const chaveOtp = 'OTP_CODE_' + email;
+  const salvoStr = cache.get(chaveOtp);
+
+  if (!salvoStr) {
+    return responderJson({
+      ok: false,
+      error: 'Código expirado ou não encontrado. Solicite um novo código.'
+    });
+  }
+
+  const dadosOtp = JSON.parse(salvoStr);
+  if (dadosOtp.tentativas >= 5) {
+    cache.remove(chaveOtp);
+    return responderJson({
+      ok: false,
+      error: 'Muitas tentativas incorretas. Solicite um novo código.'
+    });
+  }
+
+  if (dadosOtp.codigo !== codigoDigitado) {
+    dadosOtp.tentativas += 1;
+    cache.put(chaveOtp, JSON.stringify(dadosOtp), 300);
+    return responderJson({
+      ok: false,
+      error: 'Código incorreto. Verifique seu e-mail e tente novamente.'
+    });
+  }
+
+  cache.remove(chaveOtp);
+
+  const token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+  const expiraEm = Date.now() + (DIAS_VALIDADE_SESSAO * 24 * 60 * 60 * 1000);
+  const sessaoObj = {
+    email: email,
+    expiraEm: expiraEm
+  };
+
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('SESSAO_' + token, JSON.stringify(sessaoObj));
+
+  return responderJson({
+    ok: true,
+    token: token,
+    email: email,
+    expiraEm: expiraEm
+  });
+}
+
+function validarSessaoToken(tokenRaw) {
+  const token = String(tokenRaw || '').trim();
+  if (!token || token.length < 20) return null;
+
+  const props = PropertiesService.getScriptProperties();
+  const chave = 'SESSAO_' + token;
+  const bruto = props.getProperty(chave);
+  if (!bruto) return null;
+
+  try {
+    const sessao = JSON.parse(bruto);
+    if (!sessao || !sessao.email || !sessao.expiraEm) {
+      props.deleteProperty(chave);
+      return null;
+    }
+    if (Date.now() > Number(sessao.expiraEm) || !emailEhPermitido(sessao.email)) {
+      props.deleteProperty(chave);
+      return null;
+    }
+    return sessao;
+  } catch (e) {
+    props.deleteProperty(chave);
+    return null;
+  }
+}
+
+function encerrarSessaoToken(tokenRaw) {
+  const token = String(tokenRaw || '').trim();
+  if (token) {
+    PropertiesService.getScriptProperties().deleteProperty('SESSAO_' + token);
+  }
+  return responderJson({ ok: true });
+}
+
 function doGet(e) {
   try {
-    const payload = obterDadosConsolidadosPlanilha();
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        ok: true,
-        atualizadoEm: payload.atualizadoEm,
-        anoReferencia: payload.anoReferencia,
-        empresas: payload.empresas,
-        notas: payload.notas,
-        data: payload
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({
+    const params = (e && e.parameter) ? e.parameter : {};
+    const acao = String(params.action || 'dados').trim().toLowerCase();
+
+    if (acao === 'solicitar_codigo') {
+      return enviarCodigoOtp(params.email);
+    }
+
+    if (acao === 'verificar_codigo') {
+      return verificarCodigoOtp(params.email, params.codigo);
+    }
+
+    if (acao === 'logout') {
+      return encerrarSessaoToken(params.token);
+    }
+
+    const sessao = validarSessaoToken(params.token);
+    if (!sessao) {
+      return responderJson({
         ok: false,
-        error: err && err.message ? err.message : String(err)
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
+        authError: true,
+        error: 'Sessão expirada ou não autenticada. Entre novamente com seu e-mail corporativo.'
+      });
+    }
+
+    const payload = obterDadosConsolidadosPlanilha();
+    return responderJson({
+      ok: true,
+      usuario: { email: sessao.email, expiraEm: sessao.expiraEm },
+      atualizadoEm: payload.atualizadoEm,
+      anoReferencia: payload.anoReferencia,
+      empresas: payload.empresas,
+      notas: payload.notas,
+      data: payload
+    });
+  } catch (err) {
+    return responderJson({
+      ok: false,
+      error: err && err.message ? err.message : String(err)
+    });
   }
+}
+
+/**
+ * Execute esta função 1 vez pelo editor do Apps Script (botão Executar)
+ * apenas para o Google solicitar a permissão de envio de e-mail (MailApp).
+ */
+function autorizarPermissoesEmail() {
+  const restante = MailApp.getRemainingDailyQuota();
+  Logger.log('Permissão de e-mail ativa! Cota diária restante: ' + restante);
 }
 
 function obterDadosConsolidadosPlanilha() {
@@ -621,7 +953,7 @@ function obterDadosConsolidadosPlanilha() {
     outer: for (let r = 0; r < valsDepara.length; r++) {
       for (let c = 0; c < valsDepara[r].length; c++) {
         const cellStr = String(valsDepara[r][c] || '').trim();
-        if (/^20\d{2}$/.test(cellStr)) {
+        if (/^20\\d{2}$/.test(cellStr)) {
           anoReferencia = parseInt(cellStr, 10);
           break outer;
         }
@@ -701,7 +1033,7 @@ function obterDadosConsolidadosPlanilha() {
 
       const chaveBruta = colChave >= 0 ? String(row[colChave] || '').trim() : '';
       const chaveLimpa = limparErro(chaveBruta);
-      const chaveDigitos = chaveLimpa.replace(/\D/g, '');
+      const chaveDigitos = chaveLimpa.replace(/\\D/g, '');
       let numero = colNumero >= 0 ? formatarInteiroLimpo(row[colNumero]) : '';
       if (!numero && chaveDigitos.length === 44) {
         numero = chaveDigitos.slice(25, 34).replace(/^0+/, '') || '0';
@@ -710,7 +1042,7 @@ function obterDadosConsolidadosPlanilha() {
       const cliFor = colCliFor >= 0 ? formatarInteiroLimpo(row[colCliFor]) : '';
       const parceiro = colParceiro >= 0 ? limparErro(row[colParceiro]) : '';
       const cnpj = colCnpj >= 0 ? limparErro(row[colCnpj]) : '';
-      const cnpjDigitos = cnpj.replace(/\D/g, '');
+      const cnpjDigitos = cnpj.replace(/\\D/g, '');
       const valor = colValor >= 0 ? parseValor(row[colValor]) : 0;
       const statusOriginal = colStatus >= 0 ? limparErro(row[colStatus]) : '';
       const dataStr = colData >= 0 ? formatarData(row[colData], anoReferencia) : '';
@@ -736,8 +1068,8 @@ function obterDadosConsolidadosPlanilha() {
       const urlPasta = (colUrlPasta >= 0 ? limparUrl(row[colUrlPasta]) : '') || urlsPastaExtra[r] || (matchReg ? matchReg.urlPasta : '');
       const linkDrive = urlArquivo || urlPasta || '';
 
-      const temDriveGs = /drive\.google\.com/i.test(linkDrive);
-      const temEmailGs = /mail\.google\.com/i.test(urlArquivo) || /mail\.google\.com/i.test(urlPasta) || /achou\s*e-?mail/i.test(statusOriginal);
+      const temDriveGs = /drive\\.google\\.com/i.test(linkDrive);
+      const temEmailGs = /mail\\.google\\.com/i.test(urlArquivo) || /mail\\.google\\.com/i.test(urlPasta) || /achou\\s*e-?mail/i.test(statusOriginal);
       const veioDoGmail = /gmail/i.test(statusOriginal);
       let statusFinal = statusOriginal;
       let statusCorGs = 'VERMELHO';
@@ -787,7 +1119,7 @@ function obterDadosConsolidadosPlanilha() {
 }
 
 function normalizarCabecalho(h) {
-  return String(h || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+  return String(h || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim().toUpperCase();
 }
 
 function detectarLinhaCabecalho(data) {
@@ -818,7 +1150,7 @@ function acharColunaCfop(headers) {
   }
   const idxCfop = headers.findIndex(h => h && h.includes('CFOP'));
   if (idxCfop !== -1) return idxCfop;
-  return headers.findIndex(h => h && /^CODIGO\b/.test(h) && !h.includes('DESCRICAO'));
+  return headers.findIndex(h => h && /^CODIGO\\b/.test(h) && !h.includes('DESCRICAO'));
 }
 
 function formatarCfopPlanilha(val) {
@@ -830,7 +1162,7 @@ function formatarCfopPlanilha(val) {
   }
   const s = limparErro(val);
   if (!s) return '';
-  return s.replace(/\D/g, '');
+  return s.replace(/\\D/g, '');
 }
 
 function acharColunaNumeroNota(headers) {
@@ -876,7 +1208,7 @@ function formatarInteiroLimpo(val) {
   }
   const s = limparErro(val);
   if (!s) return '';
-  if (/^\d{1,3}([.,]\d{3})+$/.test(s)) {
+  if (/^\\d{1,3}([.,]\\d{3})+$/.test(s)) {
     return s.replace(/[.,]/g, '');
   }
   return s;
@@ -888,7 +1220,7 @@ function ehCabecalhoRepetidoOuTotal(parceiro, numero, status, chave, cfop, row) 
   if (sNorm === 'STATUS FISCAL' || pNorm === 'NOME' || pNorm.includes('DESTINATARIO/REMETENTE')) return true;
   if (!numero && !chave && !status && !cfop) {
     const txt = normalizarCabecalho(row.join(' '));
-    if (/^(SUB)?TOTAL(\s+GERAL)?\b/.test(txt) || (pNorm && /^(SUB)?TOTAL/.test(pNorm))) return true;
+    if (/^(SUB)?TOTAL(\\s+GERAL)?\\b/.test(txt) || (pNorm && /^(SUB)?TOTAL/.test(pNorm))) return true;
   }
   return false;
 }
@@ -900,7 +1232,7 @@ function extrairLinksColuna(sheet, numRows, colIdx) {
     for (let i = 0; i < formulas.length; i++) {
       const f = formulas[i][0];
       if (f) {
-        const m = f.match(/https?:\/\/[^\s"');]+/i);
+        const m = f.match(/https?:\\/\\/[^\\s"');]+/i);
         if (m) res[i] = m[0].trim();
       }
     }
@@ -918,7 +1250,7 @@ function extrairLinksColuna(sheet, numRows, colIdx) {
           if (runs[k].getLinkUrl()) { link = runs[k].getLinkUrl(); break; }
         }
       }
-      if (link && /^https?:\/\//i.test(link)) res[i] = link.trim();
+      if (link && /^https?:\\/\\//i.test(link)) res[i] = link.trim();
     }
   } catch (e) {}
   return res;
@@ -934,7 +1266,7 @@ function limparErro(val) {
 function limparUrl(val) {
   const s = limparErro(val);
   if (!s) return '';
-  const m = s.match(/https?:\/\/[^\s"']+/i);
+  const m = s.match(/https?:\\/\\/[^\\s"']+/i);
   return m ? m[0] : '';
 }
 
@@ -947,7 +1279,7 @@ function formatarData(val, anoPadrao) {
     return dd + '/' + mm + '/' + yyyy;
   }
   const s = limparErro(val);
-  const m = s.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+  const m = s.match(/(\\d{1,2})[\\/\\-](\\d{1,2})(?:[\\/\\-](\\d{2,4}))?/);
   if (m) {
     const dd = m[1].padStart(2, '0');
     const mm = String(parseInt(m[2], 10)).padStart(2, '0');
@@ -962,7 +1294,7 @@ function parseValor(val) {
   if (typeof val === 'number') return isFinite(val) ? val : 0;
   const s = limparErro(val);
   if (!s) return 0;
-  const limpo = s.replace(/[^0-9,.-]/g, '').replace(/\.(?=.*,)/g, '').replace(',', '.');
+  const limpo = s.replace(/[^0-9,.-]/g, '').replace(/\\.(?=.*,)/g, '').replace(',', '.');
   const num = parseFloat(limpo);
   return isNaN(num) ? 0 : num;
 }
@@ -970,14 +1302,14 @@ function parseValor(val) {
 function indexarChave(map, idRaw, emp, entry) {
   const norm = String(idRaw).trim().toUpperCase();
   const chaves = new Set([norm]);
-  const dig = norm.replace(/\D/g, '');
+  const dig = norm.replace(/\\D/g, '');
   if (dig.length === 44) chaves.add(dig);
 
-  const matchNum = norm.match(/^NUM_0*(\d+)(?:_(\d+))?/);
+  const matchNum = norm.match(/^NUM_0*(\\d+)(?:_(\\d+))?/);
   if (matchNum) {
     chaves.add('NUM_' + matchNum[1]);
     if (matchNum[2]) chaves.add('NUM_' + matchNum[1] + '_' + matchNum[2]);
-  } else if (/^\d+$/.test(norm)) {
+  } else if (/^\\d+$/.test(norm)) {
     chaves.add(norm.replace(/^0+/, '') || norm);
   }
 
@@ -997,12 +1329,12 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
   const candidatos = [];
   if (chave) {
     const cNorm = chave.trim().toUpperCase();
-    const cDig = cNorm.replace(/\D/g, '');
+    const cDig = cNorm.replace(/\\D/g, '');
     candidatos.push(emp + '::' + cNorm, emp + '::' + cDig, cNorm, cDig);
   }
   if (numero) {
-    const nDig = String(numero).replace(/\D/g, '').replace(/^0+/, '');
-    const cnpjDig = String(cnpj || '').replace(/\D/g, '');
+    const nDig = String(numero).replace(/\\D/g, '').replace(/^0+/, '');
+    const cnpjDig = String(cnpj || '').replace(/\\D/g, '');
     if (nDig) {
       if (cnpjDig) candidatos.push(emp + '::NUM_' + nDig + '_' + cnpjDig, 'NUM_' + nDig + '_' + cnpjDig);
       candidatos.push(emp + '::NUM_' + nDig, emp + '::' + nDig, 'NUM_' + nDig);
@@ -1334,11 +1666,26 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       statusEl.textContent = "Conectando à planilha via Apps Script...";
       mostrarAlerta("", "info");
 
+      var tokenSessao = obterTokenSessaoValido();
+      if (!tokenSessao) {
+        exibirTelaLogin("Entre com seu e-mail @medic.com.br ou @surgilog.com.br para visualizar as notas.", "info");
+        statusEl.textContent = "Aguardando autenticação corporativa...";
+        return;
+      }
+
       try {
         var sep = urlAtiva.includes("?") ? "&" : "?";
-        var resp = await fetch(urlAtiva + sep + "_t=" + Date.now(), { method: "GET" });
+        var urlComToken = urlAtiva + sep + "action=dados&token=" + encodeURIComponent(tokenSessao) + "&_t=" + Date.now();
+        var resp = await fetch(urlComToken, { method: "GET" });
         if (!resp.ok) throw new Error("HTTP " + resp.status);
         var json = await resp.json();
+
+        if (json && json.authError) {
+          limparSessaoLocal();
+          exibirTelaLogin(json.error || "Sua sessão expirou. Solicite um novo código de 6 dígitos.", "warn");
+          statusEl.textContent = "Sessão expirada • Faça login novamente";
+          return;
+        }
 
         if (!json || json.ok === false) {
           throw new Error(json && json.error ? json.error : "Resposta inválida do Web App.");
@@ -2019,10 +2366,249 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       tester.src = candidatos[0];
     }
 
+    var emailPendenteOtp = "";
+
+    function emailCorporativoPermitido(email) {
+      var limpo = String(email || "").trim().toLowerCase();
+      var partes = limpo.split("@");
+      if (partes.length !== 2 || !partes[0]) return false;
+      return DOMINIOS_LOGIN_PERMITIDOS.indexOf(partes[1]) !== -1;
+    }
+
+    function mostrarMensagemLogin(msg, tipo) {
+      var box = document.getElementById("boxMensagemLogin");
+      if (!box) return;
+      if (!msg) {
+        box.className = "hidden";
+        box.textContent = "";
+        return;
+      }
+      var estilos = {
+        info: "bg-blue-50 border-blue-200 text-blue-800",
+        success: "bg-emerald-50 border-emerald-200 text-emerald-800",
+        warn: "bg-amber-50 border-amber-200 text-amber-800",
+        error: "bg-rose-50 border-rose-200 text-rose-700"
+      };
+      box.className = "rounded-xl border px-3.5 py-2.5 text-xs font-medium " + (estilos[tipo] || estilos.info);
+      box.textContent = msg;
+    }
+
+    function obterTokenSessaoValido() {
+      var token = localStorage.getItem(STORAGE_KEY_AUTH_TOKEN) || "";
+      var email = localStorage.getItem(STORAGE_KEY_AUTH_EMAIL) || "";
+      var exp = Number(localStorage.getItem(STORAGE_KEY_AUTH_EXP) || 0);
+      if (!token || !email || !emailCorporativoPermitido(email)) return "";
+      if (exp && Date.now() > exp) {
+        limparSessaoLocal();
+        return "";
+      }
+      return token;
+    }
+
+    function limparSessaoLocal() {
+      localStorage.removeItem(STORAGE_KEY_AUTH_TOKEN);
+      localStorage.removeItem(STORAGE_KEY_AUTH_EMAIL);
+      localStorage.removeItem(STORAGE_KEY_AUTH_EXP);
+    }
+
+    function atualizarCabecalhoUsuario(email) {
+      var badge = document.getElementById("badgeUsuarioLogado");
+      var btnSair = document.getElementById("btnSairConta");
+      if (email) {
+        if (badge) {
+          badge.textContent = email;
+          badge.classList.remove("hidden");
+        }
+        if (btnSair) btnSair.classList.remove("hidden");
+      } else {
+        if (badge) {
+          badge.textContent = "";
+          badge.classList.add("hidden");
+        }
+        if (btnSair) btnSair.classList.add("hidden");
+      }
+    }
+
+    function exibirTelaLogin(mensagemInicial, tipoMensagem) {
+      atualizarCabecalhoUsuario("");
+      var tela = document.getElementById("telaLoginOtp");
+      if (tela) tela.classList.remove("hidden");
+      mostrarMensagemLogin(mensagemInicial || "", tipoMensagem || "info");
+    }
+
+    function ocultarTelaLogin(emailLogado) {
+      var tela = document.getElementById("telaLoginOtp");
+      if (tela) tela.classList.add("hidden");
+      atualizarCabecalhoUsuario(emailLogado);
+    }
+
+    function voltarParaEtapaEmail() {
+      document.getElementById("formEtapaCodigo").classList.add("hidden");
+      document.getElementById("formEtapaEmail").classList.remove("hidden");
+      document.getElementById("inputCodigoOtp").value = "";
+      mostrarMensagemLogin("", "info");
+    }
+
+    async function solicitarCodigoAcesso(ehReenvio) {
+      var inputEmail = document.getElementById("inputEmailCorporativo");
+      var email = ehReenvio
+        ? emailPendenteOtp
+        : String(inputEmail.value || "").trim().toLowerCase();
+
+      if (!emailCorporativoPermitido(email)) {
+        mostrarMensagemLogin(
+          "Acesso negado: informe um e-mail corporativo terminado em @medic.com.br ou @surgilog.com.br.",
+          "error"
+        );
+        return;
+      }
+
+      var urlAtiva = (estado.webappUrl || FIXED_WEBAPP_URL || "").trim();
+      if (!urlAtiva) {
+        mostrarMensagemLogin("URL do Apps Script não configurada.", "error");
+        return;
+      }
+
+      var btnEnviar = document.getElementById("btnEnviarCodigoOtp");
+      var btnReenviar = document.getElementById("btnReenviarCodigoOtp");
+      if (btnEnviar) {
+        btnEnviar.disabled = true;
+        btnEnviar.textContent = "Enviando código...";
+      }
+      if (btnReenviar) btnReenviar.disabled = true;
+      mostrarMensagemLogin("Enviando código de 6 dígitos para " + email + "...", "info");
+
+      try {
+        var sep = urlAtiva.includes("?") ? "&" : "?";
+        var resp = await fetch(
+          urlAtiva + sep + "action=solicitar_codigo&email=" + encodeURIComponent(email) + "&_t=" + Date.now(),
+          { method: "GET" }
+        );
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        var json = await resp.json();
+
+        if (!json || json.ok === false) {
+          throw new Error(json && json.error ? json.error : "Falha ao solicitar código no Apps Script. Verifique se você atualizou e implantou Nova Versão do Code.gs.");
+        }
+
+        emailPendenteOtp = email;
+        document.getElementById("labelEmailDestinoOtp").textContent = email;
+        document.getElementById("formEtapaEmail").classList.add("hidden");
+        document.getElementById("formEtapaCodigo").classList.remove("hidden");
+        var campoCodigo = document.getElementById("inputCodigoOtp");
+        campoCodigo.value = "";
+        campoCodigo.focus();
+        mostrarMensagemLogin("Código enviado! Confira sua caixa de entrada (e spam) e digite os 6 números.", "success");
+      } catch (err) {
+        mostrarMensagemLogin(err.message || "Erro de conexão ao enviar código.", "error");
+      } finally {
+        if (btnEnviar) {
+          btnEnviar.disabled = false;
+          btnEnviar.textContent = "Receber Código de 6 Dígitos";
+        }
+        if (btnReenviar) btnReenviar.disabled = false;
+      }
+    }
+
+    async function validarCodigoAcesso() {
+      var campoCodigo = document.getElementById("inputCodigoOtp");
+      var codigo = String(campoCodigo.value || "").replace(/\D/g, "");
+
+      if (!emailPendenteOtp || !emailCorporativoPermitido(emailPendenteOtp)) {
+        voltarParaEtapaEmail();
+        mostrarMensagemLogin("Informe seu e-mail corporativo novamente.", "warn");
+        return;
+      }
+
+      if (codigo.length !== 6) {
+        mostrarMensagemLogin("Digite os 6 números enviados para o seu e-mail.", "warn");
+        return;
+      }
+
+      var urlAtiva = (estado.webappUrl || FIXED_WEBAPP_URL || "").trim();
+      var btnConfirmar = document.getElementById("btnConfirmarCodigoOtp");
+      if (btnConfirmar) {
+        btnConfirmar.disabled = true;
+        btnConfirmar.textContent = "Verificando...";
+      }
+      mostrarMensagemLogin("Validando código de acesso...", "info");
+
+      try {
+        var sep = urlAtiva.includes("?") ? "&" : "?";
+        var resp = await fetch(
+          urlAtiva + sep +
+          "action=verificar_codigo&email=" + encodeURIComponent(emailPendenteOtp) +
+          "&codigo=" + encodeURIComponent(codigo) +
+          "&_t=" + Date.now(),
+          { method: "GET" }
+        );
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        var json = await resp.json();
+
+        if (!json || json.ok === false || !json.token) {
+          throw new Error(json && json.error ? json.error : "Código inválido ou expirado.");
+        }
+
+        localStorage.setItem(STORAGE_KEY_AUTH_TOKEN, json.token);
+        localStorage.setItem(STORAGE_KEY_AUTH_EMAIL, json.email || emailPendenteOtp);
+        if (json.expiraEm) {
+          localStorage.setItem(STORAGE_KEY_AUTH_EXP, String(json.expiraEm));
+        }
+
+        ocultarTelaLogin(json.email || emailPendenteOtp);
+        carregarDadosPlanilha();
+      } catch (err) {
+        mostrarMensagemLogin(err.message || "Não foi possível validar o código.", "error");
+      } finally {
+        if (btnConfirmar) {
+          btnConfirmar.disabled = false;
+          btnConfirmar.textContent = "Confirmar e Entrar";
+        }
+      }
+    }
+
+    async function encerrarSessaoUsuario() {
+      var tokenAtual = localStorage.getItem(STORAGE_KEY_AUTH_TOKEN) || "";
+      limparSessaoLocal();
+      estado.notas = [];
+      estado.resultadosConferencia = [];
+      renderizarNotasPlanilha();
+      renderizarResultadoConferencia();
+      voltarParaEtapaEmail();
+      exibirTelaLogin("Você saiu da sua conta corporativa.", "info");
+
+      var urlAtiva = (estado.webappUrl || FIXED_WEBAPP_URL || "").trim();
+      if (tokenAtual && urlAtiva) {
+        try {
+          var sep = urlAtiva.includes("?") ? "&" : "?";
+          await fetch(urlAtiva + sep + "action=logout&token=" + encodeURIComponent(tokenAtual), { method: "GET" });
+        } catch (e) {}
+      }
+    }
+
+    document.getElementById("inputCodigoOtp").addEventListener("input", function (e) {
+      e.target.value = String(e.target.value || "").replace(/\D/g, "").slice(0, 6);
+    });
+
+    function iniciarAplicacaoComAutenticacao() {
+      var tokenValido = obterTokenSessaoValido();
+      var emailSalvo = localStorage.getItem(STORAGE_KEY_AUTH_EMAIL) || "";
+      if (tokenValido && emailSalvo) {
+        ocultarTelaLogin(emailSalvo);
+        carregarDadosPlanilha();
+      } else if (estado.modo === "demo") {
+        ocultarTelaLogin("Modo Demonstração");
+        carregarDadosPlanilha();
+      } else {
+        exibirTelaLogin("", "info");
+        document.getElementById("statusConexaoTexto").textContent = "Aguardando login corporativo...";
+      }
+    }
+
     // Inicialização
     configurarFaviconELogo();
     sincronizarControlesEmpresa();
-    carregarDadosPlanilha();
+    iniciarAplicacaoComAutenticacao();
   </script>
 </body>
 </html>
