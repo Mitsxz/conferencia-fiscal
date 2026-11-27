@@ -321,7 +321,6 @@
                   id="inputArquivoLivro"
                   type="file"
                   accept=".pdf,.csv,.tsv,.txt,.json"
-                  multiple
                   class="hidden"
                 />
               </label>
@@ -392,15 +391,6 @@
       <div class="surface-card rounded-xl overflow-hidden">
         <div class="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-white">
           <div class="flex flex-wrap items-center gap-2">
-            <label for="filtroEmpresaConferencia" class="text-xs font-semibold text-slate-600">
-              Empresa:
-            </label>
-            <select
-              id="filtroEmpresaConferencia"
-              class="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white font-semibold text-slate-800"
-            >
-              <option value="">Todas as empresas</option>
-            </select>
             <label for="filtroStatusConferencia" class="text-xs font-semibold text-slate-600">
               Filtrar resultado:
             </label>
@@ -1180,6 +1170,7 @@
       const statusOriginal = String(n.statusOriginal || n.statusFiscal || "").trim();
       const achouEmailPorStatus = /achou\s*e-?mail/i.test(statusOriginal) || Boolean(urlEmail);
       const veioDoGmail = /gmail/i.test(statusOriginal) || /gmail/i.test(String(n.statusFiscal || ""));
+      const semDefinicao = !temDrive && !achouEmailPorStatus && !urlDanfe && (!statusOriginal || /^[-—]?$/.test(statusOriginal));
 
       let statusCor = "VERMELHO";
       let statusExibicao = "";
@@ -1190,13 +1181,16 @@
           statusExibicao = "🟢 Localizada";
         } else {
           statusExibicao = statusOriginal && !/desconsider/i.test(statusOriginal)
-            ? statusOriginal.replace(/^[🔴🟠🟡🟢🤖⚠️]+\s*/, "🟢 ")
+            ? statusOriginal.replace(/^[🔴🟠🟡🟢🤖⚠️⚪]+\s*/, "🟢 ")
             : "🟢 Localizada no Drive";
         }
       } else if (achouEmailPorStatus) {
         statusCor = "AMARELO";
         if (!urlDanfe) urlDanfe = "https://consultadanfe.com/";
         statusExibicao = "🟡 Achou e-mail, nota não validada";
+      } else if (semDefinicao) {
+        statusCor = "BRANCO";
+        statusExibicao = "⚪ Não definido";
       } else {
         statusCor = "VERMELHO";
         if (!urlDanfe && /consulta\s*danfe/i.test(statusOriginal)) {
@@ -1205,10 +1199,10 @@
         if (/desconsider/i.test(statusOriginal)) {
           statusExibicao = "🔴 Não localizada (Desconsiderada)";
         } else if (statusOriginal) {
-          const limpoSt = statusOriginal.replace(/^[🔴🟠🟡🟢🤖⚠️]+\s*/, "").split("|")[0].trim();
+          const limpoSt = statusOriginal.replace(/^[🔴🟠🟡🟢🤖⚠️⚪]+\s*/, "").split("|")[0].trim();
           statusExibicao = "🔴 " + (limpoSt || "Não localizada");
         } else {
-          statusExibicao = "🔴 Não localizada";
+          statusExibicao = "⚪ Não definido";
         }
       }
 
@@ -1415,23 +1409,6 @@
         selectFiltro.value = valorAtual;
       }
 
-      const selectConfEmp = document.getElementById("filtroEmpresaConferencia");
-      if (selectConfEmp) {
-        const valorConfAtual = selectConfEmp.value;
-        const opcoesConf = estado.empresasSelecionadas.size > 0
-          ? estado.empresas.filter(function (e) { return estado.empresasSelecionadas.has(e); })
-          : estado.empresas;
-        selectConfEmp.innerHTML = '<option value="">Todas as empresas</option>' +
-          opcoesConf.map(function (emp) {
-            return '<option value="' + escapeHtml(emp) + '">' + escapeHtml(emp) + '</option>';
-          }).join("");
-        if (opcoesConf.includes(valorConfAtual)) {
-          selectConfEmp.value = valorConfAtual;
-        } else {
-          selectConfEmp.value = "";
-        }
-      }
-
       const containerEmp = document.getElementById("containerEmpresasConferencia");
       containerEmp.innerHTML = estado.empresas.map(function (emp, idx) {
         const ativa = estado.empresasSelecionadas.has(emp);
@@ -1488,12 +1465,15 @@
     }
 
     function renderizarBadgeStatus(nota) {
-      const txt = String(nota.statusFiscal || "-");
+      const txt = String(nota.statusFiscal || "⚪ Não definido");
       if (nota.statusCor === "VERDE") {
         return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">' + escapeHtml(txt) + '</span>';
       }
       if (nota.statusCor === "AMARELO") {
         return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300">' + escapeHtml(txt) + '</span>';
+      }
+      if (nota.statusCor === "BRANCO") {
+        return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white text-slate-700 border border-slate-300 shadow-2xs">' + escapeHtml(txt) + '</span>';
       }
       return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">' + escapeHtml(txt) + '</span>';
     }
@@ -1675,7 +1655,7 @@
           }
         }
 
-        const dataMatch = linha.match(/(\d{2}\/\d{2}\/\d{2,4}|\d{4}-\d{2}-\d{2})/);
+        const dataMatch = linha.match(/(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})/);
         const dataStr = dataMatch ? dataMatch[1] : "";
 
         let valorNum = 0;
@@ -1699,8 +1679,6 @@
           if (candidato) numero = candidato.replace(/^0+/, "") || candidato;
         }
 
-        // Fallback seguro: se houver chave de acesso NF-e de 44 dígitos e não foi achado número explícito,
-        // extrai o número da nota nas posições 25..34 da chave (padrão nacional NF-e).
         if (!numero && chaves44.length > 0 && chaves44[0].length === 44) {
           numero = chaves44[0].slice(25, 34).replace(/^0+/, "") || "0";
         }
@@ -1742,8 +1720,7 @@
         return true;
       });
 
-      const itensLivroBrutos = parsearLivroFiscal(textoLivro);
-      const itensLivro = itensLivroBrutos.filter(function (item) {
+      const itensLivro = parsearLivroFiscal(textoLivro).filter(function (item) {
         if (item.empresa && !empresasAlvo.has(item.empresa)) return false;
         if (mesesAlvo.size > 0 && item.data) {
           const mesItem = extrairMesDaData(item.data);
@@ -1837,19 +1814,12 @@
     }
 
     function renderizarResultadoConferencia() {
-      const empFiltroEl = document.getElementById("filtroEmpresaConferencia");
-      const empresaFiltro = empFiltroEl ? String(empFiltroEl.value || "").trim().toUpperCase() : "";
-      const basePorEmpresa = empresaFiltro
-        ? estado.resultadosConferencia.filter(function (r) {
-            return String(r.empresa || "").trim().toUpperCase() === empresaFiltro;
-          })
-        : estado.resultadosConferencia;
+      const todos = estado.resultadosConferencia;
+      const noDrive = todos.filter(function (r) { return r.statusCode === "NO_DRIVE"; }).length;
+      const semLinkOuFaltando = todos.filter(function (r) { return r.statusCode === "SEM_LINK_DRIVE" || r.statusCode === "FALTANDO_PLANILHA"; }).length;
+      const apenasPlanilha = todos.filter(function (r) { return r.statusCode === "APENAS_PLANILHA"; }).length;
 
-      const noDrive = basePorEmpresa.filter(function (r) { return r.statusCode === "NO_DRIVE"; }).length;
-      const semLinkOuFaltando = basePorEmpresa.filter(function (r) { return r.statusCode === "SEM_LINK_DRIVE" || r.statusCode === "FALTANDO_PLANILHA"; }).length;
-      const apenasPlanilha = basePorEmpresa.filter(function (r) { return r.statusCode === "APENAS_PLANILHA"; }).length;
-
-      document.getElementById("confMetricTotal").textContent = basePorEmpresa.length;
+      document.getElementById("confMetricTotal").textContent = todos.length;
       document.getElementById("confMetricNoDrive").textContent = noDrive;
       document.getElementById("confMetricFaltando").textContent = semLinkOuFaltando;
       document.getElementById("confMetricApenasPlanilha").textContent = apenasPlanilha;
@@ -1857,8 +1827,7 @@
       const filtroStatus = document.getElementById("filtroStatusConferencia").value;
       const busca = (document.getElementById("filtroBuscaConferencia").value || "").trim().toLowerCase();
 
-      const visiveis = basePorEmpresa.filter(function (r) {
-        if (empresaFiltro && String(r.empresa || "").trim().toUpperCase() !== empresaFiltro) return false;
+      const visiveis = todos.filter(function (r) {
         if (filtroStatus !== "TODOS" && r.statusCode !== filtroStatus) return false;
         if (busca) {
           const alvo = [r.statusLabel, r.empresa, r.cfop, formatarCfop(r.cfop), r.numero, formatarNumeroNota(r.numero), r.chave, r.data].join(" ").toLowerCase();
@@ -1965,35 +1934,20 @@
     });
 
     document.getElementById("inputArquivoLivro").addEventListener("change", async function (e) {
-      const files = Array.from(e.target.files || []);
-      if (files.length === 0) return;
-      const textarea = document.getElementById("textoLivroFiscal");
-      const progEl = document.getElementById("progressoArquivoLivro");
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
       try {
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          if (file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf") {
-            const textoExtraido = await extrairTextoPdf(file);
-            if (textoExtraido && textoExtraido.trim()) {
-              textarea.value = textarea.value.trim()
-                ? (textarea.value.trim() + "\n" + textoExtraido)
-                : textoExtraido;
-            }
-          } else {
-            const texto = await file.text();
-            if (texto && texto.trim()) {
-              textarea.value = textarea.value.trim()
-                ? (textarea.value.trim() + "\n" + texto)
-                : texto;
-            }
-          }
-          atualizarContadorLinhasLivro();
+        if (file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf") {
+          const textoExtraido = await extrairTextoPdf(file);
+          const textarea = document.getElementById("textoLivroFiscal");
+          textarea.value = textarea.value.trim()
+            ? (textarea.value.trim() + "\n" + textoExtraido)
+            : textoExtraido;
+        } else {
+          const texto = await file.text();
+          document.getElementById("textoLivroFiscal").value = texto;
         }
-        if (files.length > 1) {
-          progEl.classList.remove("hidden");
-          progEl.className = "rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-800";
-          progEl.textContent = files.length + " arquivo(s) processado(s) e consolidado(s) no livro fiscal. Clique em Conferir Notas Agora.";
-        }
+        atualizarContadorLinhasLivro();
       } catch (err) {
         mostrarAlerta("Erro ao ler arquivo: " + err.message, "error");
       } finally {
@@ -2002,7 +1956,6 @@
     });
 
     document.getElementById("btnExecutarConferencia").addEventListener("click", executarConferencia);
-    document.getElementById("filtroEmpresaConferencia").addEventListener("change", renderizarResultadoConferencia);
     document.getElementById("filtroStatusConferencia").addEventListener("change", renderizarResultadoConferencia);
     document.getElementById("filtroBuscaConferencia").addEventListener("input", renderizarResultadoConferencia);
     document.getElementById("btnExportarCsvConferencia").addEventListener("click", exportarCsvConferencia);
