@@ -1699,6 +1699,12 @@
           if (candidato) numero = candidato.replace(/^0+/, "") || candidato;
         }
 
+        // Fallback seguro: se houver chave de acesso NF-e de 44 dígitos e não foi achado número explícito,
+        // extrai o número da nota nas posições 25..34 da chave (padrão nacional NF-e).
+        if (!numero && chaves44.length > 0 && chaves44[0].length === 44) {
+          numero = chaves44[0].slice(25, 34).replace(/^0+/, "") || "0";
+        }
+
         if (chaves44.length > 0 || numero) {
           itens.push({
             linha: idx + 1,
