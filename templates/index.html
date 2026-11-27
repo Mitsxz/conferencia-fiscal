@@ -1207,8 +1207,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       if (chDig.length === 44) {
         numeroResolvido = chDig.slice(25, 34).replace(/^0+/, "") || "0";
       } else {
-        numeroResolvido = String(n.numero || "").trim().replace(/^(\d{1,3})([.,]\d{3})+$/, function (m) {
-          return m.replace(/[.,]/g, "");
+        .replace(/\r/g, "")
         });
       }
 
@@ -1627,10 +1626,8 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
 
     function parsearLivroFiscal(texto) {
       const linhas = String(texto || "")
-        .replace(/
-/g, "")
-        .split("
-")
+        .replace(/\r/g, "")
+        .split("\n")
         .map(function (l) { return l.trim(); })
         .filter(Boolean);
 
@@ -1886,10 +1883,8 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
 
     function atualizarContadorLinhasLivro() {
       const linhas = document.getElementById("textoLivroFiscal").value
-        .replace(/
-/g, "")
-        .split("
-")
+        .replace(/\r/g, "")
+        .split("\n")
         .map(function (l) { return l.trim(); })
         .filter(Boolean).length;
       document.getElementById("resumoTextoLivro").textContent = linhas + " linha(s) carregada(s) no livro fiscal";
