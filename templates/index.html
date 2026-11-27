@@ -1415,7 +1415,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
         const cls = ativo
           ? "bg-slate-900 text-white border-slate-900"
           : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100";
-        return '<button type="button" onclick="toggleMesConferencia('\'' + m.code + '\'')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ' + cls + '">' + m.code + ' - ' + m.label + '</button>';
+        return '<button type="button" onclick="toggleMesConferencia(\' + m.code + \')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ' + cls + '">' + m.code + ' - ' + m.label + '</button>';
       }).join("");
     }
 
