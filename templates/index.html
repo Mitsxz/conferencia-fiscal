@@ -562,460 +562,459 @@
       "RENOVA": ["31047312000184"]
     };
 
-    const CODE_GS_TEMPLATE = [
-      "/**",
-      " * Code.gs - Consolida abas de empresas, DEPARA e REGISTRO_NOTAS",
-      " * identificando CFOP (Codigo), Numero nota e se a nota é Entrada onde a empresa da aba é destinatária.",
-      " */",
-      "const CNPJS_PROPRIOS_ABA = {",
-      "  'ALPINE': ['42168779000107'],",
-      "  'MEDIC': ['08049999000175'],",
-      "  'NEOSURGICAL': ['43615156000190'],",
-      "  'SALVADOR': ['32550505000116'],",
-      "  'NEUROPHARMA': ['14141981000100'],",
-      "  'DMF': ['10492279000121'],",
-      "  'DNA': ['05445388000158'],",
-      "  'ORTHOPRIME': ['18755438000145', '05445388000158'],",
-      "  'ORTHOPRIME FILIAL': ['18755438000226'],",
-      "  'SURGILOG': ['34565565000138', '34565565000219', '34565565000308', '34565565000480'],",
-      "  'AVANT': ['43347548000115'],",
-      "  'MEDFACTOR': ['42313325000174', '43347548000115'],",
-      "  'RENOVA': ['31047312000184']",
-      "};",
-      "",
-      "function doGet(e) {",
-      "  try {",
-      "    const payload = obterDadosConsolidadosPlanilha();",
-      "    return ContentService",
-      "      .createTextOutput(JSON.stringify({",
-      "        ok: true,",
-      "        atualizadoEm: payload.atualizadoEm,",
-      "        anoReferencia: payload.anoReferencia,",
-      "        empresas: payload.empresas,",
-      "        notas: payload.notas,",
-      "        data: payload",
-      "      }))",
-      "      .setMimeType(ContentService.MimeType.JSON);",
-      "  } catch (err) {",
-      "    return ContentService",
-      "      .createTextOutput(JSON.stringify({",
-      "        ok: false,",
-      "        error: err && err.message ? err.message : String(err)",
-      "      }))",
-      "      .setMimeType(ContentService.MimeType.JSON);",
-      "  }",
-      "}",
-      "",
-      "function obterDadosConsolidadosPlanilha() {",
-      "  const ss = SpreadsheetApp.getActiveSpreadsheet();",
-      "  const ignorarAbas = new Set([",
-      "    'DEPARA', 'REGISTRO_NOTAS', 'LOG_AUDITORIA', 'PAGINA29', 'PÁGINA29',",
-      "    'PARAMETROS', 'CONFIG', 'LOG', 'RESUMO'",
-      "  ]);",
-      "  const registroMap = new Map();",
-      "  const empresasDetectadas = new Set();",
-      "",
-      "  let anoReferencia = 2026;",
-      "  const abaDepara = ss.getSheetByName('DEPARA');",
-      "  if (abaDepara) {",
-      "    const valsDepara = abaDepara.getDataRange().getValues();",
-      "    outer: for (let r = 0; r < valsDepara.length; r++) {",
-      "      for (let c = 0; c < valsDepara[r].length; c++) {",
-      "        const cellStr = String(valsDepara[r][c] || '').trim();",
-      "        if (/^20\\d{2}$/.test(cellStr)) {",
-      "          anoReferencia = parseInt(cellStr, 10);",
-      "          break outer;",
-      "        }",
-      "      }",
-      "    }",
-      "  }",
-      "",
-      "  const registroSheet = ss.getSheetByName('REGISTRO_NOTAS');",
-      "  if (registroSheet && registroSheet.getLastRow() > 1) {",
-      "    const regData = registroSheet.getDataRange().getValues();",
-      "    const headers = regData[0].map(normalizarCabecalho);",
-      "    const idxId = acharColuna(headers, ['ID', 'IDENTIFICADOR', 'CHAVE']);",
-      "    const idxEmp = acharColuna(headers, ['EMPRESA', 'UNIDADE', 'FILIAL']);",
-      "    const idxArq = acharColuna(headers, ['URL ARQUIVO', 'LINK ARQUIVO', 'ARQUIVO']);",
-      "    const idxPasta = acharColuna(headers, ['URL PASTA', 'LINK PASTA', 'LINK DA PASTA', 'PASTA']);",
-      "    const idxData = acharColuna(headers, ['DATA/HORA', 'DATA HORA', 'DATA']);",
-      "",
-      "    const urlsArqExtra = idxArq >= 0 ? extrairLinksColuna(registroSheet, regData.length, idxArq) : [];",
-      "    const urlsPastaExtra = idxPasta >= 0 ? extrairLinksColuna(registroSheet, regData.length, idxPasta) : [];",
-      "",
-      "    for (let i = 1; i < regData.length; i++) {",
-      "      const row = regData[i];",
-      "      const idRaw = idxId >= 0 ? limparErro(row[idxId]) : '';",
-      "      if (!idRaw) continue;",
-      "      const emp = idxEmp >= 0 ? String(row[idxEmp] || '').trim().toUpperCase() : '';",
-      "      const urlArquivo = limparUrl(idxArq >= 0 ? row[idxArq] : '') || urlsArqExtra[i] || '';",
-      "      const urlPasta = limparUrl(idxPasta >= 0 ? row[idxPasta] : '') || urlsPastaExtra[i] || '';",
-      "      const dataHora = idxData >= 0 ? formatarData(row[idxData], anoReferencia) : '';",
-      "      indexarChave(registroMap, idRaw, emp, {",
-      "        empresa: emp,",
-      "        urlArquivo: urlArquivo,",
-      "        urlPasta: urlPasta,",
-      "        dataHora: dataHora",
-      "      });",
-      "    }",
-      "  }",
-      "",
-      "  const notas = [];",
-      "  ss.getSheets().forEach(sheet => {",
-      "    const nomeAba = String(sheet.getName() || '').trim();",
-      "    const nomeUpper = nomeAba.toUpperCase();",
-      "    const nomeNorm = normalizarCabecalho(nomeAba);",
-      "    if (ignorarAbas.has(nomeUpper) || ignorarAbas.has(nomeNorm)) return;",
-      "",
-      "    const lastRow = sheet.getLastRow();",
-      "    const lastCol = sheet.getLastColumn();",
-      "    if (lastRow < 2 || lastCol < 1) return;",
-      "",
-      "    const data = sheet.getRange(1, 1, lastRow, lastCol).getValues();",
-      "    const infoCab = detectarLinhaCabecalho(data);",
-      "    if (!infoCab) return;",
-      "",
-      "    const headers = infoCab.headers;",
-      "    const colChave = acharColuna(headers, ['CHAVE DE ACESSO DA NFE', 'CHAVE DE ACESSO', 'CHAVE NFE', 'CHAVE NF-E', 'CHAVE']);",
-      "    const colNumero = acharColunaNumeroNota(headers);",
-      "    const colCfop = acharColunaCfop(headers);",
-      "    const colCliFor = acharColuna(headers, ['1-CLI/2-FOR', 'CLI/FOR', 'TIPO PARCEIRO']);",
-      "    const colData = acharColuna(headers, ['DATA ENTRADA', 'DATA DE ENTRADA', 'DATA EMISSAO', 'DATA DE EMISSAO', 'ENTRADA', 'EMISSAO', 'DATA']);",
-      "    const colParceiro = acharColuna(headers, ['NOME', 'DESTINATARIO/REMETENTE', 'DESTINATARIO / REMETENTE', 'DESTINATARIO', 'REMETENTE', 'EMITENTE', 'FORNECEDOR', 'CLIENTE', 'NOME / RAZAO SOCIAL', 'RAZAO SOCIAL', 'PARCEIRO']);",
-      "    const colCnpj = acharColuna(headers, ['CNPJ/CPF', 'CPF/CNPJ', 'CNPJ']);",
-      "    const colValor = acharColuna(headers, ['VALOR CONTABIL', 'VALOR TOTAL', 'VALOR MERCADORIA', 'VALOR DA MERCADORIA', 'VALOR NF', 'VLR CONTABIL', 'VALOR']);",
-      "    const colStatus = acharColuna(headers, ['STATUS FISCAL', 'STATUS', 'SITUACAO FISCAL']);",
-      "    const colUrlArq = acharColuna(headers, ['LINK ANEXO', 'URL ARQUIVO', 'LINK ARQUIVO', 'ANEXO', 'LINK DRIVE', 'ARQUIVO']);",
-      "    const colUrlPasta = acharColuna(headers, ['LINK DA PASTA', 'URL PASTA', 'LINK PASTA', 'PASTA DRIVE', 'PASTA']);",
-      "",
-      "    if (colChave < 0 && colNumero < 0 && colParceiro < 0 && colValor < 0 && colStatus < 0) return;",
-      "    empresasDetectadas.add(nomeUpper);",
-      "",
-      "    const urlsArqExtra = colUrlArq >= 0 ? extrairLinksColuna(sheet, data.length, colUrlArq) : [];",
-      "    const urlsPastaExtra = colUrlPasta >= 0 ? extrairLinksColuna(sheet, data.length, colUrlPasta) : [];",
-      "    const cnpjsProprios = CNPJS_PROPRIOS_ABA[nomeUpper] || [];",
-      "",
-      "    for (let r = infoCab.headerRowIdx + 1; r < data.length; r++) {",
-      "      const row = data[r];",
-      "      const temAlgumValor = row.some(cel => cel !== null && cel !== undefined && String(cel).trim() !== '');",
-      "      if (!temAlgumValor) continue;",
-      "",
-      "      const chaveBruta = colChave >= 0 ? String(row[colChave] || '').trim() : '';",
-      "      const chaveLimpa = limparErro(chaveBruta);",
-      "      const chaveDigitos = chaveLimpa.replace(/\\D/g, '');",
-      "      let numero = colNumero >= 0 ? formatarInteiroLimpo(row[colNumero]) : '';",
-      "      if (!numero && chaveDigitos.length === 44) {",
-      "        numero = chaveDigitos.slice(25, 34).replace(/^0+/, '') || '0';",
-      "      }",
-      "      const cfop = colCfop >= 0 ? formatarCfopPlanilha(row[colCfop]) : '';",
-      "      const cliFor = colCliFor >= 0 ? formatarInteiroLimpo(row[colCliFor]) : '';",
-      "      const parceiro = colParceiro >= 0 ? limparErro(row[colParceiro]) : '';",
-      "      const cnpj = colCnpj >= 0 ? limparErro(row[colCnpj]) : '';",
-      "      const cnpjDigitos = cnpj.replace(/\\D/g, '');",
-      "      const valor = colValor >= 0 ? parseValor(row[colValor]) : 0;",
-      "      const statusOriginal = colStatus >= 0 ? limparErro(row[colStatus]) : '';",
-      "      const dataStr = colData >= 0 ? formatarData(row[colData], anoReferencia) : '';",
-      "",
-      "      if (ehCabecalhoRepetidoOuTotal(parceiro, numero, statusOriginal, chaveLimpa, cfop, row)) continue;",
-      "",
-      "      const temCampoNota = Boolean(",
-      "        chaveBruta || numero || parceiro || statusOriginal || cfop || valor > 0 ||",
-      "        dataStr || urlsArqExtra[r] || urlsPastaExtra[r]",
-      "      );",
-      "      if (!temCampoNota) continue;",
-      "",
-      "      const cnpjEmitenteChave = chaveDigitos.length === 44 ? chaveDigitos.slice(6, 20) : '';",
-      "      const modeloChave = chaveDigitos.length === 44 ? chaveDigitos.slice(20, 22) : '';",
-      "      const cfopSaida = cfop && /^[567]/.test(cfop);",
-      "      const emissaoPropria = Boolean(",
-      "        (cnpjEmitenteChave && cnpjsProprios.indexOf(cnpjEmitenteChave) !== -1 && modeloChave === '55' && (!cnpjDigitos || cnpjDigitos !== cnpjEmitenteChave)) ||",
-      "        (cnpjEmitenteChave && cnpjDigitos && cnpjEmitenteChave !== cnpjDigitos && cliFor === '1')",
-      "      );",
-      "",
-      "      const matchReg = buscarNoRegistro(registroMap, nomeUpper, chaveLimpa, numero, cnpj);",
-      "      const urlArquivo = (colUrlArq >= 0 ? limparUrl(row[colUrlArq]) : '') || urlsArqExtra[r] || (matchReg ? matchReg.urlArquivo : '');",
-      "      const urlPasta = (colUrlPasta >= 0 ? limparUrl(row[colUrlPasta]) : '') || urlsPastaExtra[r] || (matchReg ? matchReg.urlPasta : '');",
-      "      const linkDrive = urlArquivo || urlPasta || '';",
-      "",
-      "      const temDriveGs = /drive\\.google\\.com/i.test(linkDrive);",
-      "      const temEmailGs = /mail\\.google\\.com/i.test(urlArquivo) || /mail\\.google\\.com/i.test(urlPasta) || /achou\\s*e-?mail/i.test(statusOriginal);",
-      "      const veioDoGmail = /gmail/i.test(statusOriginal);",
-      "      let statusFinal = statusOriginal;",
-      "      let statusCorGs = 'VERMELHO';",
-      "      if (temDriveGs) {",
-      "        statusCorGs = 'VERDE';",
-      "        if (veioDoGmail) statusFinal = '🟢 Localizada';",
-      "        else if (!statusFinal) statusFinal = '🟢 Localizada no Drive';",
-      "      } else if (temEmailGs) {",
-      "        statusCorGs = 'AMARELO';",
-      "        statusFinal = '🟡 Achou e-mail, nota não validada';",
-      "        if (!urlPasta) urlPasta = 'https://consultadanfe.com/';",
-      "      } else {",
-      "        statusCorGs = 'VERMELHO';",
-      "        statusFinal = /desconsider/i.test(statusOriginal) ? '🔴 Não localizada (Desconsiderada)' : ('🔴 ' + (statusOriginal.split('|')[0].trim() || 'Não localizada'));",
-      "      }",
-      "",
-      "      notas.push({",
-      "        id: nomeUpper + '_L' + (r + 1),",
-      "        linhaPlanilha: r + 1,",
-      "        empresa: nomeUpper,",
-      "        numero: numero,",
-      "        cfop: cfop,",
-      "        cliFor: cliFor,",
-      "        cnpjParceiro: cnpjDigitos,",
-      "        emissaoPropria: emissaoPropria,",
-      "        ehEntradaDestinatario: !cfopSaida && !emissaoPropria,",
-      "        chave: chaveDigitos || chaveLimpa,",
-      "        data: dataStr,",
-      "        parceiro: parceiro || 'Não informado',",
-      "        valor: valor,",
-      "        statusOriginal: statusOriginal,",
-      "        statusFiscal: statusFinal,",
-      "        statusCor: statusCorGs,",
-      "        urlArquivo: urlArquivo,",
-      "        urlPasta: urlPasta,",
-      "        linkDrive: linkDrive",
-      "      });",
-      "    }",
-      "  });",
-      "",
-      "  return {",
-      "    atualizadoEm: new Date().toISOString(),",
-      "    anoReferencia: anoReferencia,",
-      "    empresas: Array.from(empresasDetectadas).sort(),",
-      "    notas: notas",
-      "  };",
-      "}",
-      "",
-      "function normalizarCabecalho(h) {",
-      "  return String(h || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim().toUpperCase();",
-      "}",
-      "",
-      "function detectarLinhaCabecalho(data) {",
-      "  const palavras = ['CHAVE', 'CFOP', 'CODIGO', 'NUMERO NOTA', 'FORNECEDOR', 'VALOR', 'STATUS', 'EMISSAO', 'ENTRADA', 'NOME'];",
-      "  let melhorLinha = -1;",
-      "  let maiorPts = 0;",
-      "  let melhoresHeaders = [];",
-      "  const lim = Math.min(data.length, 15);",
-      "  for (let r = 0; r < lim; r++) {",
-      "    const normRow = data[r].map(normalizarCabecalho);",
-      "    let pts = 0;",
-      "    normRow.forEach(col => { if (col && palavras.some(p => col.includes(p))) pts++; });",
-      "    if (pts > maiorPts) {",
-      "      maiorPts = pts;",
-      "      melhorLinha = r;",
-      "      melhoresHeaders = normRow;",
-      "    }",
-      "  }",
-      "  if (melhorLinha === -1 || maiorPts < 2) return null;",
-      "  return { headerRowIdx: melhorLinha, headers: melhoresHeaders };",
-      "}",
-      "",
-      "function acharColunaCfop(headers) {",
-      "  const exatos = ['CFOP', 'CODIGO', 'CODIGO FISCAL', 'COD FISCAL', 'COD. FISCAL', 'CODIGO CFOP'];",
-      "  for (let i = 0; i < exatos.length; i++) {",
-      "    const idx = headers.indexOf(exatos[i]);",
-      "    if (idx !== -1) return idx;",
-      "  }",
-      "  const idxCfop = headers.findIndex(h => h && h.includes('CFOP'));",
-      "  if (idxCfop !== -1) return idxCfop;",
-      "  return headers.findIndex(h => h && /^CODIGO\\b/.test(h) && !h.includes('DESCRICAO'));",
-      "}",
-      "",
-      "function formatarCfopPlanilha(val) {",
-      "  if (val === null || val === undefined || val === '') return '';",
-      "  if (typeof val === 'number') {",
-      "    if (!isFinite(val)) return '';",
-      "    if (val >= 1 && val < 10 && !Number.isInteger(val)) return String(Math.round(val * 1000));",
-      "    return String(Math.round(val));",
-      "  }",
-      "  const s = limparErro(val);",
-      "  if (!s) return '';",
-      "  return s.replace(/\\D/g, '');",
-      "}",
-      "",
-      "function acharColunaNumeroNota(headers) {",
-      "  const prioritarios = [",
-      "    'NUMERO NOTA', 'NUMERO DA NOTA', 'NUMERO DA NF', 'NUMERO NF',",
-      "    'N. NF', 'N NF', 'NOTA FISCAL', 'NUM NOTA', 'NRO NOTA', 'DOCUMENTO', 'NF'",
-      "  ];",
-      "  for (let i = 0; i < prioritarios.length; i++) {",
-      "    const idx = headers.indexOf(prioritarios[i]);",
-      "    if (idx !== -1) return idx;",
-      "  }",
-      "  const idxContemNota = headers.findIndex(h => h && h.includes('NUMERO') && h.includes('NOTA'));",
-      "  if (idxContemNota !== -1) return idxContemNota;",
-      "  for (let c = 0; c < headers.length; c++) {",
-      "    if (headers[c] === 'NUMERO') {",
-      "      const ant = c > 0 ? headers[c - 1] : '';",
-      "      const prox = c + 1 < headers.length ? headers[c + 1] : '';",
-      "      const pareceEndereco = /LOGRADOURO|ENDERECO|RUA|BAIRRO|CIDADE/.test(ant + ' ' + prox);",
-      "      if (!pareceEndereco) return c;",
-      "    }",
-      "  }",
-      "  return -1;",
-      "}",
-      "",
-      "function acharColuna(headers, candidatos) {",
-      "  const cands = candidatos.map(normalizarCabecalho);",
-      "  for (let i = 0; i < cands.length; i++) {",
-      "    const idx = headers.indexOf(cands[i]);",
-      "    if (idx !== -1) return idx;",
-      "  }",
-      "  for (let i = 0; i < cands.length; i++) {",
-      "    if (cands[i].length < 4) continue;",
-      "    const idx = headers.findIndex(h => h && h.includes(cands[i]));",
-      "    if (idx !== -1) return idx;",
-      "  }",
-      "  return -1;",
-      "}",
-      "",
-      "function formatarInteiroLimpo(val) {",
-      "  if (val === null || val === undefined || val === '') return '';",
-      "  if (typeof val === 'number') {",
-      "    return isFinite(val) ? String(Math.round(val)) : '';",
-      "  }",
-      "  const s = limparErro(val);",
-      "  if (!s) return '';",
-      "  if (/^\\d{1,3}([.,]\\d{3})+$/.test(s)) {",
-      "    return s.replace(/[.,]/g, '');",
-      "  }",
-      "  return s;",
-      "}",
-      "",
-      "function ehCabecalhoRepetidoOuTotal(parceiro, numero, status, chave, cfop, row) {",
-      "  const pNorm = normalizarCabecalho(parceiro);",
-      "  const sNorm = normalizarCabecalho(status);",
-      "  if (sNorm === 'STATUS FISCAL' || pNorm === 'NOME' || pNorm.includes('DESTINATARIO/REMETENTE')) return true;",
-      "  if (!numero && !chave && !status && !cfop) {",
-      "    const txt = normalizarCabecalho(row.join(' '));",
-      "    if (/^(SUB)?TOTAL(\\s+GERAL)?\\b/.test(txt) || (pNorm && /^(SUB)?TOTAL/.test(pNorm))) return true;",
-      "  }",
-      "  return false;",
-      "}",
-      "",
-      "function extrairLinksColuna(sheet, numRows, colIdx) {",
-      "  const res = new Array(numRows).fill('');",
-      "  try {",
-      "    const formulas = sheet.getRange(1, colIdx + 1, numRows, 1).getFormulas();",
-      "    for (let i = 0; i < formulas.length; i++) {",
-      "      const f = formulas[i][0];",
-      "      if (f) {",
-      "        const m = f.match(/https?:\\/\\/[^\\s\"');]+/i);",
-      "        if (m) res[i] = m[0].trim();",
-      "      }",
-      "    }",
-      "  } catch (e) {}",
-      "  try {",
-      "    const richVals = sheet.getRange(1, colIdx + 1, numRows, 1).getRichTextValues();",
-      "    for (let i = 0; i < richVals.length; i++) {",
-      "      if (res[i]) continue;",
-      "      const rt = richVals[i][0];",
-      "      if (!rt) continue;",
-      "      let link = rt.getLinkUrl();",
-      "      if (!link) {",
-      "        const runs = rt.getRuns();",
-      "        for (let k = 0; k < runs.length; k++) {",
-      "          if (runs[k].getLinkUrl()) { link = runs[k].getLinkUrl(); break; }",
-      "        }",
-      "      }",
-      "      if (link && /^https?:\\/\\//i.test(link)) res[i] = link.trim();",
-      "    }",
-      "  } catch (e) {}",
-      "  return res;",
-      "}",
-      "",
-      "function limparErro(val) {",
-      "  if (val === null || val === undefined) return '';",
-      "  const s = String(val).trim();",
-      "  if (!s || s.startsWith('#') || s.toUpperCase().startsWith('ERR:')) return '';",
-      "  return s;",
-      "}",
-      "",
-      "function limparUrl(val) {",
-      "  const s = limparErro(val);",
-      "  if (!s) return '';",
-      "  const m = s.match(/https?:\\/\\/[^\\s\"']+/i);",
-      "  return m ? m[0] : '';",
-      "}",
-      "",
-      "function formatarData(val, anoPadrao) {",
-      "  if (!val) return '';",
-      "  if (Object.prototype.toString.call(val) === '[object Date]' && !isNaN(val.getTime())) {",
-      "    const dd = String(val.getDate()).padStart(2, '0');",
-      "    const mm = String(val.getMonth() + 1).padStart(2, '0');",
-      "    const yyyy = val.getFullYear();",
-      "    return dd + '/' + mm + '/' + yyyy;",
-      "  }",
-      "  const s = limparErro(val);",
-      "  const m = s.match(/(\\d{1,2})[\\/\\-](\\d{1,2})(?:[\\/\\-](\\d{2,4}))?/);",
-      "  if (m) {",
-      "    const dd = m[1].padStart(2, '0');",
-      "    const mm = String(parseInt(m[2], 10)).padStart(2, '0');",
-      "    let yyyy = m[3] ? parseInt(m[3], 10) : (anoPadrao || 2026);",
-      "    if (yyyy < 100) yyyy += 2000;",
-      "    return dd + '/' + mm + '/' + yyyy;",
-      "  }",
-      "  return s;",
-      "}",
-      "",
-      "function parseValor(val) {",
-      "  if (typeof val === 'number') return isFinite(val) ? val : 0;",
-      "  const s = limparErro(val);",
-      "  if (!s) return 0;",
-      "  const limpo = s.replace(/[^0-9,.-]/g, '').replace(/\\.(?=.*,)/g, '').replace(',', '.');",
-      "  const num = parseFloat(limpo);",
-      "  return isNaN(num) ? 0 : num;",
-      "}",
-      "",
-      "function indexarChave(map, idRaw, emp, entry) {",
-      "  const norm = String(idRaw).trim().toUpperCase();",
-      "  const chaves = new Set([norm]);",
-      "  const dig = norm.replace(/\\D/g, '');",
-      "  if (dig.length === 44) chaves.add(dig);",
-      "",
-      "  const matchNum = norm.match(/^NUM_0*(\\d+)(?:_(\\d+))?/);",
-      "  if (matchNum) {",
-      "    chaves.add('NUM_' + matchNum[1]);",
-      "    if (matchNum[2]) chaves.add('NUM_' + matchNum[1] + '_' + matchNum[2]);",
-      "  } else if (/^\\d+$/.test(norm)) {",
-      "    chaves.add(norm.replace(/^0+/, '') || norm);",
-      "  }",
-      "",
-      "  chaves.forEach(k => {",
-      "    if (!k) return;",
-      "    if (emp) {",
-      "      const kEmp = emp + '::' + k;",
-      "      const atualEmp = map.get(kEmp);",
-      "      if (!atualEmp || (!atualEmp.urlArquivo && entry.urlArquivo)) map.set(kEmp, entry);",
-      "    }",
-      "    const atual = map.get(k);",
-      "    if (!atual || (!atual.urlArquivo && entry.urlArquivo)) map.set(k, entry);",
-      "  });",
-      "}",
-      "",
-      "function buscarNoRegistro(map, emp, chave, numero, cnpj) {",
-      "  const candidatos = [];",
-      "  if (chave) {",
-      "    const cNorm = chave.trim().toUpperCase();",
-      "    const cDig = cNorm.replace(/\\D/g, '');",
-      "    candidatos.push(emp + '::' + cNorm, emp + '::' + cDig, cNorm, cDig);",
-      "  }",
-      "  if (numero) {",
-      "    const nDig = String(numero).replace(/\\D/g, '').replace(/^0+/, '');",
-      "    const cnpjDig = String(cnpj || '').replace(/\\D/g, '');",
-      "    if (nDig) {",
-      "      if (cnpjDig) candidatos.push(emp + '::NUM_' + nDig + '_' + cnpjDig, 'NUM_' + nDig + '_' + cnpjDig);",
-      "      candidatos.push(emp + '::NUM_' + nDig, emp + '::' + nDig, 'NUM_' + nDig);",
-      "    }",
-      "  }",
-      "  for (let i = 0; i < candidatos.length; i++) {",
-      "    if (candidatos[i] && map.has(candidatos[i])) return map.get(candidatos[i]);",
-      "  }",
-      "  return null;",
-      "}"
-    ].join("
-");
+    const CODE_GS_TEMPLATE = `/**
+ * Code.gs - Consolida abas de empresas, DEPARA e REGISTRO_NOTAS
+ * identificando CFOP (Codigo), Numero nota e se a nota Ã© Entrada onde a empresa da aba Ã© destinatÃ¡ria.
+ */
+const CNPJS_PROPRIOS_ABA = {
+  'ALPINE': ['42168779000107'],
+  'MEDIC': ['08049999000175'],
+  'NEOSURGICAL': ['43615156000190'],
+  'SALVADOR': ['32550505000116'],
+  'NEUROPHARMA': ['14141981000100'],
+  'DMF': ['10492279000121'],
+  'DNA': ['05445388000158'],
+  'ORTHOPRIME': ['18755438000145', '05445388000158'],
+  'ORTHOPRIME FILIAL': ['18755438000226'],
+  'SURGILOG': ['34565565000138', '34565565000219', '34565565000308', '34565565000480'],
+  'AVANT': ['43347548000115'],
+  'MEDFACTOR': ['42313325000174', '43347548000115'],
+  'RENOVA': ['31047312000184']
+};
+
+function doGet(e) {
+  try {
+    const payload = obterDadosConsolidadosPlanilha();
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        ok: true,
+        atualizadoEm: payload.atualizadoEm,
+        anoReferencia: payload.anoReferencia,
+        empresas: payload.empresas,
+        notas: payload.notas,
+        data: payload
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        ok: false,
+        error: err && err.message ? err.message : String(err)
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function obterDadosConsolidadosPlanilha() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ignorarAbas = new Set([
+    'DEPARA', 'REGISTRO_NOTAS', 'LOG_AUDITORIA', 'PAGINA29', 'PÃGINA29',
+    'PARAMETROS', 'CONFIG', 'LOG', 'RESUMO'
+  ]);
+  const registroMap = new Map();
+  const empresasDetectadas = new Set();
+
+  let anoReferencia = 2026;
+  const abaDepara = ss.getSheetByName('DEPARA');
+  if (abaDepara) {
+    const valsDepara = abaDepara.getDataRange().getValues();
+    outer: for (let r = 0; r < valsDepara.length; r++) {
+      for (let c = 0; c < valsDepara[r].length; c++) {
+        const cellStr = String(valsDepara[r][c] || '').trim();
+        if (/^20\d{2}$/.test(cellStr)) {
+          anoReferencia = parseInt(cellStr, 10);
+          break outer;
+        }
+      }
+    }
+  }
+
+  const registroSheet = ss.getSheetByName('REGISTRO_NOTAS');
+  if (registroSheet && registroSheet.getLastRow() > 1) {
+    const regData = registroSheet.getDataRange().getValues();
+    const headers = regData[0].map(normalizarCabecalho);
+    const idxId = acharColuna(headers, ['ID', 'IDENTIFICADOR', 'CHAVE']);
+    const idxEmp = acharColuna(headers, ['EMPRESA', 'UNIDADE', 'FILIAL']);
+    const idxArq = acharColuna(headers, ['URL ARQUIVO', 'LINK ARQUIVO', 'ARQUIVO']);
+    const idxPasta = acharColuna(headers, ['URL PASTA', 'LINK PASTA', 'LINK DA PASTA', 'PASTA']);
+    const idxData = acharColuna(headers, ['DATA/HORA', 'DATA HORA', 'DATA']);
+
+    const urlsArqExtra = idxArq >= 0 ? extrairLinksColuna(registroSheet, regData.length, idxArq) : [];
+    const urlsPastaExtra = idxPasta >= 0 ? extrairLinksColuna(registroSheet, regData.length, idxPasta) : [];
+
+    for (let i = 1; i < regData.length; i++) {
+      const row = regData[i];
+      const idRaw = idxId >= 0 ? limparErro(row[idxId]) : '';
+      if (!idRaw) continue;
+      const emp = idxEmp >= 0 ? String(row[idxEmp] || '').trim().toUpperCase() : '';
+      const urlArquivo = limparUrl(idxArq >= 0 ? row[idxArq] : '') || urlsArqExtra[i] || '';
+      const urlPasta = limparUrl(idxPasta >= 0 ? row[idxPasta] : '') || urlsPastaExtra[i] || '';
+      const dataHora = idxData >= 0 ? formatarData(row[idxData], anoReferencia) : '';
+      indexarChave(registroMap, idRaw, emp, {
+        empresa: emp,
+        urlArquivo: urlArquivo,
+        urlPasta: urlPasta,
+        dataHora: dataHora
+      });
+    }
+  }
+
+  const notas = [];
+  ss.getSheets().forEach(sheet => {
+    const nomeAba = String(sheet.getName() || '').trim();
+    const nomeUpper = nomeAba.toUpperCase();
+    const nomeNorm = normalizarCabecalho(nomeAba);
+    if (ignorarAbas.has(nomeUpper) || ignorarAbas.has(nomeNorm)) return;
+
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    if (lastRow < 2 || lastCol < 1) return;
+
+    const data = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+    const infoCab = detectarLinhaCabecalho(data);
+    if (!infoCab) return;
+
+    const headers = infoCab.headers;
+    const colChave = acharColuna(headers, ['CHAVE DE ACESSO DA NFE', 'CHAVE DE ACESSO', 'CHAVE NFE', 'CHAVE NF-E', 'CHAVE']);
+    const colNumero = acharColunaNumeroNota(headers);
+    const colCfop = acharColunaCfop(headers);
+    const colCliFor = acharColuna(headers, ['1-CLI/2-FOR', 'CLI/FOR', 'TIPO PARCEIRO']);
+    const colData = acharColuna(headers, ['DATA ENTRADA', 'DATA DE ENTRADA', 'DATA EMISSAO', 'DATA DE EMISSAO', 'ENTRADA', 'EMISSAO', 'DATA']);
+    const colParceiro = acharColuna(headers, ['NOME', 'DESTINATARIO/REMETENTE', 'DESTINATARIO / REMETENTE', 'DESTINATARIO', 'REMETENTE', 'EMITENTE', 'FORNECEDOR', 'CLIENTE', 'NOME / RAZAO SOCIAL', 'RAZAO SOCIAL', 'PARCEIRO']);
+    const colCnpj = acharColuna(headers, ['CNPJ/CPF', 'CPF/CNPJ', 'CNPJ']);
+    const colValor = acharColuna(headers, ['VALOR CONTABIL', 'VALOR TOTAL', 'VALOR MERCADORIA', 'VALOR DA MERCADORIA', 'VALOR NF', 'VLR CONTABIL', 'VALOR']);
+    const colStatus = acharColuna(headers, ['STATUS FISCAL', 'STATUS', 'SITUACAO FISCAL']);
+    const colUrlArq = acharColuna(headers, ['LINK ANEXO', 'URL ARQUIVO', 'LINK ARQUIVO', 'ANEXO', 'LINK DRIVE', 'ARQUIVO']);
+    const colUrlPasta = acharColuna(headers, ['LINK DA PASTA', 'URL PASTA', 'LINK PASTA', 'PASTA DRIVE', 'PASTA']);
+
+    if (colChave < 0 && colNumero < 0 && colParceiro < 0 && colValor < 0 && colStatus < 0) return;
+    empresasDetectadas.add(nomeUpper);
+
+    const urlsArqExtra = colUrlArq >= 0 ? extrairLinksColuna(sheet, data.length, colUrlArq) : [];
+    const urlsPastaExtra = colUrlPasta >= 0 ? extrairLinksColuna(sheet, data.length, colUrlPasta) : [];
+    const cnpjsProprios = CNPJS_PROPRIOS_ABA[nomeUpper] || [];
+
+    for (let r = infoCab.headerRowIdx + 1; r < data.length; r++) {
+      const row = data[r];
+      const temAlgumValor = row.some(cel => cel !== null && cel !== undefined && String(cel).trim() !== '');
+      if (!temAlgumValor) continue;
+
+      const chaveBruta = colChave >= 0 ? String(row[colChave] || '').trim() : '';
+      const chaveLimpa = limparErro(chaveBruta);
+      const chaveDigitos = chaveLimpa.replace(/\D/g, '');
+      let numero = colNumero >= 0 ? formatarInteiroLimpo(row[colNumero]) : '';
+      if (!numero && chaveDigitos.length === 44) {
+        numero = chaveDigitos.slice(25, 34).replace(/^0+/, '') || '0';
+      }
+      const cfop = colCfop >= 0 ? formatarCfopPlanilha(row[colCfop]) : '';
+      const cliFor = colCliFor >= 0 ? formatarInteiroLimpo(row[colCliFor]) : '';
+      const parceiro = colParceiro >= 0 ? limparErro(row[colParceiro]) : '';
+      const cnpj = colCnpj >= 0 ? limparErro(row[colCnpj]) : '';
+      const cnpjDigitos = cnpj.replace(/\D/g, '');
+      const valor = colValor >= 0 ? parseValor(row[colValor]) : 0;
+      const statusOriginal = colStatus >= 0 ? limparErro(row[colStatus]) : '';
+      const dataStr = colData >= 0 ? formatarData(row[colData], anoReferencia) : '';
+
+      if (ehCabecalhoRepetidoOuTotal(parceiro, numero, statusOriginal, chaveLimpa, cfop, row)) continue;
+
+      const temCampoNota = Boolean(
+        chaveBruta || numero || parceiro || statusOriginal || cfop || valor > 0 ||
+        dataStr || urlsArqExtra[r] || urlsPastaExtra[r]
+      );
+      if (!temCampoNota) continue;
+
+      const cnpjEmitenteChave = chaveDigitos.length === 44 ? chaveDigitos.slice(6, 20) : '';
+      const modeloChave = chaveDigitos.length === 44 ? chaveDigitos.slice(20, 22) : '';
+      const cfopSaida = cfop && /^[567]/.test(cfop);
+      const emissaoPropria = Boolean(
+        (cnpjEmitenteChave && cnpjsProprios.indexOf(cnpjEmitenteChave) !== -1 && modeloChave === '55' && (!cnpjDigitos || cnpjDigitos !== cnpjEmitenteChave)) ||
+        (cnpjEmitenteChave && cnpjDigitos && cnpjEmitenteChave !== cnpjDigitos && cliFor === '1')
+      );
+
+      const matchReg = buscarNoRegistro(registroMap, nomeUpper, chaveLimpa, numero, cnpj);
+      const urlArquivo = (colUrlArq >= 0 ? limparUrl(row[colUrlArq]) : '') || urlsArqExtra[r] || (matchReg ? matchReg.urlArquivo : '');
+      const urlPasta = (colUrlPasta >= 0 ? limparUrl(row[colUrlPasta]) : '') || urlsPastaExtra[r] || (matchReg ? matchReg.urlPasta : '');
+      const linkDrive = urlArquivo || urlPasta || '';
+
+      const temDriveGs = /drive\.google\.com/i.test(linkDrive);
+      const temEmailGs = /mail\.google\.com/i.test(urlArquivo) || /mail\.google\.com/i.test(urlPasta) || /achou\s*e-?mail/i.test(statusOriginal);
+      const veioDoGmail = /gmail/i.test(statusOriginal);
+      let statusFinal = statusOriginal;
+      let statusCorGs = 'VERMELHO';
+      if (temDriveGs) {
+        statusCorGs = 'VERDE';
+        if (veioDoGmail) statusFinal = 'ð¢ Localizada';
+        else if (!statusFinal) statusFinal = 'ð¢ Localizada no Drive';
+      } else if (temEmailGs) {
+        statusCorGs = 'AMARELO';
+        statusFinal = 'ð¡ Achou e-mail, nota nÃ£o validada';
+        if (!urlPasta) urlPasta = 'https://consultadanfe.com/';
+      } else {
+        statusCorGs = 'VERMELHO';
+        statusFinal = /desconsider/i.test(statusOriginal) ? 'ð´ NÃ£o localizada (Desconsiderada)' : ('ð´ ' + (statusOriginal.split('|')[0].trim() || 'NÃ£o localizada'));
+      }
+
+      notas.push({
+        id: nomeUpper + '_L' + (r + 1),
+        linhaPlanilha: r + 1,
+        empresa: nomeUpper,
+        numero: numero,
+        cfop: cfop,
+        cliFor: cliFor,
+        cnpjParceiro: cnpjDigitos,
+        emissaoPropria: emissaoPropria,
+        ehEntradaDestinatario: !cfopSaida && !emissaoPropria,
+        chave: chaveDigitos || chaveLimpa,
+        data: dataStr,
+        parceiro: parceiro || 'NÃ£o informado',
+        valor: valor,
+        statusOriginal: statusOriginal,
+        statusFiscal: statusFinal,
+        statusCor: statusCorGs,
+        urlArquivo: urlArquivo,
+        urlPasta: urlPasta,
+        linkDrive: linkDrive
+      });
+    }
+  });
+
+  return {
+    atualizadoEm: new Date().toISOString(),
+    anoReferencia: anoReferencia,
+    empresas: Array.from(empresasDetectadas).sort(),
+    notas: notas
+  };
+}
+
+function normalizarCabecalho(h) {
+  return String(h || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+function detectarLinhaCabecalho(data) {
+  const palavras = ['CHAVE', 'CFOP', 'CODIGO', 'NUMERO NOTA', 'FORNECEDOR', 'VALOR', 'STATUS', 'EMISSAO', 'ENTRADA', 'NOME'];
+  let melhorLinha = -1;
+  let maiorPts = 0;
+  let melhoresHeaders = [];
+  const lim = Math.min(data.length, 15);
+  for (let r = 0; r < lim; r++) {
+    const normRow = data[r].map(normalizarCabecalho);
+    let pts = 0;
+    normRow.forEach(col => { if (col && palavras.some(p => col.includes(p))) pts++; });
+    if (pts > maiorPts) {
+      maiorPts = pts;
+      melhorLinha = r;
+      melhoresHeaders = normRow;
+    }
+  }
+  if (melhorLinha === -1 || maiorPts < 2) return null;
+  return { headerRowIdx: melhorLinha, headers: melhoresHeaders };
+}
+
+function acharColunaCfop(headers) {
+  const exatos = ['CFOP', 'CODIGO', 'CODIGO FISCAL', 'COD FISCAL', 'COD. FISCAL', 'CODIGO CFOP'];
+  for (let i = 0; i < exatos.length; i++) {
+    const idx = headers.indexOf(exatos[i]);
+    if (idx !== -1) return idx;
+  }
+  const idxCfop = headers.findIndex(h => h && h.includes('CFOP'));
+  if (idxCfop !== -1) return idxCfop;
+  return headers.findIndex(h => h && /^CODIGO\b/.test(h) && !h.includes('DESCRICAO'));
+}
+
+function formatarCfopPlanilha(val) {
+  if (val === null || val === undefined || val === '') return '';
+  if (typeof val === 'number') {
+    if (!isFinite(val)) return '';
+    if (val >= 1 && val < 10 && !Number.isInteger(val)) return String(Math.round(val * 1000));
+    return String(Math.round(val));
+  }
+  const s = limparErro(val);
+  if (!s) return '';
+  return s.replace(/\D/g, '');
+}
+
+function acharColunaNumeroNota(headers) {
+  const prioritarios = [
+    'NUMERO NOTA', 'NUMERO DA NOTA', 'NUMERO DA NF', 'NUMERO NF',
+    'N. NF', 'N NF', 'NOTA FISCAL', 'NUM NOTA', 'NRO NOTA', 'DOCUMENTO', 'NF'
+  ];
+  for (let i = 0; i < prioritarios.length; i++) {
+    const idx = headers.indexOf(prioritarios[i]);
+    if (idx !== -1) return idx;
+  }
+  const idxContemNota = headers.findIndex(h => h && h.includes('NUMERO') && h.includes('NOTA'));
+  if (idxContemNota !== -1) return idxContemNota;
+  for (let c = 0; c < headers.length; c++) {
+    if (headers[c] === 'NUMERO') {
+      const ant = c > 0 ? headers[c - 1] : '';
+      const prox = c + 1 < headers.length ? headers[c + 1] : '';
+      const pareceEndereco = /LOGRADOURO|ENDERECO|RUA|BAIRRO|CIDADE/.test(ant + ' ' + prox);
+      if (!pareceEndereco) return c;
+    }
+  }
+  return -1;
+}
+
+function acharColuna(headers, candidatos) {
+  const cands = candidatos.map(normalizarCabecalho);
+  for (let i = 0; i < cands.length; i++) {
+    const idx = headers.indexOf(cands[i]);
+    if (idx !== -1) return idx;
+  }
+  for (let i = 0; i < cands.length; i++) {
+    if (cands[i].length < 4) continue;
+    const idx = headers.findIndex(h => h && h.includes(cands[i]));
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
+
+function formatarInteiroLimpo(val) {
+  if (val === null || val === undefined || val === '') return '';
+  if (typeof val === 'number') {
+    return isFinite(val) ? String(Math.round(val)) : '';
+  }
+  const s = limparErro(val);
+  if (!s) return '';
+  if (/^\d{1,3}([.,]\d{3})+$/.test(s)) {
+    return s.replace(/[.,]/g, '');
+  }
+  return s;
+}
+
+function ehCabecalhoRepetidoOuTotal(parceiro, numero, status, chave, cfop, row) {
+  const pNorm = normalizarCabecalho(parceiro);
+  const sNorm = normalizarCabecalho(status);
+  if (sNorm === 'STATUS FISCAL' || pNorm === 'NOME' || pNorm.includes('DESTINATARIO/REMETENTE')) return true;
+  if (!numero && !chave && !status && !cfop) {
+    const txt = normalizarCabecalho(row.join(' '));
+    if (/^(SUB)?TOTAL(\s+GERAL)?\b/.test(txt) || (pNorm && /^(SUB)?TOTAL/.test(pNorm))) return true;
+  }
+  return false;
+}
+
+function extrairLinksColuna(sheet, numRows, colIdx) {
+  const res = new Array(numRows).fill('');
+  try {
+    const formulas = sheet.getRange(1, colIdx + 1, numRows, 1).getFormulas();
+    for (let i = 0; i < formulas.length; i++) {
+      const f = formulas[i][0];
+      if (f) {
+        const m = f.match(/https?:\/\/[^\s"');]+/i);
+        if (m) res[i] = m[0].trim();
+      }
+    }
+  } catch (e) {}
+  try {
+    const richVals = sheet.getRange(1, colIdx + 1, numRows, 1).getRichTextValues();
+    for (let i = 0; i < richVals.length; i++) {
+      if (res[i]) continue;
+      const rt = richVals[i][0];
+      if (!rt) continue;
+      let link = rt.getLinkUrl();
+      if (!link) {
+        const runs = rt.getRuns();
+        for (let k = 0; k < runs.length; k++) {
+          if (runs[k].getLinkUrl()) { link = runs[k].getLinkUrl(); break; }
+        }
+      }
+      if (link && /^https?:\/\//i.test(link)) res[i] = link.trim();
+    }
+  } catch (e) {}
+  return res;
+}
+
+function limparErro(val) {
+  if (val === null || val === undefined) return '';
+  const s = String(val).trim();
+  if (!s || s.startsWith('#') || s.toUpperCase().startsWith('ERR:')) return '';
+  return s;
+}
+
+function limparUrl(val) {
+  const s = limparErro(val);
+  if (!s) return '';
+  const m = s.match(/https?:\/\/[^\s"']+/i);
+  return m ? m[0] : '';
+}
+
+function formatarData(val, anoPadrao) {
+  if (!val) return '';
+  if (Object.prototype.toString.call(val) === '[object Date]' && !isNaN(val.getTime())) {
+    const dd = String(val.getDate()).padStart(2, '0');
+    const mm = String(val.getMonth() + 1).padStart(2, '0');
+    const yyyy = val.getFullYear();
+    return dd + '/' + mm + '/' + yyyy;
+  }
+  const s = limparErro(val);
+  const m = s.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+  if (m) {
+    const dd = m[1].padStart(2, '0');
+    const mm = String(parseInt(m[2], 10)).padStart(2, '0');
+    let yyyy = m[3] ? parseInt(m[3], 10) : (anoPadrao || 2026);
+    if (yyyy < 100) yyyy += 2000;
+    return dd + '/' + mm + '/' + yyyy;
+  }
+  return s;
+}
+
+function parseValor(val) {
+  if (typeof val === 'number') return isFinite(val) ? val : 0;
+  const s = limparErro(val);
+  if (!s) return 0;
+  const limpo = s.replace(/[^0-9,.-]/g, '').replace(/\.(?=.*,)/g, '').replace(',', '.');
+  const num = parseFloat(limpo);
+  return isNaN(num) ? 0 : num;
+}
+
+function indexarChave(map, idRaw, emp, entry) {
+  const norm = String(idRaw).trim().toUpperCase();
+  const chaves = new Set([norm]);
+  const dig = norm.replace(/\D/g, '');
+  if (dig.length === 44) chaves.add(dig);
+
+  const matchNum = norm.match(/^NUM_0*(\d+)(?:_(\d+))?/);
+  if (matchNum) {
+    chaves.add('NUM_' + matchNum[1]);
+    if (matchNum[2]) chaves.add('NUM_' + matchNum[1] + '_' + matchNum[2]);
+  } else if (/^\d+$/.test(norm)) {
+    chaves.add(norm.replace(/^0+/, '') || norm);
+  }
+
+  chaves.forEach(k => {
+    if (!k) return;
+    if (emp) {
+      const kEmp = emp + '::' + k;
+      const atualEmp = map.get(kEmp);
+      if (!atualEmp || (!atualEmp.urlArquivo && entry.urlArquivo)) map.set(kEmp, entry);
+    }
+    const atual = map.get(k);
+    if (!atual || (!atual.urlArquivo && entry.urlArquivo)) map.set(k, entry);
+  });
+}
+
+function buscarNoRegistro(map, emp, chave, numero, cnpj) {
+  const candidatos = [];
+  if (chave) {
+    const cNorm = chave.trim().toUpperCase();
+    const cDig = cNorm.replace(/\D/g, '');
+    candidatos.push(emp + '::' + cNorm, emp + '::' + cDig, cNorm, cDig);
+  }
+  if (numero) {
+    const nDig = String(numero).replace(/\D/g, '').replace(/^0+/, '');
+    const cnpjDig = String(cnpj || '').replace(/\D/g, '');
+    if (nDig) {
+      if (cnpjDig) candidatos.push(emp + '::NUM_' + nDig + '_' + cnpjDig, 'NUM_' + nDig + '_' + cnpjDig);
+      candidatos.push(emp + '::NUM_' + nDig, emp + '::' + nDig, 'NUM_' + nDig);
+    }
+  }
+  for (let i = 0; i < candidatos.length; i++) {
+    if (candidatos[i] && map.has(candidatos[i])) return map.get(candidatos[i]);
+  }
+  return null;
+}
+
+`;
 
     const DADOS_DEMO = [
       {
@@ -1461,6 +1460,14 @@
       if (nota.statusCor === "VERDE") {
         return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">' + escapeHtml(txt) + '</span>';
       }
+      if (nota.statusCor === "AMARELO") {
+        return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300">' + escapeHtml(txt) + '</span>';
+      }
+      if (nota.statusCor === "BRANCO") {
+        return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white text-slate-700 border border-slate-300 shadow-2xs">' + escapeHtml(txt) + '</span>';
+      }
+      return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">' + escapeHtml(txt) + '</span>';
+    }
       if (nota.statusCor === "AMARELO") {
         return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300">' + escapeHtml(txt) + '</span>';
       }
