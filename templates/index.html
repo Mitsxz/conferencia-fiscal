@@ -546,7 +546,7 @@
   </div>
 
   <script>
-    const CNPJS_PROPRIOS_ABA = {
+    var CNPJS_PROPRIOS_ABA = {
       "ALPINE": ["42168779000107"],
       "MEDIC": ["08049999000175"],
       "NEOSURGICAL": ["43615156000190"],
@@ -562,9 +562,9 @@
       "RENOVA": ["31047312000184"]
     };
 
-    const CODE_GS_TEMPLATE = `/**
+    var CODE_GS_TEMPLATE = `/**
  * Code.gs - Consolida abas de empresas, DEPARA e REGISTRO_NOTAS
- * identificando CFOP (Codigo), Numero nota e se a nota Ã© Entrada onde a empresa da aba Ã© destinatÃ¡ria.
+ * identificando CFOP (Codigo), Numero nota e se a nota é Entrada onde a empresa da aba é destinatária.
  */
 const CNPJS_PROPRIOS_ABA = {
   'ALPINE': ['42168779000107'],
@@ -608,7 +608,7 @@ function doGet(e) {
 function obterDadosConsolidadosPlanilha() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ignorarAbas = new Set([
-    'DEPARA', 'REGISTRO_NOTAS', 'LOG_AUDITORIA', 'PAGINA29', 'PÃGINA29',
+    'DEPARA', 'REGISTRO_NOTAS', 'LOG_AUDITORIA', 'PAGINA29', 'PÁGINA29',
     'PARAMETROS', 'CONFIG', 'LOG', 'RESUMO'
   ]);
   const registroMap = new Map();
@@ -743,15 +743,15 @@ function obterDadosConsolidadosPlanilha() {
       let statusCorGs = 'VERMELHO';
       if (temDriveGs) {
         statusCorGs = 'VERDE';
-        if (veioDoGmail) statusFinal = 'ð¢ Localizada';
-        else if (!statusFinal) statusFinal = 'ð¢ Localizada no Drive';
+        if (veioDoGmail) statusFinal = '🟢 Localizada';
+        else if (!statusFinal) statusFinal = '🟢 Localizada no Drive';
       } else if (temEmailGs) {
         statusCorGs = 'AMARELO';
-        statusFinal = 'ð¡ Achou e-mail, nota nÃ£o validada';
+        statusFinal = '🟡 Achou e-mail, nota não validada';
         if (!urlPasta) urlPasta = 'https://consultadanfe.com/';
       } else {
         statusCorGs = 'VERMELHO';
-        statusFinal = /desconsider/i.test(statusOriginal) ? 'ð´ NÃ£o localizada (Desconsiderada)' : ('ð´ ' + (statusOriginal.split('|')[0].trim() || 'NÃ£o localizada'));
+        statusFinal = /desconsider/i.test(statusOriginal) ? '🔴 Não localizada (Desconsiderada)' : ('🔴 ' + (statusOriginal.split('|')[0].trim() || 'Não localizada'));
       }
 
       notas.push({
@@ -766,7 +766,7 @@ function obterDadosConsolidadosPlanilha() {
         ehEntradaDestinatario: !cfopSaida && !emissaoPropria,
         chave: chaveDigitos || chaveLimpa,
         data: dataStr,
-        parceiro: parceiro || 'NÃ£o informado',
+        parceiro: parceiro || 'Não informado',
         valor: valor,
         statusOriginal: statusOriginal,
         statusFiscal: statusFinal,
@@ -1012,11 +1012,9 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     if (candidatos[i] && map.has(candidatos[i])) return map.get(candidatos[i]);
   }
   return null;
-}
+}`;
 
-`;
-
-    const DADOS_DEMO = [
+    var DADOS_DEMO = [
       {
         id: "AVANT_L36",
         empresa: "AVANT",
@@ -1045,7 +1043,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       }
     ];
 
-    const MESES = [
+    var MESES = [
       { code: "01", label: "JAN" },
       { code: "02", label: "FEV" },
       { code: "03", label: "MAR" },
@@ -1060,7 +1058,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       { code: "12", label: "DEZ" }
     ];
 
-    let estado = {
+    var estado = {
       notas: [],
       empresas: [],
       empresasSelecionadas: new Set(),
@@ -1073,7 +1071,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     document.getElementById("preCodeGs").textContent = CODE_GS_TEMPLATE;
 
     function escapeHtml(str) {
-      const val = (str === null || str === undefined) ? "" : String(str);
+      var val = (str === null || str === undefined) ? "" : String(str);
       return val
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -1083,11 +1081,11 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function extrairUrlValida(val) {
-      const s = String(val || "").trim();
+      var s = String(val || "").trim();
       if (!s) return "";
-      const partes = s.split(/\s+/);
-      for (let i = 0; i < partes.length; i++) {
-        const token = partes[i].replace(/^["'(]+|[)"',;]+$/g, "");
+      var partes = s.split(/\s+/);
+      for (var i = 0; i < partes.length; i++) {
+        var token = partes[i].replace(/^["'(]+|[)"',;]+$/g, "");
         if (/^https?:\/\//i.test(token)) {
           return token;
         }
@@ -1096,7 +1094,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function resolverCfopNota(n, chDig) {
-      const cfopDireto = String(n.cfop || n.codigo || n.Codigo || n.CODIGO || "").replace(/\D/g, "");
+      var cfopDireto = String(n.cfop || n.codigo || n.Codigo || n.CODIGO || "").replace(/\D/g, "");
       if (cfopDireto) return cfopDireto;
       return "";
     }
@@ -1108,11 +1106,11 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       if (typeof n.ehEntradaDestinatario === "boolean") {
         return n.ehEntradaDestinatario;
       }
-      const cnpjsDaAba = CNPJS_PROPRIOS_ABA[empresaUpper] || [];
+      var cnpjsDaAba = CNPJS_PROPRIOS_ABA[empresaUpper] || [];
       if (chDig.length === 44 && cnpjsDaAba.length > 0) {
-        const cnpjEmitenteChave = chDig.slice(6, 20);
-        const modelo = chDig.slice(20, 22);
-        const cnpjParceiro = String(n.cnpjParceiro || n.cnpj || "").replace(/\D/g, "");
+        var cnpjEmitenteChave = chDig.slice(6, 20);
+        var modelo = chDig.slice(20, 22);
+        var cnpjParceiro = String(n.cnpjParceiro || n.cnpj || "").replace(/\D/g, "");
         if (cnpjsDaAba.indexOf(cnpjEmitenteChave) !== -1 && modelo === "55" && (!cnpjParceiro || cnpjParceiro !== cnpjEmitenteChave)) {
           return false;
         }
@@ -1131,7 +1129,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function ehStatusSemDefinicao(statusStr) {
-      const limpo = String(statusStr || "")
+      var limpo = String(statusStr || "")
         .replace(/^[🔴🟠🟡🟢🤖⚠️⚪]+\s*/g, "")
         .replace(/\s+/g, " ")
         .trim();
@@ -1139,36 +1137,35 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function normalizarNota(n, idx) {
-      const empresaUpper = String(n.empresa || "").trim().toUpperCase();
-      const chRaw = String(n.chave || "").trim();
-      const chDig = chRaw.replace(/\D/g, "");
+      var empresaUpper = String(n.empresa || "").trim().toUpperCase();
+      var chRaw = String(n.chave || "").trim();
+      var chDig = chRaw.replace(/\D/g, "");
 
-      const rawArq = extrairUrlValida(n.urlArquivo);
-      const rawPasta = extrairUrlValida(n.urlPasta);
-      const rawLink = extrairUrlValida(n.linkDrive);
+      var rawArq = extrairUrlValida(n.urlArquivo);
+      var rawPasta = extrairUrlValida(n.urlPasta);
+      var rawLink = extrairUrlValida(n.linkDrive);
 
-      const urlDriveArq = ehLinkDrive(rawArq) ? rawArq : (ehLinkDrive(rawLink) ? rawLink : "");
-      const urlDrivePasta = ehLinkDrive(rawPasta) ? rawPasta : "";
-      const temDrive = Boolean(urlDriveArq || urlDrivePasta);
+      var urlDriveArq = ehLinkDrive(rawArq) ? rawArq : (ehLinkDrive(rawLink) ? rawLink : "");
+      var urlDrivePasta = ehLinkDrive(rawPasta) ? rawPasta : "";
+      var temDrive = Boolean(urlDriveArq || urlDrivePasta);
 
-      let urlEmail = "";
+      var urlEmail = "";
       if (ehLinkGmail(rawArq)) urlEmail = rawArq;
       else if (ehLinkGmail(rawPasta)) urlEmail = rawPasta;
       else if (ehLinkGmail(rawLink)) urlEmail = rawLink;
 
-      let urlDanfe = "";
+      var urlDanfe = "";
       if (ehLinkDanfe(rawPasta)) urlDanfe = rawPasta;
       else if (ehLinkDanfe(rawArq)) urlDanfe = rawArq;
       else if (ehLinkDanfe(rawLink)) urlDanfe = rawLink;
 
-      const statusOriginal = String(n.statusOriginal || n.statusFiscal || "").trim();
-      const achouEmailPorStatus = /achou\s*e-?mail/i.test(statusOriginal) || Boolean(urlEmail);
-      const veioDoGmail = /gmail/i.test(statusOriginal) || /gmail/i.test(String(n.statusFiscal || ""));
-      const limpoStatusCheck = statusOriginal.replace(/^[🔴🟠🟡🟢🤖⚠️⚪]+\s*/g, "").trim();
-      const semDefinicao = !temDrive && !achouEmailPorStatus && !urlDanfe && (!limpoStatusCheck || /^[-—]+$/.test(limpoStatusCheck) || /^sem\s*status$/i.test(limpoStatusCheck) || /^n[aã]o\s*definido$/i.test(limpoStatusCheck));
+      var statusOriginal = String(n.statusOriginal || n.statusFiscal || "").trim();
+      var achouEmailPorStatus = /achou\s*e-?mail/i.test(statusOriginal) || Boolean(urlEmail);
+      var veioDoGmail = /gmail/i.test(statusOriginal) || /gmail/i.test(String(n.statusFiscal || ""));
+      var semDefinicao = !temDrive && !achouEmailPorStatus && !urlDanfe && ehStatusSemDefinicao(statusOriginal);
 
-      let statusCor = "VERMELHO";
-      let statusExibicao = "";
+      var statusCor = "VERMELHO";
+      var statusExibicao = "";
 
       if (temDrive) {
         statusCor = "VERDE";
@@ -1194,25 +1191,26 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
         if (/desconsider/i.test(statusOriginal)) {
           statusExibicao = "🔴 Não localizada (Desconsiderada)";
         } else if (statusOriginal) {
-          const limpoSt = statusOriginal.replace(/^[🔴🟠🟡🟢🤖⚠️⚪]+\s*/, "").split("|")[0].trim();
+          var limpoSt = statusOriginal.replace(/^[🔴🟠🟡🟢🤖⚠️⚪]+\s*/, "").split("|")[0].trim();
           statusExibicao = "🔴 " + (limpoSt || "Não localizada");
         } else {
           statusExibicao = "⚪ Não definido";
         }
       }
 
-      const cfopResolvido = resolverCfopNota(n, chDig);
+      var cfopResolvido = resolverCfopNota(n, chDig);
 
-      let numeroResolvido = "";
+      var numeroResolvido = "";
       if (chDig.length === 44) {
         numeroResolvido = chDig.slice(25, 34).replace(/^0+/, "") || "0";
       } else {
-        .replace(/\r/g, "")
+        numeroResolvido = String(n.numero || "").trim().replace(/^(\d{1,3})([.,]\d{3})+$/, function (m) {
+          return m.replace(/[.,]/g, "");
         });
       }
 
-      const ehEntrada = verificarEntradaDestinatario(n, empresaUpper, cfopResolvido, chDig);
-      const dataFinal = String(n.data || n.dataFormatada || "").trim();
+      var ehEntrada = verificarEntradaDestinatario(n, empresaUpper, cfopResolvido, chDig);
+      var dataFinal = String(n.data || n.dataFormatada || "").trim();
 
       return Object.assign({}, n, {
         id: n.id || ((empresaUpper || "NOTA") + "_" + (idx + 1)),
@@ -1238,7 +1236,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function formatarCfop(cfop) {
-      const limpo = String(cfop || "").replace(/\D/g, "");
+      var limpo = String(cfop || "").replace(/\D/g, "");
       if (!limpo) return "-";
       if (limpo.length === 4) {
         return limpo.charAt(0) + "." + limpo.slice(1);
@@ -1247,7 +1245,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function renderizarBadgeCfop(cfop) {
-      const texto = formatarCfop(cfop);
+      var texto = formatarCfop(cfop);
       if (texto === "-") {
         return '<span class="text-xs text-slate-400">-</span>';
       }
@@ -1255,9 +1253,9 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function formatarNumeroNota(num) {
-      const texto = String(num || "").trim();
+      var texto = String(num || "").trim();
       if (!texto) return "-";
-      const limpo = texto.replace(/\D/g, "");
+      var limpo = texto.replace(/\D/g, "");
       if (limpo && /^\d+$/.test(texto)) {
         return Number(limpo).toLocaleString("pt-BR");
       }
@@ -1273,23 +1271,23 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
 
     function extrairMesDaData(dataStr) {
       if (!dataStr) return "";
-      const s = String(dataStr).trim();
-      const brMatch = s.match(/^\d{1,2}\/(\d{1,2})(?:\/\d{2,4})?/);
+      var s = String(dataStr).trim();
+      var brMatch = s.match(/^\d{1,2}\/(\d{1,2})(?:\/\d{2,4})?/);
       if (brMatch) return brMatch[1].padStart(2, "0");
-      const isoMatch = s.match(/^\d{4}-(\d{2})-\d{2}/);
+      var isoMatch = s.match(/^\d{4}-(\d{2})-\d{2}/);
       if (isoMatch) return isoMatch[1];
       return "";
     }
 
     function mostrarAlerta(msg, tipo) {
-      const tipoFinal = tipo || "info";
-      const el = document.getElementById("bannerAlerta");
+      var tipoFinal = tipo || "info";
+      var el = document.getElementById("bannerAlerta");
       if (!msg) {
         el.className = "hidden";
         el.textContent = "";
         return;
       }
-      const estilos = {
+      var estilos = {
         info: "bg-blue-50 border-blue-200 text-blue-800",
         success: "bg-emerald-50 border-emerald-200 text-emerald-800",
         warn: "bg-amber-50 border-amber-200 text-amber-800",
@@ -1300,12 +1298,12 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function trocarAba(aba) {
-      const isNotas = aba === "notas";
+      var isNotas = aba === "notas";
       document.getElementById("abaNotas").classList.toggle("hidden", !isNotas);
       document.getElementById("abaConferencia").classList.toggle("hidden", isNotas);
 
-      const btnNotas = document.getElementById("tabBtnNotas");
-      const btnConf = document.getElementById("tabBtnConferencia");
+      var btnNotas = document.getElementById("tabBtnNotas");
+      var btnConf = document.getElementById("tabBtnConferencia");
 
       if (isNotas) {
         btnNotas.className = "py-3 text-sm font-bold border-b-[3px] border-cyan-300 text-white transition cursor-pointer";
@@ -1317,8 +1315,8 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     async function carregarDadosPlanilha() {
-      const statusEl = document.getElementById("statusConexaoTexto");
-      const urlAtiva = (estado.webappUrl || FIXED_WEBAPP_URL || "").trim();
+      var statusEl = document.getElementById("statusConexaoTexto");
+      var urlAtiva = (estado.webappUrl || FIXED_WEBAPP_URL || "").trim();
 
       if (estado.modo === "demo" || !urlAtiva) {
         estado.notas = DADOS_DEMO.map(function (n, i) { return normalizarNota(n, i); });
@@ -1337,23 +1335,23 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       mostrarAlerta("", "info");
 
       try {
-        const sep = urlAtiva.includes("?") ? "&" : "?";
-        const resp = await fetch(urlAtiva + sep + "_t=" + Date.now(), { method: "GET" });
+        var sep = urlAtiva.includes("?") ? "&" : "?";
+        var resp = await fetch(urlAtiva + sep + "_t=" + Date.now(), { method: "GET" });
         if (!resp.ok) throw new Error("HTTP " + resp.status);
-        const json = await resp.json();
+        var json = await resp.json();
 
         if (!json || json.ok === false) {
           throw new Error(json && json.error ? json.error : "Resposta inválida do Web App.");
         }
 
-        const payload = json.notas ? json : (json.data || {});
-        const listaBruta = Array.isArray(payload.notas) ? payload.notas : [];
+        var payload = json.notas ? json : (json.data || {});
+        var listaBruta = Array.isArray(payload.notas) ? payload.notas : [];
         estado.notas = listaBruta.map(function (n, i) { return normalizarNota(n, i); });
 
-        const listaEmpresas = Array.isArray(payload.empresas)
+        var listaEmpresas = Array.isArray(payload.empresas)
           ? payload.empresas.map(function (e) { return String(e).trim().toUpperCase(); })
           : [];
-        const setEmp = new Set(listaEmpresas);
+        var setEmp = new Set(listaEmpresas);
         estado.notas.forEach(function (n) {
           if (n.empresa) setEmp.add(n.empresa);
         });
@@ -1363,7 +1361,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
           estado.empresas.forEach(function (e) { estado.empresasSelecionadas.add(e); });
         }
 
-        const totalEntradas = estado.notas.filter(function (n) { return n.ehEntradaDestinatario; }).length;
+        var totalEntradas = estado.notas.filter(function (n) { return n.ehEntradaDestinatario; }).length;
         statusEl.textContent = "Conectado à planilha • " + totalEntradas + " notas de entrada (" + estado.notas.length + " totais)";
         mostrarAlerta(
           "Planilha sincronizada: " + totalEntradas + " notas de entrada identificadas em " + estado.empresas.length + " empresas.",
@@ -1389,8 +1387,8 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function sincronizarControlesEmpresa() {
-      const selectFiltro = document.getElementById("filtroEmpresaNotas");
-      const valorAtual = selectFiltro.value;
+      var selectFiltro = document.getElementById("filtroEmpresaNotas");
+      var valorAtual = selectFiltro.value;
       selectFiltro.innerHTML = '<option value="">Todas as empresas</option>' +
         estado.empresas.map(function (emp) {
           return '<option value="' + escapeHtml(emp) + '">' + escapeHtml(emp) + '</option>';
@@ -1399,27 +1397,27 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
         selectFiltro.value = valorAtual;
       }
 
-      const containerEmp = document.getElementById("containerEmpresasConferencia");
+      var containerEmp = document.getElementById("containerEmpresasConferencia");
       containerEmp.innerHTML = estado.empresas.map(function (emp, idx) {
-        const ativa = estado.empresasSelecionadas.has(emp);
-        const cls = ativa
+        var ativa = estado.empresasSelecionadas.has(emp);
+        var cls = ativa
           ? "bg-blue-600 text-white border-blue-600"
           : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100";
         return '<button type="button" onclick="toggleEmpresaPorIndice(' + idx + ')" class="px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer ' + cls + '">' + escapeHtml(emp) + '</button>';
       }).join("");
 
-      const containerMes = document.getElementById("containerMesesConferencia");
+      var containerMes = document.getElementById("containerMesesConferencia");
       containerMes.innerHTML = MESES.map(function (m) {
-        const ativo = estado.mesesSelecionados.has(m.code);
-        const cls = ativo
+        var ativo = estado.mesesSelecionados.has(m.code);
+        var cls = ativo
           ? "bg-slate-900 text-white border-slate-900"
           : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100";
-        return '<button type="button" onclick="toggleMesConferencia(\' + m.code + \')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ' + cls + '">' + m.code + ' - ' + m.label + '</button>';
+        return '<button type="button" onclick="toggleMesConferencia(\'' + m.code + '\')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ' + cls + '">' + m.code + ' - ' + m.label + '</button>';
       }).join("");
     }
 
     function toggleEmpresaPorIndice(idx) {
-      const emp = estado.empresas[idx];
+      var emp = estado.empresas[idx];
       if (!emp) return;
       if (estado.empresasSelecionadas.has(emp)) {
         estado.empresasSelecionadas.delete(emp);
@@ -1455,7 +1453,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function renderizarBadgeStatus(nota) {
-      const txt = String(nota.statusFiscal || "⚪ Não definido");
+      var txt = String(nota.statusFiscal || "⚪ Não definido");
       if (nota.statusCor === "VERDE") {
         return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">' + escapeHtml(txt) + '</span>';
       }
@@ -1468,16 +1466,15 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">' + escapeHtml(txt) + '</span>';
     }
 
-
     function renderizarBotoesDrive(nota) {
-      const driveArq = extrairUrlValida(nota.urlDriveArq) || (ehLinkDrive(nota.urlArquivo) ? extrairUrlValida(nota.urlArquivo) : "");
-      const drivePasta = extrairUrlValida(nota.urlDrivePasta) || (ehLinkDrive(nota.urlPasta) ? extrairUrlValida(nota.urlPasta) : "");
-      const emailUrl = extrairUrlValida(nota.urlEmail) || (ehLinkGmail(nota.urlArquivo) ? extrairUrlValida(nota.urlArquivo) : "") || (ehLinkGmail(nota.urlPasta) ? extrairUrlValida(nota.urlPasta) : "");
-      const danfeUrl = extrairUrlValida(nota.urlDanfe) || (ehLinkDanfe(nota.urlPasta) ? extrairUrlValida(nota.urlPasta) : "") || (ehLinkDanfe(nota.urlArquivo) ? extrairUrlValida(nota.urlArquivo) : "");
+      var driveArq = extrairUrlValida(nota.urlDriveArq) || (ehLinkDrive(nota.urlArquivo) ? extrairUrlValida(nota.urlArquivo) : "");
+      var drivePasta = extrairUrlValida(nota.urlDrivePasta) || (ehLinkDrive(nota.urlPasta) ? extrairUrlValida(nota.urlPasta) : "");
+      var emailUrl = extrairUrlValida(nota.urlEmail) || (ehLinkGmail(nota.urlArquivo) ? extrairUrlValida(nota.urlArquivo) : "") || (ehLinkGmail(nota.urlPasta) ? extrairUrlValida(nota.urlPasta) : "");
+      var danfeUrl = extrairUrlValida(nota.urlDanfe) || (ehLinkDanfe(nota.urlPasta) ? extrairUrlValida(nota.urlPasta) : "") || (ehLinkDanfe(nota.urlArquivo) ? extrairUrlValida(nota.urlArquivo) : "");
 
-      const linkDrivePrincipal = driveArq || drivePasta;
+      var linkDrivePrincipal = driveArq || drivePasta;
       if (linkDrivePrincipal) {
-        const botoesDrive = [];
+        var botoesDrive = [];
         botoesDrive.push(
           '<a href="' + escapeHtml(linkDrivePrincipal) + '" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition">Abrir no Drive</a>'
         );
@@ -1490,13 +1487,13 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       }
 
       if (nota.statusCor === "AMARELO" || emailUrl) {
-        const botoesEmailDanfe = [];
+        var botoesEmailDanfe = [];
         if (emailUrl) {
           botoesEmailDanfe.push(
             '<a href="' + escapeHtml(emailUrl) + '" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-400 hover:bg-amber-500 text-slate-950 border border-amber-500/50 transition">Abrir E-mail</a>'
           );
         }
-        const destinoDanfe = danfeUrl || "https://consultadanfe.com/";
+        var destinoDanfe = danfeUrl || "https://consultadanfe.com/";
         botoesEmailDanfe.push(
           '<a href="' + escapeHtml(destinoDanfe) + '" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition">Consulta DANFE</a>'
         );
@@ -1507,31 +1504,31 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function renderizarNotasPlanilha() {
-      const busca = (document.getElementById("filtroBuscaNotas").value || "").trim().toLowerCase();
-      const empresa = document.getElementById("filtroEmpresaNotas").value;
-      const driveFilter = document.getElementById("filtroDriveNotas").value;
-      const mesFilter = document.getElementById("filtroMesNotas").value;
-      const ocultarDesc = document.getElementById("ocultarDesconsideradasNotas").checked;
-      const incluirPropria = document.getElementById("incluirEmissaoPropriaNotas").checked;
+      var busca = (document.getElementById("filtroBuscaNotas").value || "").trim().toLowerCase();
+      var empresa = document.getElementById("filtroEmpresaNotas").value;
+      var driveFilter = document.getElementById("filtroDriveNotas").value;
+      var mesFilter = document.getElementById("filtroMesNotas").value;
+      var ocultarDesc = document.getElementById("ocultarDesconsideradasNotas").checked;
+      var incluirPropria = document.getElementById("incluirEmissaoPropriaNotas").checked;
 
-      const baseEntrada = estado.notas.filter(function (n) {
+      var baseEntrada = estado.notas.filter(function (n) {
         return incluirPropria ? true : Boolean(n.ehEntradaDestinatario);
       });
 
-      const filtradas = baseEntrada.filter(function (n) {
-        const statusStr = String(n.statusFiscal || "") + " " + String(n.statusOriginal || "");
+      var filtradas = baseEntrada.filter(function (n) {
+        var statusStr = String(n.statusFiscal || "") + " " + String(n.statusOriginal || "");
         if (ocultarDesc && statusStr.toLowerCase().includes("desconsider")) return false;
         if (empresa && String(n.empresa || "").toUpperCase() !== empresa) return false;
         if (mesFilter) {
-          const mNota = extrairMesDaData(n.data) || (n.mes ? String(n.mes).padStart(2, "0") : "");
+          var mNota = extrairMesDaData(n.data) || (n.mes ? String(n.mes).padStart(2, "0") : "");
           if (mNota !== mesFilter) return false;
         }
-        const temLink = Boolean(extrairUrlValida(n.urlDriveArq) || extrairUrlValida(n.urlDrivePasta));
+        var temLink = Boolean(extrairUrlValida(n.urlDriveArq) || extrairUrlValida(n.urlDrivePasta));
         if (driveFilter === "COM_LINK" && !temLink) return false;
         if (driveFilter === "SEM_LINK" && temLink) return false;
 
         if (busca) {
-          const alvo = [
+          var alvo = [
             n.empresa, n.numero, formatarNumeroNota(n.numero),
             n.cfop, formatarCfop(n.cfop),
             n.chave, n.parceiro, n.id, n.statusFiscal, n.statusOriginal
@@ -1541,10 +1538,10 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
         return true;
       });
 
-      const comDrive = filtradas.filter(function (n) {
+      var comDrive = filtradas.filter(function (n) {
         return Boolean(extrairUrlValida(n.urlDriveArq) || extrairUrlValida(n.urlDrivePasta));
       }).length;
-      const somaValor = filtradas.reduce(function (acc, n) {
+      var somaValor = filtradas.reduce(function (acc, n) {
         return acc + Number(n.valor || 0);
       }, 0);
 
@@ -1558,17 +1555,17 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       document.getElementById("contadorResultadosNotas").textContent =
         "Exibindo " + filtradas.length + " de " + baseEntrada.length + " notas de entrada";
 
-      const tbody = document.getElementById("tbodyNotasPlanilha");
+      var tbody = document.getElementById("tbodyNotasPlanilha");
       if (filtradas.length === 0) {
         tbody.innerHTML = '<tr><td colspan="9" class="px-4 py-8 text-center text-slate-400">Nenhuma nota de entrada encontrada com os filtros atuais.</td></tr>';
         return;
       }
 
       tbody.innerHTML = filtradas.map(function (n) {
-        const chaveCurta = n.chave
+        var chaveCurta = n.chave
           ? (n.chave.length > 20 ? (n.chave.slice(0, 10) + "..." + n.chave.slice(-6)) : n.chave)
           : "-";
-        const tituloStatus = n.statusOriginal && n.statusOriginal !== n.statusFiscal
+        var tituloStatus = n.statusOriginal && n.statusOriginal !== n.statusFiscal
           ? "Origem: " + n.statusOriginal
           : (n.statusFiscal || "");
 
@@ -1592,23 +1589,23 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       if (!window.pdfjsLib) {
         throw new Error("Biblioteca PDF.js não carregou no navegador.");
       }
-      const progEl = document.getElementById("progressoArquivoLivro");
+      var progEl = document.getElementById("progressoArquivoLivro");
       progEl.classList.remove("hidden");
       progEl.textContent = 'Lendo PDF "' + file.name + '"...';
 
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const paginasTexto = [];
+      var arrayBuffer = await file.arrayBuffer();
+      var pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      var paginasTexto = [];
 
-      for (let p = 1; p <= pdf.numPages; p++) {
+      for (var p = 1; p <= pdf.numPages; p++) {
         progEl.textContent = "Extraindo texto do PDF: página " + p + " de " + pdf.numPages + "...";
-        const page = await pdf.getPage(p);
-        const content = await page.getTextContent();
-        const strings = content.items.map(function (item) { return item.str; }).filter(Boolean);
+        var page = await pdf.getPage(p);
+        var content = await page.getTextContent();
+        var strings = content.items.map(function (item) { return item.str; }).filter(Boolean);
         paginasTexto.push(strings.join(" "));
       }
 
-      const textoFinal = paginasTexto.join("\n");
+      var textoFinal = paginasTexto.join("\n");
       if (!textoFinal.trim()) {
         progEl.className = "rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800";
         progEl.textContent = "Atenção: este PDF parece ser escaneado/imagem e não contém texto selecionável. Se possível, exporte em CSV/TXT.";
@@ -1621,52 +1618,52 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function escaparRegex(texto) {
-      return String(texto || "").replace(/[-/\^$*+?.()|[\]{}]/g, "\$&");
+      return String(texto || "").replace(/[-/\^$*+?.()|\[\]]/g, "\$");
     }
 
     function parsearLivroFiscal(texto) {
-      const linhas = String(texto || "")
+      var linhas = String(texto || "")
         .replace(/\r/g, "")
         .split("\n")
         .map(function (l) { return l.trim(); })
         .filter(Boolean);
 
-      const itens = [];
+      var itens = [];
       linhas.forEach(function (linha, idx) {
-        const chaves44 = linha.match(/\d{44}/g) || [];
-        const partes = linha.split(/[;|	,]/).map(function (s) { return s.trim(); });
+        var chaves44 = linha.match(/\d{44}/g) || [];
+        var partes = linha.split(/[;|\t,]/).map(function (s) { return s.trim(); });
 
-        let empresaDetectada = "";
-        for (let i = 0; i < estado.empresas.length; i++) {
-          const emp = estado.empresas[i];
-          const reEmp = new RegExp("(^|[^A-Z0-9_])" + escaparRegex(emp) + "([^A-Z0-9_]|$)", "i");
+        var empresaDetectada = "";
+        for (var i = 0; i < estado.empresas.length; i++) {
+          var emp = estado.empresas[i];
+          var reEmp = new RegExp("(^|[^A-Z0-9_])" + escaparRegex(emp) + "([^A-Z0-9_]|$)", "i");
           if (reEmp.test(linha)) {
             empresaDetectada = emp;
             break;
           }
         }
 
-        const dataMatch = linha.match(/(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})/);
-        const dataStr = dataMatch ? dataMatch[1] : "";
+        var dataMatch = linha.match(/(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})/);
+        var dataStr = dataMatch ? dataMatch[1] : "";
 
-        let valorNum = 0;
-        const moedaMatch = linha.match(/R\$\s*([\d.]+,\d{2})|(\d{1,3}(?:\.\d{3})*,\d{2})/);
+        var valorNum = 0;
+        var moedaMatch = linha.match(/R\$\s*([\d.]+,\d{2})|(\d{1,3}(?:\.\d{3})*,\d{2})/);
         if (moedaMatch) {
-          const bruto = (moedaMatch[1] || moedaMatch[2]).replace(/\./g, "").replace(",", ".");
+          var bruto = (moedaMatch[1] || moedaMatch[2]).replace(/\./g, "").replace(",", ".");
           valorNum = parseFloat(bruto) || 0;
         }
 
-        let numero = "";
-        const semChaves = linha.replace(/\d{44}/g, " ");
-        const numMatch = semChaves.match(/(?:NF[-e]?|N[º°.]?|NUM(?:ERO)?)\s*[:#\-]?\s*0*(\d{1,9})/i);
+        var numero = "";
+        var semChaves = linha.replace(/\d{44}/g, " ");
+        var numMatch = semChaves.match(/(?:NF[-e]?|N[º°.]?|NUM(?:ERO)?)\s*[:#\-]?\s*0*(\d{1,9})/i);
         if (numMatch) {
           numero = numMatch[1];
         } else if (partes.length > 1) {
-          const candParte = partes.find(function (p) { return /^\d{1,9}$/.test(p.replace(/^0+/, "") || p); });
+          var candParte = partes.find(function (p) { return /^\d{1,9}$/.test(p.replace(/^0+/, "") || p); });
           if (candParte) numero = candParte.replace(/^0+/, "") || candParte;
         } else {
-          const tokensNum = semChaves.match(/\d{2,8}/g) || [];
-          const candidato = tokensNum.find(function (t) { return !/^\d{8}$/.test(t); });
+          var tokensNum = semChaves.match(/\d{2,8}/g) || [];
+          var candidato = tokensNum.find(function (t) { return !/^\d{8}$/.test(t); });
           if (candidato) numero = candidato.replace(/^0+/, "") || candidato;
         }
 
@@ -1691,55 +1688,55 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function executarConferencia() {
-      const empresasAlvo = estado.empresasSelecionadas;
-      const mesesAlvo = estado.mesesSelecionados;
-      const textoLivro = document.getElementById("textoLivroFiscal").value;
+      var empresasAlvo = estado.empresasSelecionadas;
+      var mesesAlvo = estado.mesesSelecionados;
+      var textoLivro = document.getElementById("textoLivroFiscal").value;
 
       if (empresasAlvo.size === 0) {
         mostrarAlerta("Selecione pelo menos uma empresa para a conferência.", "warn");
         return;
       }
 
-      const notasBase = estado.notas.filter(function (n) {
+      var notasBase = estado.notas.filter(function (n) {
         if (!n.ehEntradaDestinatario) return false;
-        const emp = String(n.empresa || "").trim().toUpperCase();
+        var emp = String(n.empresa || "").trim().toUpperCase();
         if (!empresasAlvo.has(emp)) return false;
         if (mesesAlvo.size > 0) {
-          const mesNota = extrairMesDaData(n.data);
+          var mesNota = extrairMesDaData(n.data);
           if (mesNota && !mesesAlvo.has(mesNota)) return false;
         }
         return true;
       });
 
-      const itensLivro = parsearLivroFiscal(textoLivro).filter(function (item) {
+      var itensLivro = parsearLivroFiscal(textoLivro).filter(function (item) {
         if (item.empresa && !empresasAlvo.has(item.empresa)) return false;
         if (mesesAlvo.size > 0 && item.data) {
-          const mesItem = extrairMesDaData(item.data);
+          var mesItem = extrairMesDaData(item.data);
           if (mesItem && !mesesAlvo.has(mesItem)) return false;
         }
         return true;
       });
 
-      const mapaPorChave = new Map();
-      const mapaPorEmpNum = new Map();
+      var mapaPorChave = new Map();
+      var mapaPorEmpNum = new Map();
 
       notasBase.forEach(function (n) {
-        const emp = String(n.empresa || "").toUpperCase();
-        const ch = String(n.chave || "").replace(/\D/g, "");
-        const num = String(n.numero || "").replace(/^0+/, "");
+        var emp = String(n.empresa || "").toUpperCase();
+        var ch = String(n.chave || "").replace(/\D/g, "");
+        var num = String(n.numero || "").replace(/^0+/, "");
         if (ch) mapaPorChave.set(ch, n);
         if (emp && num) mapaPorEmpNum.set(emp + "::" + num, n);
       });
 
-      const usadasPlanilha = new Set();
-      const resultados = [];
+      var usadasPlanilha = new Set();
+      var resultados = [];
 
       itensLivro.forEach(function (item) {
-        const ch = String(item.chave || "").replace(/\D/g, "");
-        const num = String(item.numero || "").replace(/^0+/, "");
-        const emp = item.empresa || Array.from(empresasAlvo)[0] || "";
+        var ch = String(item.chave || "").replace(/\D/g, "");
+        var num = String(item.numero || "").replace(/^0+/, "");
+        var emp = item.empresa || Array.from(empresasAlvo)[0] || "";
 
-        let match = null;
+        var match = null;
         if (ch && mapaPorChave.has(ch)) {
           match = mapaPorChave.get(ch);
         } else if (emp && num && mapaPorEmpNum.has(emp + "::" + num)) {
@@ -1750,7 +1747,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
 
         if (match) {
           usadasPlanilha.add(match);
-          const temLink = Boolean(extrairUrlValida(match.urlArquivo) || extrairUrlValida(match.urlPasta) || extrairUrlValida(match.linkDrive));
+          var temLink = Boolean(extrairUrlValida(match.urlArquivo) || extrairUrlValida(match.urlPasta) || extrairUrlValida(match.linkDrive));
           resultados.push({
             statusCode: temLink ? "NO_DRIVE" : "SEM_LINK_DRIVE",
             statusLabel: temLink ? "🟢 Localizada" : "🟡 Na Planilha (Sem Link)",
@@ -1805,36 +1802,36 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function renderizarResultadoConferencia() {
-      const todos = estado.resultadosConferencia;
-      const noDrive = todos.filter(function (r) { return r.statusCode === "NO_DRIVE"; }).length;
-      const semLinkOuFaltando = todos.filter(function (r) { return r.statusCode === "SEM_LINK_DRIVE" || r.statusCode === "FALTANDO_PLANILHA"; }).length;
-      const apenasPlanilha = todos.filter(function (r) { return r.statusCode === "APENAS_PLANILHA"; }).length;
+      var todos = estado.resultadosConferencia;
+      var noDrive = todos.filter(function (r) { return r.statusCode === "NO_DRIVE"; }).length;
+      var semLinkOuFaltando = todos.filter(function (r) { return r.statusCode === "SEM_LINK_DRIVE" || r.statusCode === "FALTANDO_PLANILHA"; }).length;
+      var apenasPlanilha = todos.filter(function (r) { return r.statusCode === "APENAS_PLANILHA"; }).length;
 
       document.getElementById("confMetricTotal").textContent = todos.length;
       document.getElementById("confMetricNoDrive").textContent = noDrive;
       document.getElementById("confMetricFaltando").textContent = semLinkOuFaltando;
       document.getElementById("confMetricApenasPlanilha").textContent = apenasPlanilha;
 
-      const filtroStatus = document.getElementById("filtroStatusConferencia").value;
-      const busca = (document.getElementById("filtroBuscaConferencia").value || "").trim().toLowerCase();
+      var filtroStatus = document.getElementById("filtroStatusConferencia").value;
+      var busca = (document.getElementById("filtroBuscaConferencia").value || "").trim().toLowerCase();
 
-      const visiveis = todos.filter(function (r) {
+      var visiveis = todos.filter(function (r) {
         if (filtroStatus !== "TODOS" && r.statusCode !== filtroStatus) return false;
         if (busca) {
-          const alvo = [r.statusLabel, r.empresa, r.cfop, formatarCfop(r.cfop), r.numero, formatarNumeroNota(r.numero), r.chave, r.data].join(" ").toLowerCase();
+          var alvo = [r.statusLabel, r.empresa, r.cfop, formatarCfop(r.cfop), r.numero, formatarNumeroNota(r.numero), r.chave, r.data].join(" ").toLowerCase();
           if (!alvo.includes(busca)) return false;
         }
         return true;
       });
 
-      const tbody = document.getElementById("tbodyResultadoConferencia");
+      var tbody = document.getElementById("tbodyResultadoConferencia");
       if (visiveis.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-slate-400">Nenhum item corresponde ao filtro selecionado.</td></tr>';
         return;
       }
 
       tbody.innerHTML = visiveis.map(function (r) {
-        const chaveCurta = r.chave ? (r.chave.length > 20 ? (r.chave.slice(0, 10) + "..." + r.chave.slice(-6)) : r.chave) : "-";
+        var chaveCurta = r.chave ? (r.chave.length > 20 ? (r.chave.slice(0, 10) + "..." + r.chave.slice(-6)) : r.chave) : "-";
         return (
           '<tr class="even:bg-slate-50/70 hover:bg-blue-50/60 transition-colors">' +
             '<td class="px-3 py-2.5 text-xs font-semibold whitespace-nowrap">' + escapeHtml(r.statusLabel) + '</td>' +
@@ -1851,13 +1848,13 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function exportarCsvConferencia() {
-      const lista = estado.resultadosConferencia;
+      var lista = estado.resultadosConferencia;
       if (!lista || lista.length === 0) {
         mostrarAlerta("Não há resultado de conferência para exportar.", "warn");
         return;
       }
-      const cab = ["Status", "Destinatario", "CFOP", "Numero Nota", "Chave", "Data", "Valor", "URL Arquivo", "URL Pasta"];
-      const linhas = lista.map(function (r) {
+      var cab = ["Status", "Destinatario", "CFOP", "Numero Nota", "Chave", "Data", "Valor", "URL Arquivo", "URL Pasta"];
+      var linhas = lista.map(function (r) {
         return [
           r.statusLabel,
           r.empresa,
@@ -1871,10 +1868,10 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
         ].map(function (v) { return '"' + String(v || "").replace(/"/g, '""') + '"'; }).join(";");
       });
 
-      const csv = "﻿" + [cab.join(";")].concat(linhas).join("\n");
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
+      var csv = "\uFEFF" + [cab.join(";")].concat(linhas).join("\n");
+      var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
       a.href = url;
       a.download = "conferencia-livro-fiscal-" + new Date().toISOString().slice(0, 10) + ".csv";
       a.click();
@@ -1882,7 +1879,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     }
 
     function atualizarContadorLinhasLivro() {
-      const linhas = document.getElementById("textoLivroFiscal").value
+      var linhas = document.getElementById("textoLivroFiscal").value
         .replace(/\r/g, "")
         .split("\n")
         .map(function (l) { return l.trim(); })
@@ -1925,17 +1922,17 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     });
 
     document.getElementById("inputArquivoLivro").addEventListener("change", async function (e) {
-      const file = e.target.files && e.target.files[0];
+      var file = e.target.files && e.target.files[0];
       if (!file) return;
       try {
         if (file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf") {
-          const textoExtraido = await extrairTextoPdf(file);
-          const textarea = document.getElementById("textoLivroFiscal");
+          var textoExtraido = await extrairTextoPdf(file);
+          var textarea = document.getElementById("textoLivroFiscal");
           textarea.value = textarea.value.trim()
             ? (textarea.value.trim() + "\n" + textoExtraido)
             : textoExtraido;
         } else {
-          const texto = await file.text();
+          var texto = await file.text();
           document.getElementById("textoLivroFiscal").value = texto;
         }
         atualizarContadorLinhasLivro();
@@ -1952,7 +1949,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     document.getElementById("btnExportarCsvConferencia").addEventListener("click", exportarCsvConferencia);
 
     // Modal Fonte de Dados
-    const modal = document.getElementById("modalFonteDados");
+    var modal = document.getElementById("modalFonteDados");
     document.getElementById("btnAbrirFonteDados").addEventListener("click", function () {
       document.getElementById("selectModoFonte").value = estado.modo;
       document.getElementById("inputWebAppUrl").value = estado.webappUrl || FIXED_WEBAPP_URL;
@@ -1976,8 +1973,8 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       }
     });
     document.getElementById("btnSalvarFonteDados").addEventListener("click", function () {
-      const novoModo = document.getElementById("selectModoFonte").value;
-      const novaUrl = (document.getElementById("inputWebAppUrl").value || FIXED_WEBAPP_URL).trim();
+      var novoModo = document.getElementById("selectModoFonte").value;
+      var novaUrl = (document.getElementById("inputWebAppUrl").value || FIXED_WEBAPP_URL).trim();
       estado.modo = novoModo;
       estado.webappUrl = novaUrl;
       localStorage.setItem(STORAGE_KEY_MODE, novoModo);
@@ -1987,21 +1984,21 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
     });
 
     function configurarFaviconELogo() {
-      const candidatos = ["static/logo.png", "logo.png", "./logo.png", "/static/logo.png"];
-      let idx = 0;
-      const tester = new Image();
+      var candidatos = ["static/logo.png", "logo.png", "./logo.png", "/static/logo.png"];
+      var idx = 0;
+      var tester = new Image();
       tester.onload = function () {
-        const urlEncontrada = candidatos[idx];
-        const linkFav = document.getElementById("dynamicFavicon");
-        const linkShort = document.getElementById("dynamicShortcutFavicon");
+        var urlEncontrada = candidatos[idx];
+        var linkFav = document.getElementById("dynamicFavicon");
+        var linkShort = document.getElementById("dynamicShortcutFavicon");
         if (linkFav) linkFav.href = urlEncontrada;
         if (linkShort) linkShort.href = urlEncontrada;
         document.querySelectorAll('img[alt="Logo"]').forEach(function (img) {
           img.src = urlEncontrada;
           img.style.display = "";
         });
-        const fb1 = document.getElementById("headerLogoFallback");
-        const fb2 = document.getElementById("modalLogoFallback");
+        var fb1 = document.getElementById("headerLogoFallback");
+        var fb2 = document.getElementById("modalLogoFallback");
         if (fb1) fb1.style.display = "none";
         if (fb2) fb2.style.display = "none";
       };
@@ -2010,11 +2007,11 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
         if (idx < candidatos.length) {
           tester.src = candidatos[idx];
         } else {
-          const svgFallback = "data:image/svg+xml," + encodeURIComponent(
+          var svgFallback = "data:image/svg+xml," + encodeURIComponent(
             '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0f172a"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" fill="#ffffff" font-family="Arial,sans-serif" font-weight="bold" font-size="28">CF</text></svg>'
           );
-          const linkFav = document.getElementById("dynamicFavicon");
-          const linkShort = document.getElementById("dynamicShortcutFavicon");
+          var linkFav = document.getElementById("dynamicFavicon");
+          var linkShort = document.getElementById("dynamicShortcutFavicon");
           if (linkFav) { linkFav.type = "image/svg+xml"; linkFav.href = svgFallback; }
           if (linkShort) { linkShort.type = "image/svg+xml"; linkShort.href = svgFallback; }
         }
