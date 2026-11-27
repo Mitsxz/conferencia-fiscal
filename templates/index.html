@@ -1468,30 +1468,7 @@ function buscarNoRegistro(map, emp, chave, numero, cnpj) {
       }
       return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">' + escapeHtml(txt) + '</span>';
     }
-      if (nota.statusCor === "AMARELO") {
-        return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300">' + escapeHtml(txt) + '</span>';
-      }
-      if (nota.statusCor === "BRANCO") {
-        return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white text-slate-700 border border-slate-300 shadow-2xs">' + escapeHtml(txt) + '</span>';
-      }
-      return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">' + escapeHtml(txt) + '</span>';
-    }
-      if (nota.statusCor === "AMARELO") {
-        return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300">' + escapeHtml(txt) + '</span>';
-      }
-      if (nota.statusCor === "BRANCO") {
-        return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white text-slate-700 border border-slate-300 shadow-2xs">' + escapeHtml(txt) + '</span>';
-      }
-      return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">' + escapeHtml(txt) + '</span>';
-    }
-      if (nota.statusCor === "AMARELO") {
-        return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300">' + escapeHtml(txt) + '</span>';
-      }
-      if (nota.statusCor === "BRANCO") {
-        return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white text-slate-700 border border-slate-300 shadow-2xs">' + escapeHtml(txt) + '</span>';
-      }
-      return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">' + escapeHtml(txt) + '</span>';
-    }
+
 
     function renderizarBotoesDrive(nota) {
       const driveArq = extrairUrlValida(nota.urlDriveArq) || (ehLinkDrive(nota.urlArquivo) ? extrairUrlValida(nota.urlArquivo) : "");
