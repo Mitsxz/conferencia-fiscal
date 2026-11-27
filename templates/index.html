@@ -392,6 +392,15 @@
       <div class="surface-card rounded-xl overflow-hidden">
         <div class="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-white">
           <div class="flex flex-wrap items-center gap-2">
+            <label for="filtroEmpresaConferencia" class="text-xs font-semibold text-slate-600">
+              Empresa:
+            </label>
+            <select
+              id="filtroEmpresaConferencia"
+              class="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white font-semibold text-slate-800"
+            >
+              <option value="">Todas as empresas</option>
+            </select>
             <label for="filtroStatusConferencia" class="text-xs font-semibold text-slate-600">
               Filtrar resultado:
             </label>
@@ -1406,6 +1415,23 @@
         selectFiltro.value = valorAtual;
       }
 
+      const selectConfEmp = document.getElementById("filtroEmpresaConferencia");
+      if (selectConfEmp) {
+        const valorConfAtual = selectConfEmp.value;
+        const opcoesConf = estado.empresasSelecionadas.size > 0
+          ? estado.empresas.filter(function (e) { return estado.empresasSelecionadas.has(e); })
+          : estado.empresas;
+        selectConfEmp.innerHTML = '<option value="">Todas as empresas</option>' +
+          opcoesConf.map(function (emp) {
+            return '<option value="' + escapeHtml(emp) + '">' + escapeHtml(emp) + '</option>';
+          }).join("");
+        if (opcoesConf.includes(valorConfAtual)) {
+          selectConfEmp.value = valorConfAtual;
+        } else {
+          selectConfEmp.value = "";
+        }
+      }
+
       const containerEmp = document.getElementById("containerEmpresasConferencia");
       containerEmp.innerHTML = estado.empresas.map(function (emp, idx) {
         const ativa = estado.empresasSelecionadas.has(emp);
@@ -1710,7 +1736,8 @@
         return true;
       });
 
-      const itensLivro = parsearLivroFiscal(textoLivro).filter(function (item) {
+      const itensLivroBrutos = parsearLivroFiscal(textoLivro);
+      const itensLivro = itensLivroBrutos.filter(function (item) {
         if (item.empresa && !empresasAlvo.has(item.empresa)) return false;
         if (mesesAlvo.size > 0 && item.data) {
           const mesItem = extrairMesDaData(item.data);
@@ -1804,12 +1831,19 @@
     }
 
     function renderizarResultadoConferencia() {
-      const todos = estado.resultadosConferencia;
-      const noDrive = todos.filter(function (r) { return r.statusCode === "NO_DRIVE"; }).length;
-      const semLinkOuFaltando = todos.filter(function (r) { return r.statusCode === "SEM_LINK_DRIVE" || r.statusCode === "FALTANDO_PLANILHA"; }).length;
-      const apenasPlanilha = todos.filter(function (r) { return r.statusCode === "APENAS_PLANILHA"; }).length;
+      const empFiltroEl = document.getElementById("filtroEmpresaConferencia");
+      const empresaFiltro = empFiltroEl ? String(empFiltroEl.value || "").trim().toUpperCase() : "";
+      const basePorEmpresa = empresaFiltro
+        ? estado.resultadosConferencia.filter(function (r) {
+            return String(r.empresa || "").trim().toUpperCase() === empresaFiltro;
+          })
+        : estado.resultadosConferencia;
 
-      document.getElementById("confMetricTotal").textContent = todos.length;
+      const noDrive = basePorEmpresa.filter(function (r) { return r.statusCode === "NO_DRIVE"; }).length;
+      const semLinkOuFaltando = basePorEmpresa.filter(function (r) { return r.statusCode === "SEM_LINK_DRIVE" || r.statusCode === "FALTANDO_PLANILHA"; }).length;
+      const apenasPlanilha = basePorEmpresa.filter(function (r) { return r.statusCode === "APENAS_PLANILHA"; }).length;
+
+      document.getElementById("confMetricTotal").textContent = basePorEmpresa.length;
       document.getElementById("confMetricNoDrive").textContent = noDrive;
       document.getElementById("confMetricFaltando").textContent = semLinkOuFaltando;
       document.getElementById("confMetricApenasPlanilha").textContent = apenasPlanilha;
@@ -1817,7 +1851,8 @@
       const filtroStatus = document.getElementById("filtroStatusConferencia").value;
       const busca = (document.getElementById("filtroBuscaConferencia").value || "").trim().toLowerCase();
 
-      const visiveis = todos.filter(function (r) {
+      const visiveis = basePorEmpresa.filter(function (r) {
+        if (empresaFiltro && String(r.empresa || "").trim().toUpperCase() !== empresaFiltro) return false;
         if (filtroStatus !== "TODOS" && r.statusCode !== filtroStatus) return false;
         if (busca) {
           const alvo = [r.statusLabel, r.empresa, r.cfop, formatarCfop(r.cfop), r.numero, formatarNumeroNota(r.numero), r.chave, r.data].join(" ").toLowerCase();
@@ -1961,6 +1996,7 @@
     });
 
     document.getElementById("btnExecutarConferencia").addEventListener("click", executarConferencia);
+    document.getElementById("filtroEmpresaConferencia").addEventListener("change", renderizarResultadoConferencia);
     document.getElementById("filtroStatusConferencia").addEventListener("change", renderizarResultadoConferencia);
     document.getElementById("filtroBuscaConferencia").addEventListener("input", renderizarResultadoConferencia);
     document.getElementById("btnExportarCsvConferencia").addEventListener("click", exportarCsvConferencia);
